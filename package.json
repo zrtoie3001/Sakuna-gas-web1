@@ -1,0 +1,27 @@
+{
+  "name": "sakunna-gas-app",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently \"npm run dev:customer\" \"npm run dev:admin\" \"npm run dev:driver\" \"npm run dev:backend\"",
+    "dev:customer": "vite --port 5173",
+    "dev:admin": "cd admin && npm run dev",
+    "dev:driver": "cd driver && npm run dev",
+    "dev:backend": "cd backend && npm run dev",
+    "install:all": "npm install && cd admin && npm install && cd ../driver && npm install && cd ../backend && npm install",
+    "build": "npm run build:customer && npm run build:admin && npm run build:driver",
+    "build:customer": "vite build",
+    "build:admin": "cd admin && npm run build",
+    "build:driver": "cd driver && npm run build"
+  },
+  "dependencies": {
+    "@line/liff": "^2.22.4",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.2.1",
+    "concurrently": "^8.2.2",
+    "vite": "^5.1.4"
+  }
+}

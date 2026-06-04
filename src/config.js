@@ -1,0 +1,121 @@
+// ─────────────────────────────────────────────
+//  ร้านสกุณาแก๊ส — ข้อมูลราคาและโซน
+// ─────────────────────────────────────────────
+
+// พิกัดร้านสกุณาแก๊ส (ถ.พหลโยธิน 48)
+export const SHOP_LAT = 13.8720;
+export const SHOP_LNG = 100.5780;
+
+// โซนจัดส่ง (กำหนดจากระยะทางจากร้าน)
+export const ZONES = {
+  A: { label: "โซน A", desc: "ใกล้ร้าน (≤ 3 กม.)", maxKm: 3, color: "#059669" },
+  B: { label: "โซน B", desc: "ไกลขึ้น (3–7 กม.)",  maxKm: 7, color: "#D97706" },
+};
+
+// ยี่ห้อแก๊ส
+// image: ใช้ URL รูปจริง หรือเปลี่ยนเป็น path รูปของคุณเอง
+export const BRANDS = [
+  {
+    id: "ptt",
+    name: "ปตท.",
+    color: "#DC2626",
+    bgColor: "#FEF2F2",
+    // รูปจาก URL สาธารณะ (เปลี่ยนเป็นรูปจริงของถังแต่ละยี่ห้อได้เลย)
+    image: "https://upload.wikimedia.org/wikipedia/th/thumb/5/52/PTT_Logo.svg/200px-PTT_Logo.svg.png",
+    imageFallback: "🔴",
+  },
+  {
+    id: "pap",
+    name: "PAP",
+    color: "#1D4ED8",
+    bgColor: "#EFF6FF",
+    image: null, // ใส่ URL รูป PAP ที่นี่
+    imageFallback: "🔵",
+  },
+  {
+    id: "world",
+    name: "เวิลด์",
+    color: "#059669",
+    bgColor: "#ECFDF5",
+    image: null,
+    imageFallback: "🟢",
+  },
+  {
+    id: "unique",
+    name: "ยูนิค",
+    color: "#D97706",
+    bgColor: "#FFFBEB",
+    image: null,
+    imageFallback: "🟠",
+  },
+  {
+    id: "siam",
+    name: "สยาม",
+    color: "#7C3AED",
+    bgColor: "#F5F3FF",
+    image: null,
+    imageFallback: "🟣",
+  },
+];
+
+// ราคาสินค้า
+// shopPrice: ราคาร้านค้า แยกตามโซน A/B
+// homePrice: ราคาบ้านพักอาศัย
+export const PRODUCTS = [
+  {
+    id: "p4",
+    name: "ถัง 4 กก.",
+    kg: 4,
+    homePrice: 200,
+    shopPrice: { A: 200, B: 200 },   // ราคาเท่ากัน ทุกโซน
+    desc: "เหมาะสำหรับบ้านพักอาศัยทั่วไป",
+    hot: false,
+  },
+  {
+    id: "p7",
+    name: "ถัง 7 กก.",
+    kg: 7,
+    homePrice: 305,
+    shopPrice: { A: 285, B: 300 },
+    desc: "ขนาดกลาง เหมาะครัวเรือนและร้านค้า",
+    hot: false,
+  },
+  {
+    id: "p15",
+    name: "ถัง 15 กก.",
+    kg: 15,
+    homePrice: 450,
+    shopPrice: { A: 435, B: 440 },
+    desc: "ขายดีที่สุด เหมาะบ้านขนาดกลาง-ใหญ่",
+    hot: true,
+  },
+  {
+    id: "p48",
+    name: "ถัง 48 กก.",
+    kg: 48,
+    homePrice: 1495,
+    shopPrice: { A: 1495, B: 1495 }, // ราคาเท่ากัน
+    desc: "สำหรับร้านอาหาร / ใช้งานหนัก",
+    hot: false,
+  },
+];
+
+// คำนวณระยะทาง (Haversine formula)
+export function getDistanceKm(lat1, lng1, lat2, lng2) {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1 * Math.PI / 180) *
+    Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+// กำหนดโซนจากระยะทาง
+export function getZoneFromDist(km) {
+  if (km <= ZONES.A.maxKm) return "A";
+  if (km <= ZONES.B.maxKm) return "B";
+  return null; // นอกพื้นที่
+}

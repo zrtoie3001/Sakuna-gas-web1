@@ -1,0 +1,17 @@
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Sarabun', 'Noto Sans Thai', sans-serif;
+  background: #F4F6FB;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior: none;
+}
+
+button { font-family: inherit; }
+textarea, input { font-family: inherit; }
+
+/* Smooth transitions */
+* { -webkit-font-smoothing: antialiased; }
+
+/* Map container fix */
+.gm-style { font-family: 'Sarabun', sans-serif !important; }
