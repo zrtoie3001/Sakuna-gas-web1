@@ -252,7 +252,7 @@ export default function App() {
         setDiscountMsg({ ok: true, text: `ลดได้ ฿${data.discount.toLocaleString()}!${restricted ? " (เฉพาะสินค้าที่ร่วมรายการ)" : ""}` });
         ls.setDiscount(discountInput.trim().toUpperCase());
       }
-    } catch { setDiscountMsg({ ok: false, text: "ตรวจสอบไม่ได้ลองใหม่" }); }
+    } catch (e) { setDiscountMsg({ ok: false, text: e.message || "ตรวจสอบไม่ได้ กรุณาลองใหม่" }); }
     finally { setValidatingCode(false); }
   }
 

@@ -37,7 +37,7 @@ async function deleteCode(req, res) {
   } catch (e) { res.status(500).json({ error: e.message }); }
 }
 
-async function validateCode(req, res) {
+async function validateCode(req, res) { try {
   // cart: [{ productId, subtotal }] — array of items in the cart
   // Falls back to single productId+subtotal for backwards compat
   const { code, cart, subtotal: singleSubtotal, productId: singleProductId } = req.body;
@@ -73,6 +73,7 @@ async function validateCode(req, res) {
     : Math.min(Number(dc.value), eligibleSubtotal);
 
   res.json({ valid: true, discount, applicableProductIds, description: dc.description });
+  } catch (e) { res.status(500).json({ error: e.message }); }
 }
 
 module.exports = { listCodes, createCode, updateCode, deleteCode, validateCode };
