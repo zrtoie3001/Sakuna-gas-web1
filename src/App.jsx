@@ -170,6 +170,7 @@ export default function App() {
   const [discountInput, setDiscountInput] = useState("");
   const [discountCode, setDiscountCode]   = useState("");
   const [discountAmount, setDiscountAmount] = useState(0);
+  const [discountApplicableIds, setDiscountApplicableIds] = useState([]); // productIds the discount applies to
   const [discountMsg, setDiscountMsg]     = useState(null);
   const [validatingCode, setValidatingCode] = useState(false);
 
@@ -236,14 +237,19 @@ export default function App() {
     try {
       const res = await fetch(`${API}/api/v1/discounts/validate`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code: discountInput.trim().toUpperCase(), subtotal: cartSubtotal, productId: cart[0]?.productId }),
+        body: JSON.stringify({
+          code: discountInput.trim().toUpperCase(),
+          cart: cart.map(i => ({ productId: i.productId, subtotal: Number(i.unitPrice) * i.qty })),
+        }),
       });
       const data = await res.json();
-      if (!res.ok) { setDiscountMsg({ ok: false, text: data.error }); setDiscountAmount(0); setDiscountCode(""); ls.setDiscount(""); }
+      if (!res.ok) { setDiscountMsg({ ok: false, text: data.error }); setDiscountAmount(0); setDiscountCode(""); setDiscountApplicableIds([]); ls.setDiscount(""); }
       else {
         setDiscountCode(discountInput.trim().toUpperCase());
         setDiscountAmount(data.discount);
-        setDiscountMsg({ ok: true, text: `ลดได้ ฿${data.discount.toLocaleString()}!` });
+        setDiscountApplicableIds(data.applicableProductIds || []);
+        const restricted = data.applicableProductIds?.length < cart.length;
+        setDiscountMsg({ ok: true, text: `ลดได้ ฿${data.discount.toLocaleString()}!${restricted ? " (เฉพาะสินค้าที่ร่วมรายการ)" : ""}` });
         ls.setDiscount(discountInput.trim().toUpperCase());
       }
     } catch { setDiscountMsg({ ok: false, text: "ตรวจสอบไม่ได้ลองใหม่" }); }
@@ -262,7 +268,9 @@ export default function App() {
             qty: item.qty, customerName, customerPhone,
             deliveryLat: locData.lat, deliveryLng: locData.lng,
             deliveryAddress: locData.address, paymentMethod,
-            discountCode: discountCode || undefined, note,
+            // Apply discount only to items the code is valid for
+            discountCode: (discountCode && (discountApplicableIds.length === 0 || discountApplicableIds.includes(item.productId))) ? discountCode : undefined,
+            note,
           }),
         });
         const data = await res.json();
@@ -290,7 +298,7 @@ export default function App() {
     // Keep discount code if saved
     const savedCode = ls.getDiscount();
     setDiscountInput(savedCode); setDiscountCode(savedCode);
-    setDiscountAmount(0); setDiscountMsg(null);
+    setDiscountAmount(0); setDiscountApplicableIds([]); setDiscountMsg(null);
   }
 
   const canNext = [
@@ -515,12 +523,24 @@ export default function App() {
                     <span style={{ color: WHITE, fontWeight: 800, fontSize: 14 }}>สกุณา<span style={{ color: ORANGE }}>แก๊ส</span></span>
                   </div>
                   <div style={{ padding: "8px 16px 14px" }}>
-                    {cart.map((item, i) => (
-                      <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid #F3F4F6", fontSize: 13 }}>
-                        <span style={{ color: GRAY }}>{item.brandName} · {item.productName} ×{item.qty}</span>
-                        <span style={{ color: NAVY, fontWeight: 700 }}>฿{(Number(item.unitPrice) * item.qty).toLocaleString()}</span>
-                      </div>
-                    ))}
+                    {cart.map((item, i) => {
+                      const itemSubtotal = Number(item.unitPrice) * item.qty;
+                      const hasDiscount = discountAmount > 0 && (discountApplicableIds.length === 0 || discountApplicableIds.includes(item.productId));
+                      return (
+                        <div key={i} style={{ padding: "8px 0", borderBottom: "1px solid #F3F4F6", fontSize: 13 }}>
+                          <div style={{ display: "flex", justifyContent: "space-between" }}>
+                            <span style={{ color: GRAY }}>{item.brandName} · {item.productName} ×{item.qty}</span>
+                            <span style={{ color: NAVY, fontWeight: 700 }}>฿{itemSubtotal.toLocaleString()}</span>
+                          </div>
+                          {hasDiscount && (
+                            <div style={{ display: "flex", justifyContent: "space-between", marginTop: 3 }}>
+                              <span style={{ color: "#16A34A", fontSize: 11 }}>🏷 ส่วนลด {discountCode}</span>
+                              <span style={{ color: "#16A34A", fontSize: 11, fontWeight: 700 }}>-฿{discountAmount.toLocaleString()}</span>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                     {[
                       ["👤 ชื่อ", customerName],
                       ["📞 เบอร์", customerPhone],
@@ -534,13 +554,6 @@ export default function App() {
                         <span style={{ color: NAVY, maxWidth: "62%", textAlign: "right", wordBreak: "break-word" }}>{v}</span>
                       </div>
                     ))}
-                    {/* Discount */}
-                    {discountAmount > 0 && (
-                      <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid #F3F4F6", fontSize: 13 }}>
-                        <span style={{ color: "#16A34A" }}>🏷 ส่วนลด ({discountCode})</span>
-                        <span style={{ color: "#16A34A", fontWeight: 700 }}>-฿{discountAmount.toLocaleString()}</span>
-                      </div>
-                    )}
                     <div style={{ display: "flex", justifyContent: "space-between", padding: "10px 0", fontSize: 16, fontWeight: 900 }}>
                       <span style={{ color: GRAY }}>💰 ยอดรวม</span>
                       <span style={{ color: ORANGE }}>฿{cartTotal.toLocaleString()}</span>
