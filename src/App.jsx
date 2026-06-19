@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import { BRANDS, PRODUCTS, ZONES, getDistanceKm, getZoneFromDist } from "./config.js";
+import { BRANDS, PRODUCTS, ZONES, DISCOUNT_CODES, getDistanceKm, getZoneFromDist } from "./config.js";
 import MapPicker from "./components/MapPicker.jsx";
 
 // ── Design tokens ──────────────────────────────────────────────────────────
@@ -117,13 +117,16 @@ function BrandImage({ brand, size = 56 }) {
 // ── Main App ─────────────────────────────────────────────────────────────────
 export default function App() {
   const [step, setStep]         = useState(0);
-  const [custType, setCustType] = useState(null);   // "home" | "shop"
-  const [brand, setBrand]       = useState(null);   // brand id
-  const [product, setProduct]   = useState(null);   // product id
+  const [custType, setCustType] = useState(null);
+  const [brand, setBrand]       = useState(null);
+  const [product, setProduct]   = useState(null);
   const [qty, setQty]           = useState(1);
-  const [locData, setLocData]   = useState(null);   // { lat, lng, address, distKm, zone }
+  const [locData, setLocData]   = useState(null);
   const [note, setNote]         = useState("");
   const [done, setDone]         = useState(false);
+  const [discountCode, setDiscountCode] = useState(() => localStorage.getItem("discountCode") || "");
+  const [discountInput, setDiscountInput] = useState("");
+  const [discountMsg, setDiscountMsg]     = useState(null); // { ok, text }
 
   const prod      = PRODUCTS.find(p => p.id === product);
   const brandObj  = BRANDS.find(b => b.id === brand);
@@ -131,7 +134,8 @@ export default function App() {
   const unitPrice = prod
     ? (custType === "shop" ? prod.shopPrice[zoneKey] : prod.homePrice)
     : 0;
-  const total = unitPrice * qty;
+  const discountAmt = DISCOUNT_CODES[discountCode?.toLowerCase()] || 0;
+  const total = Math.max(0, unitPrice * qty - discountAmt);
 
   // ส่งผ่านไป MapPicker
   const handleLocationSelect = useCallback((data) => {
@@ -151,6 +155,17 @@ export default function App() {
   function handleNext() {
     if (step < 4) setStep(step + 1);
     else setDone(true);
+  }
+
+  function applyDiscount() {
+    const key = discountInput.trim().toLowerCase();
+    if (DISCOUNT_CODES[key]) {
+      setDiscountCode(key);
+      localStorage.setItem("discountCode", key);
+      setDiscountMsg({ ok: true, text: `ใช้โค้ดได้! ลด ฿${DISCOUNT_CODES[key]}` });
+    } else {
+      setDiscountMsg({ ok: false, text: "โค้ดไม่ถูกต้อง" });
+    }
   }
 
   function handleReset() {
@@ -421,6 +436,48 @@ export default function App() {
             <SectionTitle icon="✅" title="ตรวจสอบออเดอร์"
               sub="กรุณาตรวจสอบข้อมูลก่อนยืนยัน"/>
 
+            {/* ─── Discount Code ─── */}
+            <div style={{ marginBottom: 14 }}>
+              {discountCode && DISCOUNT_CODES[discountCode] ? (
+                <div style={{
+                  background: "#F0FDF4", border: "1.5px solid #86EFAC",
+                  borderRadius: 12, padding: "10px 14px",
+                  display: "flex", justifyContent: "space-between", alignItems: "center",
+                }}>
+                  <span style={{ fontSize: 13, color: "#166534", fontWeight: 700 }}>
+                    🏷 โค้ด <strong>{discountCode}</strong> · ลด ฿{DISCOUNT_CODES[discountCode]}
+                  </span>
+                  <button onClick={() => { setDiscountCode(""); localStorage.removeItem("discountCode"); setDiscountMsg(null); }}
+                    style={{ background: "none", border: "none", color: "#6B7280", cursor: "pointer", fontSize: 12 }}>
+                    เปลี่ยน
+                  </button>
+                </div>
+              ) : (
+                <div style={{ display: "flex", gap: 8 }}>
+                  <input
+                    value={discountInput}
+                    onChange={e => { setDiscountInput(e.target.value); setDiscountMsg(null); }}
+                    onKeyDown={e => e.key === "Enter" && applyDiscount()}
+                    placeholder="มีโค้ดส่วนลด? ใส่ที่นี่"
+                    style={{
+                      flex: 1, padding: "10px 12px", borderRadius: 10,
+                      border: `1.5px solid ${discountMsg?.ok === false ? "#FCA5A5" : "#E5E7EB"}`,
+                      fontSize: 13, outline: "none",
+                    }}
+                  />
+                  <button onClick={applyDiscount} style={{
+                    padding: "10px 16px", borderRadius: 10, border: "none",
+                    background: NAVY, color: WHITE, fontWeight: 700, fontSize: 13, cursor: "pointer",
+                  }}>ใช้โค้ด</button>
+                </div>
+              )}
+              {discountMsg && !discountCode && (
+                <div style={{ fontSize: 12, marginTop: 6, color: discountMsg.ok ? "#16A34A" : "#DC2626" }}>
+                  {discountMsg.text}
+                </div>
+              )}
+            </div>
+
             <div style={{
               background: WHITE, borderRadius: 16, overflow: "hidden",
               boxShadow: "0 2px 16px rgba(0,0,0,.08)", marginBottom: 14,
@@ -447,6 +504,7 @@ export default function App() {
                   ["📍 ที่อยู่",  locData?.address],
                   ["📏 ระยะทาง", `~${locData?.distKm?.toFixed(1)} กม.`],
                   note ? ["💬 หมายเหตุ", note] : null,
+                  discountAmt > 0 ? ["🏷 ส่วนลด", `-฿${discountAmt}`] : null,
                   ["💰 ยอดรวม",  `฿${total.toLocaleString()}`],
                 ].filter(Boolean).map(([k, v]) => (
                   <div key={k} style={{

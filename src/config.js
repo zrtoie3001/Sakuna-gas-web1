@@ -3,8 +3,13 @@
 // ─────────────────────────────────────────────
 
 // พิกัดร้านสกุณาแก๊ส (ถ.พหลโยธิน 48)
-export const SHOP_LAT = 13.8720;
-export const SHOP_LNG = 100.5780;
+export const SHOP_LAT = 13.872760086238907;
+export const SHOP_LNG = 100.62466719582359;
+
+export const DISCOUNT_CODES = {
+  sakuna10: 10,
+  sakuna15: 15,
+};
 
 // โซนจัดส่ง (กำหนดจากระยะทางจากร้าน)
 export const ZONES = {
