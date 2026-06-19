@@ -7,10 +7,10 @@ const User = sequelize.define("User", {
   name:         { type: DataTypes.STRING(100), allowNull: false },
   email:        { type: DataTypes.STRING(150), unique: true },
   phone:        { type: DataTypes.STRING(20) },
-  passwordHash: { type: DataTypes.STRING(255), allowNull: false, field: "password_hash" },
+  passwordHash: { type: DataTypes.STRING(255), allowNull: false },
   role:         { type: DataTypes.ENUM("admin", "driver"), defaultValue: "driver" },
-  isActive:     { type: DataTypes.BOOLEAN, defaultValue: true, field: "is_active" },
-  lastLocation: { type: DataTypes.JSONB, field: "last_location" },
+  isActive:     { type: DataTypes.BOOLEAN, defaultValue: true },
+  lastLocation: { type: DataTypes.JSONB },
 }, { tableName: "users", underscored: true });
 
 // ── Customer ─────────────────────────────────────────────────────────────────
@@ -21,18 +21,18 @@ const Customer = sequelize.define("Customer", {
   phone:      { type: DataTypes.STRING(20) },
   pictureUrl: { type: DataTypes.TEXT },
   totalOrders:{ type: DataTypes.INTEGER, defaultValue: 0 },
-}, { tableName: "customers" });
+}, { tableName: "customers", underscored: true });
 
 // ── DeliveryAddress ───────────────────────────────────────────────────────────
 const DeliveryAddress = sequelize.define("DeliveryAddress", {
   id:          { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
   customerId:  { type: DataTypes.UUID, allowNull: false },
-  label:       { type: DataTypes.STRING(50), defaultValue: "บ้าน" }, // บ้าน, ร้านค้า, คอนโด
+  label:       { type: DataTypes.STRING(50), defaultValue: "บ้าน" },
   address:     { type: DataTypes.TEXT },
   lat:         { type: DataTypes.DECIMAL(10, 7) },
   lng:         { type: DataTypes.DECIMAL(10, 7) },
   isDefault:   { type: DataTypes.BOOLEAN, defaultValue: false },
-}, { tableName: "delivery_addresses" });
+}, { tableName: "delivery_addresses", underscored: true });
 
 // ── Brand ─────────────────────────────────────────────────────────────────────
 const Brand = sequelize.define("Brand", {
@@ -43,7 +43,7 @@ const Brand = sequelize.define("Brand", {
   bgColor:   { type: DataTypes.STRING(20), defaultValue: "#EEF2FF" },
   isActive:  { type: DataTypes.BOOLEAN, defaultValue: true },
   sortOrder: { type: DataTypes.INTEGER, defaultValue: 0 },
-}, { tableName: "brands" });
+}, { tableName: "brands", underscored: true });
 
 // ── Product ───────────────────────────────────────────────────────────────────
 const Product = sequelize.define("Product", {
@@ -55,7 +55,7 @@ const Product = sequelize.define("Product", {
   isHot:       { type: DataTypes.BOOLEAN, defaultValue: false },
   isActive:    { type: DataTypes.BOOLEAN, defaultValue: true },
   sortOrder:   { type: DataTypes.INTEGER, defaultValue: 0 },
-}, { tableName: "products" });
+}, { tableName: "products", underscored: true });
 
 // ── DeliveryZone ──────────────────────────────────────────────────────────────
 const DeliveryZone = sequelize.define("DeliveryZone", {
@@ -66,7 +66,7 @@ const DeliveryZone = sequelize.define("DeliveryZone", {
   deliveryFee:  { type: DataTypes.DECIMAL(10, 2), defaultValue: 0 },
   color:        { type: DataTypes.STRING(20) },
   isActive:     { type: DataTypes.BOOLEAN, defaultValue: true },
-}, { tableName: "delivery_zones" });
+}, { tableName: "delivery_zones", underscored: true });
 
 // ── ProductZonePrice (ราคาร้านค้าแยกตามโซน) ──────────────────────────────────
 const ProductZonePrice = sequelize.define("ProductZonePrice", {
@@ -74,7 +74,7 @@ const ProductZonePrice = sequelize.define("ProductZonePrice", {
   productId: { type: DataTypes.UUID },
   zoneId:    { type: DataTypes.UUID },
   price:     { type: DataTypes.DECIMAL(10, 2) },
-}, { tableName: "product_zone_prices" });
+}, { tableName: "product_zone_prices", underscored: true });
 
 // ── DiscountCode ──────────────────────────────────────────────────────────────
 const DiscountCode = sequelize.define("DiscountCode", {
@@ -83,13 +83,13 @@ const DiscountCode = sequelize.define("DiscountCode", {
   type:         { type: DataTypes.ENUM("fixed", "percent"), allowNull: false },
   value:        { type: DataTypes.DECIMAL(10, 2), allowNull: false },
   minOrderAmount:{ type: DataTypes.DECIMAL(10, 2), defaultValue: 0 },
-  maxUses:      { type: DataTypes.INTEGER },                // null = ไม่จำกัด
+  maxUses:      { type: DataTypes.INTEGER },
   usedCount:    { type: DataTypes.INTEGER, defaultValue: 0 },
-  expiresAt:    { type: DataTypes.DATE },                   // null = ไม่หมดอายุ
-  allowedZones: { type: DataTypes.ARRAY(DataTypes.STRING) }, // null = ทุกโซน
+  expiresAt:    { type: DataTypes.DATE },
+  allowedZones: { type: DataTypes.ARRAY(DataTypes.STRING) },
   isActive:     { type: DataTypes.BOOLEAN, defaultValue: true },
   description:  { type: DataTypes.TEXT },
-}, { tableName: "discount_codes" });
+}, { tableName: "discount_codes", underscored: true });
 
 // ── Order ─────────────────────────────────────────────────────────────────────
 const Order = sequelize.define("Order", {
@@ -118,19 +118,12 @@ const Order = sequelize.define("Order", {
   slipUrl:         { type: DataTypes.TEXT },
   note:            { type: DataTypes.TEXT },
   status: {
-    type: DataTypes.ENUM(
-      "pending",      // รับคำสั่งซื้อแล้ว
-      "preparing",    // กำลังเตรียมสินค้า
-      "out_for_delivery", // พนักงานกำลังออกส่ง
-      "near_destination", // ใกล้ถึงปลายทาง
-      "delivered",    // ส่งสำเร็จ
-      "cancelled"
-    ),
+    type: DataTypes.ENUM("pending", "preparing", "out_for_delivery", "near_destination", "delivered", "cancelled"),
     defaultValue: "pending",
   },
   estimatedMinutes: { type: DataTypes.INTEGER },
   isOffHours:      { type: DataTypes.BOOLEAN, defaultValue: false },
-}, { tableName: "orders" });
+}, { tableName: "orders", underscored: true });
 
 // ── OrderStatusLog ────────────────────────────────────────────────────────────
 const OrderStatusLog = sequelize.define("OrderStatusLog", {
@@ -139,7 +132,7 @@ const OrderStatusLog = sequelize.define("OrderStatusLog", {
   status:    { type: DataTypes.STRING(50) },
   note:      { type: DataTypes.TEXT },
   changedBy: { type: DataTypes.UUID },
-}, { tableName: "order_status_logs" });
+}, { tableName: "order_status_logs", underscored: true });
 
 // ── Associations ──────────────────────────────────────────────────────────────
 Customer.hasMany(DeliveryAddress, { foreignKey: "customerId", as: "addresses" });
