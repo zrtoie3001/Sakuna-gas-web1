@@ -1,27 +1,11 @@
-import { useEffect, useRef } from "react";
-import generatePayload from "promptpay-qr";
-import QRCode from "qrcode";
-
 const NAVY   = "#1A2B6B";
 const NAVY2  = "#0F1D52";
 const ORANGE = "#F47B20";
 const WHITE  = "#FFFFFF";
 const GRAY   = "#6B7280";
 
-const PROMPTPAY_ID = import.meta.env.VITE_PROMPTPAY_ID || "0971213054";
-
 export default function QRPayment({ order, onDone }) {
-  const canvasRef = useRef(null);
   const total = Number(order.total);
-
-  useEffect(() => {
-    const payload = generatePayload(PROMPTPAY_ID, { amount: total });
-    QRCode.toCanvas(canvasRef.current, payload, {
-      width: 240,
-      margin: 2,
-      color: { dark: "#1A2B6B", light: "#FFFFFF" },
-    });
-  }, [total]);
 
   return (
     <div style={{ minHeight: "100vh", background: "#F4F6FB",
@@ -50,20 +34,18 @@ export default function QRPayment({ order, onDone }) {
           </div>
         </div>
 
-        {/* QR Code */}
+        {/* QR Code image */}
         <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
           <div style={{ padding: 12, border: `3px solid ${NAVY}`, borderRadius: 16,
             background: WHITE, display: "inline-block" }}>
-            <canvas ref={canvasRef} style={{ display: "block" }} />
+            <img src="/images/qr-promptpay.png" alt="QR PromptPay"
+              style={{ width: 240, height: 240, objectFit: "contain", display: "block" }} />
           </div>
         </div>
 
-        <div style={{ fontSize: 12, color: GRAY, marginBottom: 8 }}>
-          สแกน QR ด้วยแอปธนาคารหรือวอลเล็ตของคุณ
-        </div>
-        <div style={{ fontSize: 11, color: GRAY, marginBottom: 24, background: "#F8FAFC",
+        <div style={{ fontSize: 12, color: GRAY, marginBottom: 24, background: "#F8FAFC",
           borderRadius: 10, padding: "8px 14px" }}>
-          📞 PromptPay: <strong style={{ color: NAVY }}>{PROMPTPAY_ID}</strong>
+          สแกน QR ด้วยแอปธนาคารหรือวอลเล็ตของคุณ
         </div>
 
         {/* Confirm button */}
