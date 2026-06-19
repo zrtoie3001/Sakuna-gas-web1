@@ -12,6 +12,12 @@ const client = new line.messagingApi.MessagingApiClient({
 
 const LIFF_URL = `https://liff.line.me/${process.env.LINE_LIFF_ID}`;
 
+router.post("/", middleware, async (req, res) => {
+  const events = req.body.events || [];
+  await Promise.all(events.map(handleEvent));
+  res.sendStatus(200);
+});
+
 router.post("/line", middleware, async (req, res) => {
   const events = req.body.events || [];
   await Promise.all(events.map(handleEvent));
