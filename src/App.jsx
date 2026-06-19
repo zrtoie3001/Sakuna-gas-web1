@@ -130,7 +130,7 @@ export default function App() {
   const prod      = PRODUCTS.find(p => p.id === product);
   const brandObj  = BRANDS.find(b => b.id === brand);
   const unitPrice = prod ? prod.homePrice : 0;
-  const discountAmt = DISCOUNT_CODES[discountCode?.toLowerCase()] || 0;
+  const discountAmt = (product === "p15" && DISCOUNT_CODES[discountCode?.toLowerCase()]) || 0;
   const total = Math.max(0, unitPrice * qty - discountAmt);
 
   // ส่งผ่านไป MapPicker
@@ -396,7 +396,7 @@ export default function App() {
                     value={discountInput}
                     onChange={e => { setDiscountInput(e.target.value); setDiscountMsg(null); }}
                     onKeyDown={e => e.key === "Enter" && applyDiscount()}
-                    placeholder="มีโค้ดส่วนลด? ใส่ที่นี่"
+                    placeholder="โค้ดส่วนลด (สำหรับถัง 15 กก.)"
                     style={{
                       flex: 1, padding: "10px 12px", borderRadius: 10,
                       border: `1.5px solid ${discountMsg?.ok === false ? "#FCA5A5" : "#E5E7EB"}`,
