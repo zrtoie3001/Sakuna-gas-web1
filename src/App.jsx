@@ -104,18 +104,26 @@ function SavedOrderCard({ saved, brands, products, lineUserId, onReordered }) {
   async function handleReorder() {
     setSubmitting(true);
     try {
-      const res = await fetch(`${API}/api/v1/orders`, {
+      const base = {
+        lineUserId, brandId: saved.brandId, productId: saved.productId,
+        qty: saved.qty, customerName: saved.customerName,
+        customerPhone: saved.customerPhone, deliveryLat: saved.lat,
+        deliveryLng: saved.lng, deliveryAddress: saved.address,
+        paymentMethod: saved.paymentMethod, note: saved.note || "",
+      };
+      // Try with saved discount code first; if rejected, retry without it
+      let res = await fetch(`${API}/api/v1/orders`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          lineUserId, brandId: saved.brandId, productId: saved.productId,
-          qty: saved.qty, customerName: saved.customerName,
-          customerPhone: saved.customerPhone, deliveryLat: saved.lat,
-          deliveryLng: saved.lng, deliveryAddress: saved.address,
-          paymentMethod: saved.paymentMethod, note: saved.note || "",
-          discountCode: saved.discountCode || undefined,
-        }),
+        body: JSON.stringify({ ...base, discountCode: saved.discountCode || undefined }),
       });
-      const data = await res.json();
+      let data = await res.json();
+      if (!res.ok && saved.discountCode) {
+        res = await fetch(`${API}/api/v1/orders`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(base),
+        });
+        data = await res.json();
+      }
       if (!res.ok) throw new Error(data.error || "เกิดข้อผิดพลาด");
       onReordered({ ...data.order, _showQR: saved.paymentMethod === "qr" });
     } catch (e) { alert(e.message); }
