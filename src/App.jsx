@@ -5,36 +5,31 @@ import QRPayment from "./components/QRPayment.jsx";
 
 const LIFF_ID = "2010449303-edxrP9ho";
 const API = import.meta.env.VITE_API_URL || "";
+const NAVY = "#1A2B6B", NAVY2 = "#0F1D52", ORANGE = "#F47B20", ORANGE2 = "#E55C00";
+const WHITE = "#FFFFFF", LGRAY = "#F4F6FB", GRAY = "#6B7280";
 
-const NAVY   = "#1A2B6B";
-const NAVY2  = "#0F1D52";
-const ORANGE = "#F47B20";
-const ORANGE2= "#E55C00";
-const WHITE  = "#FFFFFF";
-const LGRAY  = "#F4F6FB";
-const GRAY   = "#6B7280";
+const STEPS = ["เลือกสินค้า", "ข้อมูล", "ที่อยู่", "ยืนยัน"];
 
-const STEPS = ["ยี่ห้อ", "สินค้า", "ข้อมูล", "ที่อยู่", "ยืนยัน"];
-
-// ── localStorage helpers ─────────────────────────────────────────────────────
-function saveCustomerInfo(name, phone, paymentMethod) {
-  localStorage.setItem("skg_customer", JSON.stringify({ name, phone, paymentMethod }));
-}
-function loadCustomerInfo() {
-  try { return JSON.parse(localStorage.getItem("skg_customer") || "null"); } catch { return null; }
-}
-function saveLastOrder(data) {
-  localStorage.setItem("skg_last_order", JSON.stringify(data));
-}
-function loadLastOrder() {
-  try { return JSON.parse(localStorage.getItem("skg_last_order") || "null"); } catch { return null; }
-}
+// ── localStorage ─────────────────────────────────────────────────────────────
+const ls = {
+  getCustomer: () => { try { return JSON.parse(localStorage.getItem("skg_customer") || "null"); } catch { return null; } },
+  setCustomer: (v) => localStorage.setItem("skg_customer", JSON.stringify(v)),
+  getSavedOrders: () => { try { return JSON.parse(localStorage.getItem("skg_saved_orders") || "[]"); } catch { return []; } },
+  setSavedOrders: (v) => localStorage.setItem("skg_saved_orders", JSON.stringify(v.slice(0, 10))),
+  getDiscount: () => localStorage.getItem("skg_discount") || "",
+  setDiscount: (v) => v ? localStorage.setItem("skg_discount", v) : localStorage.removeItem("skg_discount"),
+  addSavedOrder(order) {
+    const saved = this.getSavedOrders();
+    const idx = saved.findIndex(s => s.brandId === order.brandId && s.productId === order.productId);
+    if (idx >= 0) saved.splice(idx, 1);
+    saved.unshift(order);
+    this.setSavedOrders(saved);
+  },
+};
 
 function Logo({ size = 48 }) {
-  return (
-    <img src="/images/Logo Sanuka.png" alt="สกุณาแก๊ส" width={size} height={size}
-      style={{ objectFit: "contain", borderRadius: "50%" }} />
-  );
+  return <img src="/images/Logo Sanuka.png" alt="สกุณาแก๊ส" width={size} height={size}
+    style={{ objectFit: "contain", borderRadius: "50%" }} />;
 }
 
 function StepBar({ step }) {
@@ -43,159 +38,152 @@ function StepBar({ step }) {
       {STEPS.map((s, i) => (
         <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center" }}>
           <div style={{ display: "flex", alignItems: "center", width: "100%" }}>
-            {i > 0 && <div style={{ flex: 1, height: 2, background: i <= step ? ORANGE : "rgba(255,255,255,.2)", transition: "background .4s" }}/>}
+            {i > 0 && <div style={{ flex: 1, height: 2, background: i <= step ? ORANGE : "rgba(255,255,255,.2)" }}/>}
             <div style={{
               width: 22, height: 22, borderRadius: "50%", flexShrink: 0,
               background: i < step ? ORANGE : i === step ? WHITE : "rgba(255,255,255,.2)",
               color: i < step ? WHITE : i === step ? NAVY : "rgba(255,255,255,.4)",
               display: "flex", alignItems: "center", justifyContent: "center",
-              fontSize: 10, fontWeight: 800, transition: "all .3s",
+              fontSize: 10, fontWeight: 800,
               boxShadow: i === step ? "0 0 0 3px rgba(255,255,255,.3)" : "none",
             }}>{i < step ? "✓" : i + 1}</div>
-            {i < STEPS.length - 1 && <div style={{ flex: 1, height: 2, background: i < step ? ORANGE : "rgba(255,255,255,.2)", transition: "background .4s" }}/>}
+            {i < STEPS.length - 1 && <div style={{ flex: 1, height: 2, background: i < step ? ORANGE : "rgba(255,255,255,.2)" }}/>}
           </div>
-          <div style={{ fontSize: 8, marginTop: 3, textAlign: "center", lineHeight: 1.2,
-            color: i === step ? WHITE : "rgba(255,255,255,.4)", fontWeight: i === step ? 700 : 400 }}>{s}</div>
+          <div style={{ fontSize: 8, marginTop: 3, color: i === step ? WHITE : "rgba(255,255,255,.4)", fontWeight: i === step ? 700 : 400 }}>{s}</div>
         </div>
       ))}
     </div>
   );
 }
 
-function SectionTitle({ icon, title, sub }) {
-  return (
-    <div style={{ marginBottom: 16 }}>
-      <h2 style={{ fontSize: 17, fontWeight: 800, color: NAVY, display: "flex", alignItems: "center", gap: 7 }}>
-        <span>{icon}</span>{title}
-      </h2>
-      {sub && <p style={{ fontSize: 11, color: GRAY, marginTop: 3 }}>{sub}</p>}
-    </div>
-  );
-}
-
 function BrandImage({ brand, size = 56 }) {
-  const [imgErr, setImgErr] = useState(false);
-  if (brand.logoUrl && !imgErr) {
-    return <img src={brand.logoUrl} alt={brand.name} onError={() => setImgErr(true)}
-      style={{ width: size, height: size, objectFit: "contain", borderRadius: 10,
-        background: brand.bgColor || "#EEF2FF", padding: 4 }} />;
-  }
+  const [err, setErr] = useState(false);
+  if (brand.logoUrl && !err)
+    return <img src={brand.logoUrl} alt={brand.name} onError={() => setErr(true)}
+      style={{ width: size, height: size, objectFit: "contain", borderRadius: 10, padding: 4, background: brand.bgColor || "#EEF2FF" }} />;
   return (
     <div style={{ width: size, height: size, borderRadius: "50%",
-      background: `linear-gradient(135deg, ${brand.color || NAVY}, ${brand.color || NAVY}BB)`,
+      background: `linear-gradient(135deg,${brand.color || NAVY},${brand.color || NAVY}BB)`,
       display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
       <span style={{ color: WHITE, fontWeight: 900, fontSize: size * 0.28 }}>{brand.name.slice(0, 3)}</span>
     </div>
   );
 }
 
-// ── Quick Reorder Card ────────────────────────────────────────────────────────
-function ReorderCard({ last, brands, products, lineUserId, onReordered, onNewOrder }) {
+// ── Cart Item row ─────────────────────────────────────────────────────────────
+function CartItem({ item, onRemove, onQtyChange }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0",
+      borderBottom: "1px solid #F3F4F6" }}>
+      <div style={{ flex: 1 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: NAVY }}>{item.brandName} · {item.productName}</div>
+        <div style={{ fontSize: 11, color: GRAY }}>฿{Number(item.unitPrice).toLocaleString()} / ถัง</div>
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <button onClick={() => onQtyChange(Math.max(1, item.qty - 1))}
+          style={{ width: 28, height: 28, borderRadius: 8, border: "1.5px solid #E5E7EB", background: WHITE, fontSize: 16, cursor: "pointer", color: NAVY }}>−</button>
+        <span style={{ fontWeight: 700, color: NAVY, minWidth: 20, textAlign: "center" }}>{item.qty}</span>
+        <button onClick={() => onQtyChange(item.qty + 1)}
+          style={{ width: 28, height: 28, borderRadius: 8, border: `1.5px solid ${ORANGE}`, background: "#FFF7ED", fontSize: 16, cursor: "pointer", color: ORANGE }}>+</button>
+      </div>
+      <div style={{ fontWeight: 800, color: ORANGE, fontSize: 14, minWidth: 60, textAlign: "right" }}>
+        ฿{(Number(item.unitPrice) * item.qty).toLocaleString()}
+      </div>
+      <button onClick={onRemove} style={{ background: "none", border: "none", color: "#DC2626", fontSize: 18, cursor: "pointer", padding: "0 4px" }}>×</button>
+    </div>
+  );
+}
+
+// ── Saved Order Card ──────────────────────────────────────────────────────────
+function SavedOrderCard({ saved, brands, products, lineUserId, onReordered }) {
   const [submitting, setSubmitting] = useState(false);
-  const brand = brands.find(b => b.id === last.brandId);
-  const prod  = products.find(p => p.id === last.productId);
+  const brand = brands.find(b => b.id === saved.brandId);
+  const prod  = products.find(p => p.id === saved.productId);
   if (!brand || !prod) return null;
 
   async function handleReorder() {
     setSubmitting(true);
     try {
       const res = await fetch(`${API}/api/v1/orders`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          lineUserId,
-          brandId: last.brandId,
-          productId: last.productId,
-          qty: last.qty,
-          customerName: last.customerName,
-          customerPhone: last.customerPhone,
-          deliveryLat: last.lat,
-          deliveryLng: last.lng,
-          deliveryAddress: last.address,
-          paymentMethod: last.paymentMethod,
-          note: last.note || "",
+          lineUserId, brandId: saved.brandId, productId: saved.productId,
+          qty: saved.qty, customerName: saved.customerName,
+          customerPhone: saved.customerPhone, deliveryLat: saved.lat,
+          deliveryLng: saved.lng, deliveryAddress: saved.address,
+          paymentMethod: saved.paymentMethod, note: saved.note || "",
+          discountCode: saved.discountCode || undefined,
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "เกิดข้อผิดพลาด");
-      saveLastOrder({ ...last });
-      onReordered({ ...data.order, _showQR: last.paymentMethod === "qr" });
-    } catch (e) {
-      alert(e.message);
-    } finally {
-      setSubmitting(false);
-    }
+      onReordered({ ...data.order, _showQR: saved.paymentMethod === "qr" });
+    } catch (e) { alert(e.message); }
+    finally { setSubmitting(false); }
   }
 
   return (
-    <div style={{ background: WHITE, borderRadius: 18, overflow: "hidden",
-      boxShadow: "0 4px 20px rgba(26,43,107,.12)", marginBottom: 20 }}>
-      <div style={{ background: `linear-gradient(135deg,${NAVY2},${NAVY})`,
-        padding: "12px 16px", display: "flex", alignItems: "center", gap: 8 }}>
-        <span style={{ fontSize: 16 }}>⚡</span>
-        <span style={{ color: WHITE, fontWeight: 800, fontSize: 14 }}>สั่งซ้ำออเดอร์เดิม</span>
-      </div>
-      <div style={{ padding: "14px 16px" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
-          <BrandImage brand={brand} size={48}/>
-          <div>
-            <div style={{ fontWeight: 800, fontSize: 15, color: NAVY }}>{brand.name} · {prod.name}</div>
-            <div style={{ fontSize: 12, color: GRAY, marginTop: 2 }}>{last.qty} ถัง · {last.paymentMethod === "cash" ? "เงินสด" : "QR Code"}</div>
-            <div style={{ fontSize: 11, color: GRAY, marginTop: 1 }}>📍 {last.address?.slice(0, 45)}{last.address?.length > 45 ? "..." : ""}</div>
-          </div>
-        </div>
-        <div style={{ display: "flex", gap: 10 }}>
-          <button onClick={onNewOrder} style={{
-            flex: 1, padding: "11px 0", borderRadius: 12, border: "2px solid #E5E7EB",
-            background: WHITE, fontWeight: 700, fontSize: 13, color: GRAY, cursor: "pointer" }}>
-            🔄 สั่งใหม่
-          </button>
-          <button onClick={handleReorder} disabled={submitting} style={{
-            flex: 2, padding: "11px 0", borderRadius: 12, border: "none",
-            background: submitting ? "#E5E7EB" : `linear-gradient(135deg,${ORANGE},${ORANGE2})`,
-            fontWeight: 800, fontSize: 14, color: WHITE, cursor: submitting ? "default" : "pointer",
-            boxShadow: submitting ? "none" : "0 4px 14px rgba(244,123,32,.4)" }}>
-            {submitting ? "กำลังส่ง..." : "🛵 ยืนยันสั่งซ้ำเลย!"}
-          </button>
+    <div style={{ background: WHITE, borderRadius: 14, padding: "12px 14px",
+      boxShadow: "0 2px 10px rgba(0,0,0,.06)", border: "1.5px solid #E5E7EB" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+        <BrandImage brand={brand} size={36}/>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontWeight: 800, fontSize: 13, color: NAVY }}>{brand.name} · {prod.name} × {saved.qty}</div>
+          <div style={{ fontSize: 11, color: GRAY, marginTop: 1 }}>📍 {saved.address?.slice(0, 40)}{saved.address?.length > 40 ? "..." : ""}</div>
+          {saved.discountCode && <div style={{ fontSize: 10, color: "#16A34A", marginTop: 1 }}>🏷 โค้ด: {saved.discountCode}</div>}
         </div>
       </div>
+      <button onClick={handleReorder} disabled={submitting} style={{
+        width: "100%", padding: "9px 0", borderRadius: 10, border: "none",
+        background: submitting ? "#E5E7EB" : `linear-gradient(135deg,${ORANGE},${ORANGE2})`,
+        color: WHITE, fontWeight: 700, fontSize: 13, cursor: submitting ? "default" : "pointer" }}>
+        {submitting ? "กำลังส่ง..." : "⚡ สั่งซ้ำเลย!"}
+      </button>
     </div>
   );
 }
 
+// ── Main App ──────────────────────────────────────────────────────────────────
 export default function App() {
   const [lineUserId, setLineUserId] = useState(null);
   const [brands, setBrands]         = useState([]);
   const [products, setProducts]     = useState([]);
   const [loading, setLoading]       = useState(true);
   const [error, setError]           = useState(null);
-  const [lastOrder, setLastOrder]   = useState(null);
+  const [savedOrders, setSavedOrders] = useState([]);
 
+  // Shopping state
   const [step, setStep]             = useState(0);
-  const [brand, setBrand]           = useState(null);
-  const [product, setProduct]       = useState(null);
-  const [qty, setQty]               = useState(1);
-  const [customerName, setCustomerName] = useState("");
+  const [selBrand, setSelBrand]     = useState(null); // currently selecting brand
+  const [selProduct, setSelProduct] = useState(null); // currently selecting product
+  const [selQty, setSelQty]         = useState(1);
+  const [cart, setCart]             = useState([]); // [{brandId,brandName,brandLogoUrl,brandColor,brandBgColor,productId,productName,unitPrice,qty}]
+
+  // Customer / delivery
+  const [customerName, setCustomerName]   = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("cash");
-  const [locData, setLocData]       = useState(null);
-  const [note, setNote]             = useState("");
-  const [discountCode, setDiscountCode] = useState("");
+  const [locData, setLocData]             = useState(null);
+  const [note, setNote]                   = useState("");
+
+  // Discount
   const [discountInput, setDiscountInput] = useState("");
+  const [discountCode, setDiscountCode]   = useState("");
+  const [discountAmount, setDiscountAmount] = useState(0);
   const [discountMsg, setDiscountMsg]     = useState(null);
+  const [validatingCode, setValidatingCode] = useState(false);
+
+  const handleLocationSelect = useCallback(d => setLocData(d), []);
   const [submitting, setSubmitting] = useState(false);
-  const [doneOrder, setDoneOrder]   = useState(null);
+  const [doneOrders, setDoneOrders] = useState(null);
   const [showNewOrder, setShowNewOrder] = useState(false);
 
   useEffect(() => {
-    // Load saved customer info
-    const saved = loadCustomerInfo();
-    if (saved) {
-      setCustomerName(saved.name || "");
-      setCustomerPhone(saved.phone || "");
-      setPaymentMethod(saved.paymentMethod || "cash");
-    }
-    setLastOrder(loadLastOrder());
+    const saved = ls.getCustomer();
+    if (saved) { setCustomerName(saved.name || ""); setCustomerPhone(saved.phone || ""); setPaymentMethod(saved.paymentMethod || "cash"); }
+    const savedCode = ls.getDiscount();
+    if (savedCode) { setDiscountInput(savedCode); setDiscountCode(savedCode); }
+    setSavedOrders(ls.getSavedOrders());
 
     async function initLiff() {
       try {
@@ -204,197 +192,176 @@ export default function App() {
           const profile = await liff.getProfile();
           setLineUserId(profile.userId);
           if (!saved?.name) setCustomerName(profile.displayName || "");
-        } else {
-          liff.login();
-        }
-      } catch (e) {
-        setLineUserId("dev-user");
-      }
+        } else { liff.login(); }
+      } catch { setLineUserId("dev-user"); }
     }
-
     async function loadData() {
       try {
-        const [bRes, pRes] = await Promise.all([
-          fetch(`${API}/api/v1/products/brands`),
-          fetch(`${API}/api/v1/products`),
-        ]);
-        const bData = await bRes.json();
-        const pData = await pRes.json();
+        const [bRes, pRes] = await Promise.all([fetch(`${API}/api/v1/products/brands`), fetch(`${API}/api/v1/products`)]);
+        const bData = await bRes.json(); const pData = await pRes.json();
         setBrands(Array.isArray(bData) ? bData : bData.brands || []);
         setProducts(Array.isArray(pData) ? pData : pData.products || []);
-      } catch (e) {
-        setError("โหลดข้อมูลสินค้าไม่ได้ กรุณาลองใหม่");
-      }
+      } catch (e) { setError("โหลดข้อมูลสินค้าไม่ได้ กรุณาลองใหม่"); }
       setLoading(false);
     }
-
-    initLiff();
-    loadData();
+    initLiff(); loadData();
   }, []);
 
-  const prod      = products.find(p => p.id === product);
-  const brandObj  = brands.find(b => b.id === brand);
-  const subtotal  = prod ? Number(prod.homePrice) * qty : 0;
+  // Cart totals
+  const cartSubtotal = cart.reduce((s, i) => s + Number(i.unitPrice) * i.qty, 0);
+  const cartTotal = Math.max(0, cartSubtotal - discountAmount);
 
-  const handleLocationSelect = useCallback((data) => setLocData(data), []);
+  const currentBrandObj = brands.find(b => b.id === selBrand);
+  const currentProd     = products.find(p => p.id === selProduct);
+
+  function addToCart() {
+    if (!selBrand || !selProduct) return;
+    const b = brands.find(b => b.id === selBrand);
+    const p = products.find(p => p.id === selProduct);
+    setCart(prev => {
+      const idx = prev.findIndex(i => i.brandId === selBrand && i.productId === selProduct);
+      if (idx >= 0) {
+        const next = [...prev];
+        next[idx] = { ...next[idx], qty: next[idx].qty + selQty };
+        return next;
+      }
+      return [...prev, { brandId: selBrand, brandName: b.name, brandLogoUrl: b.logoUrl, brandColor: b.color, brandBgColor: b.bgColor, productId: selProduct, productName: p.name, unitPrice: p.homePrice, qty: selQty }];
+    });
+    setSelBrand(null); setSelProduct(null); setSelQty(1);
+  }
+
+  async function validateDiscount() {
+    if (!discountInput.trim()) return;
+    setValidatingCode(true); setDiscountMsg(null);
+    try {
+      const res = await fetch(`${API}/api/v1/discounts/validate`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: discountInput.trim().toUpperCase(), subtotal: cartSubtotal, productId: cart[0]?.productId }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setDiscountMsg({ ok: false, text: data.error }); setDiscountAmount(0); setDiscountCode(""); ls.setDiscount(""); }
+      else {
+        setDiscountCode(discountInput.trim().toUpperCase());
+        setDiscountAmount(data.discount);
+        setDiscountMsg({ ok: true, text: `ลดได้ ฿${data.discount.toLocaleString()}!` });
+        ls.setDiscount(discountInput.trim().toUpperCase());
+      }
+    } catch { setDiscountMsg({ ok: false, text: "ตรวจสอบไม่ได้ลองใหม่" }); }
+    finally { setValidatingCode(false); }
+  }
+
+  async function submitOrders() {
+    setSubmitting(true);
+    const results = [];
+    try {
+      for (const item of cart) {
+        const res = await fetch(`${API}/api/v1/orders`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            lineUserId, brandId: item.brandId, productId: item.productId,
+            qty: item.qty, customerName, customerPhone,
+            deliveryLat: locData.lat, deliveryLng: locData.lng,
+            deliveryAddress: locData.address, paymentMethod,
+            discountCode: discountCode || undefined, note,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "เกิดข้อผิดพลาด");
+        results.push(data.order);
+        // Save each item as a saved order template
+        ls.addSavedOrder({
+          brandId: item.brandId, productId: item.productId, qty: item.qty,
+          customerName, customerPhone, paymentMethod,
+          lat: locData.lat, lng: locData.lng, address: locData.address,
+          note, discountCode: discountCode || "",
+        });
+      }
+      ls.setCustomer({ name: customerName, phone: customerPhone, paymentMethod });
+      setDoneOrders(results.map(o => ({ ...o, _showQR: paymentMethod === "qr" })));
+    } catch (e) { alert(e.message); }
+    finally { setSubmitting(false); }
+  }
+
+  function handleReset() {
+    setDoneOrders(null); setStep(0); setCart([]);
+    setSelBrand(null); setSelProduct(null); setSelQty(1);
+    setLocData(null); setNote(""); setShowNewOrder(false);
+    setSavedOrders(ls.getSavedOrders());
+    // Keep discount code if saved
+    const savedCode = ls.getDiscount();
+    setDiscountInput(savedCode); setDiscountCode(savedCode);
+    setDiscountAmount(0); setDiscountMsg(null);
+  }
 
   const canNext = [
-    !!brand,
-    !!product,
+    cart.length > 0,
     !!(customerName.trim() && customerPhone.trim().length >= 9),
     !!(locData && locData.zone),
     true,
   ][step];
 
-  async function submitOrder() {
-    setSubmitting(true);
-    try {
-      const res = await fetch(`${API}/api/v1/orders`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          lineUserId,
-          brandId: brand,
-          productId: product,
-          qty,
-          customerName,
-          customerPhone,
-          deliveryLat: locData.lat,
-          deliveryLng: locData.lng,
-          deliveryAddress: locData.address,
-          paymentMethod,
-          discountCode: discountCode || undefined,
-          note,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "เกิดข้อผิดพลาด");
-
-      // Save for reorder & customer memory
-      saveCustomerInfo(customerName, customerPhone, paymentMethod);
-      saveLastOrder({
-        brandId: brand, productId: product, qty,
-        customerName, customerPhone, paymentMethod,
-        lat: locData.lat, lng: locData.lng, address: locData.address,
-        distKm: locData.distKm, zone: locData.zone, note,
-      });
-      const orderData = { ...data.order, _showQR: paymentMethod === "qr" };
-      setDoneOrder(orderData);
-    } catch (e) {
-      alert(e.message);
-    } finally {
-      setSubmitting(false);
-    }
+  function handleNext() {
+    if (step < 3) setStep(step + 1);
+    else submitOrders();
   }
 
-  async function handleNext() {
-    if (step < 4) { setStep(step + 1); return; }
-    await submitOrder();
-  }
+  // QR: show for first order if QR payment
+  const qrOrder = doneOrders?.find(o => o._showQR);
 
-  function applyDiscount() {
-    setDiscountCode(discountInput.trim().toUpperCase());
-    setDiscountMsg({ ok: true, text: "จะตรวจสอบโค้ดตอนยืนยันออเดอร์" });
-  }
+  if (loading) return (
+    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 16, background: LGRAY }}>
+      <Logo size={64}/><div style={{ fontSize: 14, color: GRAY }}>กำลังโหลด...</div>
+    </div>
+  );
 
-  function handleReset() {
-    setDoneOrder(null); setStep(0); setBrand(null);
-    setProduct(null); setQty(1); setLocData(null); setNote("");
-    setDiscountCode(""); setDiscountInput(""); setDiscountMsg(null);
-    setShowNewOrder(false);
-    setLastOrder(loadLastOrder());
-  }
+  if (error) return (
+    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 16, background: LGRAY, padding: 24 }}>
+      <Logo size={64}/><div style={{ fontSize: 14, color: "#DC2626", textAlign: "center" }}>{error}</div>
+      <button onClick={() => window.location.reload()} style={{ padding: "10px 24px", borderRadius: 10, border: "none", background: NAVY, color: WHITE, fontWeight: 700, cursor: "pointer" }}>ลองใหม่</button>
+    </div>
+  );
 
-  function startNewOrder() {
-    setShowNewOrder(true);
-    setBrand(null); setProduct(null); setQty(1); setLocData(null); setNote("");
-  }
+  if (qrOrder) return (
+    <QRPayment order={qrOrder} onDone={() => setDoneOrders(prev => prev.map(o => o.id === qrOrder.id ? { ...o, _showQR: false } : o))} />
+  );
 
-  if (loading) {
-    return (
-      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center",
-        justifyContent: "center", flexDirection: "column", gap: 16, background: LGRAY }}>
-        <Logo size={64}/>
-        <div style={{ fontSize: 14, color: GRAY }}>กำลังโหลด...</div>
-      </div>
-    );
-  }
+  if (doneOrders) return <DoneScreen orders={doneOrders} onReset={handleReset} />;
 
-  if (error) {
-    return (
-      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center",
-        justifyContent: "center", flexDirection: "column", gap: 16, background: LGRAY, padding: 24 }}>
-        <Logo size={64}/>
-        <div style={{ fontSize: 14, color: "#DC2626", textAlign: "center" }}>{error}</div>
-        <button onClick={() => window.location.reload()}
-          style={{ padding: "10px 24px", borderRadius: 10, border: "none",
-            background: NAVY, color: WHITE, fontWeight: 700, cursor: "pointer" }}>ลองใหม่</button>
-      </div>
-    );
-  }
-
-  if (doneOrder && doneOrder._showQR) {
-    return <QRPayment order={doneOrder} onDone={() => setDoneOrder({ ...doneOrder, _showQR: false })} />;
-  }
-
-  if (doneOrder) {
-    return <DoneScreen order={doneOrder} onReset={handleReset} />;
-  }
-
-  // Show reorder screen if has last order and not choosing new order
-  const showReorder = lastOrder && !showNewOrder;
+  // Reorder home screen
+  const showReorder = savedOrders.length > 0 && !showNewOrder && step === 0 && cart.length === 0 && !selBrand;
 
   return (
     <div style={{ minHeight: "100vh", background: LGRAY }}>
       {/* Header */}
-      <div style={{
-        background: `linear-gradient(135deg, ${NAVY2} 0%, ${NAVY} 100%)`,
-        padding: "16px 20px 20px",
-        position: "sticky", top: 0, zIndex: 100,
-        boxShadow: "0 4px 20px rgba(10,18,50,.35)",
-      }}>
-        <div style={{ position: "relative", zIndex: 1 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: showReorder ? 0 : 16 }}>
-            <Logo size={44}/>
-            <div>
-              <div style={{ color: WHITE, fontWeight: 900, fontSize: 20, lineHeight: 1 }}>
-                สกุณา<span style={{ color: ORANGE }}>แก๊ส</span>
-              </div>
-              <div style={{ color: "rgba(255,255,255,.6)", fontSize: 10, marginTop: 2 }}>
-                ปลอดภัย มั่นใจ ได้มาตรฐาน
-              </div>
-            </div>
-            <div style={{ marginLeft: "auto", background: "rgba(255,255,255,.12)",
-              borderRadius: 20, padding: "4px 10px", fontSize: 10,
-              color: "rgba(255,255,255,.85)", whiteSpace: "nowrap" }}>
-              🕐 {new Date().getDay() === 0 ? "07:00–13:00" : "07:00–19:00"}
-            </div>
+      <div style={{ background: `linear-gradient(135deg,${NAVY2},${NAVY})`, padding: "16px 20px 20px",
+        position: "sticky", top: 0, zIndex: 100, boxShadow: "0 4px 20px rgba(10,18,50,.35)" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: showReorder ? 0 : 16 }}>
+          <Logo size={44}/>
+          <div>
+            <div style={{ color: WHITE, fontWeight: 900, fontSize: 20, lineHeight: 1 }}>สกุณา<span style={{ color: ORANGE }}>แก๊ส</span></div>
+            <div style={{ color: "rgba(255,255,255,.6)", fontSize: 10, marginTop: 2 }}>ปลอดภัย มั่นใจ ได้มาตรฐาน</div>
           </div>
-          {!showReorder && <StepBar step={step}/>}
+          <div style={{ marginLeft: "auto", background: "rgba(255,255,255,.12)", borderRadius: 20, padding: "4px 10px", fontSize: 10, color: "rgba(255,255,255,.85)", whiteSpace: "nowrap" }}>
+            🕐 {new Date().getDay() === 0 ? "07:00–13:00" : "07:00–19:00"}
+          </div>
         </div>
+        {!showReorder && <StepBar step={step}/>}
       </div>
 
-      <div style={{ padding: "18px 16px 120px", maxWidth: 460, margin: "0 auto" }}>
+      <div style={{ padding: "18px 16px 140px", maxWidth: 460, margin: "0 auto" }}>
 
-        {/* ── Reorder screen ── */}
+        {/* ── Reorder home ── */}
         {showReorder && (
           <div>
-            <ReorderCard
-              last={lastOrder}
-              brands={brands}
-              products={products}
-              lineUserId={lineUserId}
-              onReordered={(order) => {
-                saveLastOrder(lastOrder);
-                setDoneOrder(order);
-              }}
-              onNewOrder={startNewOrder}
-            />
-            <div style={{ textAlign: "center", color: GRAY, fontSize: 12, marginTop: 8 }}>
-              หรือเลือก <span onClick={startNewOrder}
-                style={{ color: NAVY, fontWeight: 700, cursor: "pointer", textDecoration: "underline" }}>
-                สั่งสินค้าใหม่
-              </span>
+            <div style={{ display: "flex", alignItems: "center", marginBottom: 14 }}>
+              <div style={{ fontSize: 15, fontWeight: 800, color: NAVY }}>⚡ สั่งซ้ำรายการที่บันทึก</div>
+              <button onClick={() => setShowNewOrder(true)} style={{ marginLeft: "auto", padding: "6px 14px", borderRadius: 8, border: `2px solid ${NAVY}`, background: WHITE, color: NAVY, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>+ สั่งใหม่</button>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {savedOrders.map((so, i) => (
+                <SavedOrderCard key={i} saved={so} brands={brands} products={products} lineUserId={lineUserId}
+                  onReordered={(order) => { setSavedOrders(ls.getSavedOrders()); setDoneOrders([order]); }} />
+              ))}
             </div>
           </div>
         )}
@@ -402,111 +369,118 @@ export default function App() {
         {/* ── New order flow ── */}
         {!showReorder && (
           <>
-            {/* STEP 0 — ยี่ห้อ */}
+            {/* STEP 0 — เลือกสินค้า */}
             {step === 0 && (
               <div>
-                <SectionTitle icon="🏷" title="เลือกยี่ห้อแก๊ส" sub="เลือกยี่ห้อถังแก๊สที่ต้องการ"/>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                  {brands.map(b => (
-                    <div key={b.id} onClick={() => setBrand(b.id)} style={{
-                      background: brand === b.id ? (b.bgColor || "#EEF2FF") : WHITE,
-                      border: `2px solid ${brand === b.id ? (b.color || NAVY) : "#E5E7EB"}`,
-                      borderRadius: 14, padding: "16px 12px", cursor: "pointer",
-                      display: "flex", flexDirection: "column", alignItems: "center", gap: 10,
-                      transition: "all .15s",
-                      boxShadow: brand === b.id ? `0 4px 16px ${b.color || NAVY}30` : "0 1px 3px rgba(0,0,0,.05)",
-                    }}>
-                      <BrandImage brand={b} size={60}/>
-                      <div style={{ fontSize: 15, fontWeight: 800, color: NAVY, textAlign: "center" }}>{b.name}</div>
-                      {brand === b.id && (
-                        <div style={{ fontSize: 10, fontWeight: 700, color: WHITE,
-                          padding: "3px 12px", borderRadius: 10, background: b.color || NAVY }}>✓ เลือกแล้ว</div>
-                      )}
+                {/* Cart preview */}
+                {cart.length > 0 && (
+                  <div style={{ background: WHITE, borderRadius: 14, padding: 14, marginBottom: 16, boxShadow: "0 2px 10px rgba(0,0,0,.06)" }}>
+                    <div style={{ fontSize: 13, fontWeight: 800, color: NAVY, marginBottom: 8 }}>🛒 ตะกร้าสินค้า</div>
+                    {cart.map((item, idx) => (
+                      <CartItem key={idx} item={item}
+                        onRemove={() => setCart(prev => prev.filter((_, i) => i !== idx))}
+                        onQtyChange={(qty) => setCart(prev => prev.map((it, i) => i === idx ? { ...it, qty } : it))} />
+                    ))}
+                    <div style={{ display: "flex", justifyContent: "space-between", paddingTop: 10, fontWeight: 800, fontSize: 14 }}>
+                      <span style={{ color: GRAY }}>รวม</span>
+                      <span style={{ color: ORANGE }}>฿{cartSubtotal.toLocaleString()}</span>
                     </div>
-                  ))}
-                </div>
-              </div>
-            )}
+                  </div>
+                )}
 
-            {/* STEP 1 — สินค้า */}
-            {step === 1 && (
-              <div>
-                <SectionTitle icon="🛢" title="เลือกขนาดถังแก๊ส" sub={`ยี่ห้อ ${brandObj?.name}`}/>
-                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                  {products.map(p => (
-                    <div key={p.id} onClick={() => { setProduct(p.id); setQty(1); }} style={{
-                      background: product === p.id ? "#EEF2FF" : WHITE,
-                      border: `2px solid ${product === p.id ? NAVY : "#E5E7EB"}`,
-                      borderRadius: 14, padding: "13px 15px", cursor: "pointer",
-                      display: "flex", alignItems: "center", gap: 13,
-                      transition: "all .15s", position: "relative",
-                      boxShadow: product === p.id ? "0 4px 16px rgba(26,43,107,.12)" : "0 1px 3px rgba(0,0,0,.05)",
-                    }}>
-                      {p.isHot && (
-                        <div style={{ position: "absolute", top: -9, right: 12,
-                          background: `linear-gradient(135deg,${ORANGE},${ORANGE2})`,
-                          color: WHITE, fontSize: 9, fontWeight: 800, padding: "3px 10px", borderRadius: 10 }}>
-                          🔥 ขายดี
+                {/* Brand selection */}
+                {!selBrand ? (
+                  <div>
+                    <div style={{ fontSize: 15, fontWeight: 800, color: NAVY, marginBottom: 12 }}>🏷 เลือกยี่ห้อแก๊ส</div>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                      {brands.map(b => (
+                        <div key={b.id} onClick={() => setSelBrand(b.id)} style={{
+                          background: WHITE, border: "2px solid #E5E7EB",
+                          borderRadius: 14, padding: "16px 12px", cursor: "pointer",
+                          display: "flex", flexDirection: "column", alignItems: "center", gap: 10,
+                          boxShadow: "0 1px 3px rgba(0,0,0,.05)", transition: "all .15s",
+                        }}>
+                          <BrandImage brand={b} size={60}/>
+                          <div style={{ fontSize: 15, fontWeight: 800, color: NAVY }}>{b.name}</div>
                         </div>
-                      )}
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: 15, fontWeight: 800, color: NAVY }}>{p.name}</div>
-                        {p.description && <div style={{ fontSize: 11, color: GRAY, marginTop: 1 }}>{p.description}</div>}
-                      </div>
-                      <div style={{ fontSize: 18, fontWeight: 900, color: ORANGE }}>฿{Number(p.homePrice).toLocaleString()}</div>
+                      ))}
                     </div>
-                  ))}
-                </div>
-                {product && (
-                  <div style={{ marginTop: 16, background: WHITE, borderRadius: 14, padding: 16, border: "1.5px solid #E5E7EB" }}>
-                    <p style={{ fontSize: 13, fontWeight: 700, color: NAVY, marginBottom: 12 }}>จำนวนถัง</p>
-                    <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-                      <button onClick={() => setQty(Math.max(1, qty - 1))} style={{
-                        width: 38, height: 38, borderRadius: 10, border: "2px solid #E5E7EB",
-                        background: WHITE, fontSize: 20, cursor: "pointer", fontWeight: 700, color: NAVY }}>−</button>
-                      <span style={{ fontSize: 24, fontWeight: 900, color: NAVY, minWidth: 30, textAlign: "center" }}>{qty}</span>
-                      <button onClick={() => setQty(qty + 1)} style={{
-                        width: 38, height: 38, borderRadius: 10, border: `2px solid ${ORANGE}`,
-                        background: "#FFF7ED", fontSize: 20, cursor: "pointer", fontWeight: 700, color: ORANGE }}>+</button>
-                      <div style={{ marginLeft: "auto" }}>
-                        <div style={{ fontSize: 11, color: GRAY }}>ยอดรวม</div>
-                        <div style={{ fontSize: 22, fontWeight: 900, color: ORANGE }}>฿{subtotal.toLocaleString()}</div>
-                      </div>
+                  </div>
+                ) : (
+                  <div>
+                    <div style={{ display: "flex", alignItems: "center", marginBottom: 12, gap: 8 }}>
+                      <button onClick={() => { setSelBrand(null); setSelProduct(null); setSelQty(1); }}
+                        style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer", color: NAVY }}>←</button>
+                      <div style={{ fontSize: 15, fontWeight: 800, color: NAVY }}>🛢 เลือกขนาด · {currentBrandObj?.name}</div>
                     </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                      {products.map(p => (
+                        <div key={p.id} onClick={() => { setSelProduct(p.id); setSelQty(1); }} style={{
+                          background: selProduct === p.id ? "#EEF2FF" : WHITE,
+                          border: `2px solid ${selProduct === p.id ? NAVY : "#E5E7EB"}`,
+                          borderRadius: 14, padding: "13px 15px", cursor: "pointer",
+                          display: "flex", alignItems: "center", gap: 13, position: "relative",
+                          boxShadow: selProduct === p.id ? "0 4px 16px rgba(26,43,107,.12)" : "0 1px 3px rgba(0,0,0,.05)",
+                        }}>
+                          {p.isHot && <div style={{ position: "absolute", top: -9, right: 12,
+                            background: `linear-gradient(135deg,${ORANGE},${ORANGE2})`,
+                            color: WHITE, fontSize: 9, fontWeight: 800, padding: "3px 10px", borderRadius: 10 }}>🔥 ขายดี</div>}
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontSize: 15, fontWeight: 800, color: NAVY }}>{p.name}</div>
+                            {p.description && <div style={{ fontSize: 11, color: GRAY }}>{p.description}</div>}
+                          </div>
+                          <div style={{ fontSize: 18, fontWeight: 900, color: ORANGE }}>฿{Number(p.homePrice).toLocaleString()}</div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {selProduct && (
+                      <div style={{ marginTop: 14, background: WHITE, borderRadius: 14, padding: 14, border: "1.5px solid #E5E7EB" }}>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: NAVY, marginBottom: 10 }}>จำนวน</div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                          <button onClick={() => setSelQty(Math.max(1, selQty - 1))} style={{ width: 38, height: 38, borderRadius: 10, border: "2px solid #E5E7EB", background: WHITE, fontSize: 20, cursor: "pointer", color: NAVY }}>−</button>
+                          <span style={{ fontSize: 24, fontWeight: 900, color: NAVY, minWidth: 28, textAlign: "center" }}>{selQty}</span>
+                          <button onClick={() => setSelQty(selQty + 1)} style={{ width: 38, height: 38, borderRadius: 10, border: `2px solid ${ORANGE}`, background: "#FFF7ED", fontSize: 20, cursor: "pointer", color: ORANGE }}>+</button>
+                          <div style={{ marginLeft: "auto", fontWeight: 900, fontSize: 20, color: ORANGE }}>฿{(Number(currentProd?.homePrice) * selQty).toLocaleString()}</div>
+                        </div>
+                        <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
+                          <button onClick={addToCart} style={{
+                            flex: 1, padding: "12px 0", borderRadius: 12, border: `2px solid ${NAVY}`,
+                            background: WHITE, color: NAVY, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
+                            + เพิ่มลงตะกร้า
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
             )}
 
-            {/* STEP 2 — ข้อมูลลูกค้า */}
-            {step === 2 && (
+            {/* STEP 1 — ข้อมูลลูกค้า */}
+            {step === 1 && (
               <div>
-                <SectionTitle icon="👤" title="ข้อมูลผู้สั่ง" sub="ระบบจะจดจำข้อมูลไว้สำหรับครั้งถัดไป"/>
+                <div style={{ fontSize: 17, fontWeight: 800, color: NAVY, marginBottom: 16 }}>👤 ข้อมูลผู้สั่ง</div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                   <div>
                     <label style={{ fontSize: 13, fontWeight: 700, color: NAVY, display: "block", marginBottom: 6 }}>ชื่อ-นามสกุล *</label>
-                    <input value={customerName} onChange={e => setCustomerName(e.target.value)}
-                      placeholder="เช่น สมชาย ใจดี"
-                      style={{ width: "100%", padding: "12px 14px", borderRadius: 12,
-                        border: "2px solid #E5E7EB", fontSize: 14, outline: "none", boxSizing: "border-box" }} />
+                    <input value={customerName} onChange={e => setCustomerName(e.target.value)} placeholder="เช่น สมชาย ใจดี"
+                      style={{ width: "100%", padding: "12px 14px", borderRadius: 12, border: "2px solid #E5E7EB", fontSize: 14, outline: "none", boxSizing: "border-box" }} />
                   </div>
                   <div>
                     <label style={{ fontSize: 13, fontWeight: 700, color: NAVY, display: "block", marginBottom: 6 }}>เบอร์โทรศัพท์ *</label>
-                    <input value={customerPhone} onChange={e => setCustomerPhone(e.target.value)}
-                      placeholder="0812345678" type="tel"
-                      style={{ width: "100%", padding: "12px 14px", borderRadius: 12,
-                        border: "2px solid #E5E7EB", fontSize: 14, outline: "none", boxSizing: "border-box" }} />
+                    <input value={customerPhone} onChange={e => setCustomerPhone(e.target.value)} placeholder="0812345678" type="tel"
+                      style={{ width: "100%", padding: "12px 14px", borderRadius: 12, border: "2px solid #E5E7EB", fontSize: 14, outline: "none", boxSizing: "border-box" }} />
                   </div>
                   <div>
                     <label style={{ fontSize: 13, fontWeight: 700, color: NAVY, display: "block", marginBottom: 6 }}>วิธีชำระเงิน</label>
                     <div style={{ display: "flex", gap: 10 }}>
-                      {[["cash", "💵 เงินสด"], ["qr", "📱 QR Code"]].map(([val, label]) => (
+                      {[["cash","💵 เงินสด"],["qr","📱 QR Code"]].map(([val,label]) => (
                         <div key={val} onClick={() => setPaymentMethod(val)} style={{
                           flex: 1, padding: "12px 0", borderRadius: 12, textAlign: "center",
                           border: `2px solid ${paymentMethod === val ? NAVY : "#E5E7EB"}`,
                           background: paymentMethod === val ? "#EEF2FF" : WHITE,
-                          fontWeight: 700, fontSize: 14, color: paymentMethod === val ? NAVY : GRAY, cursor: "pointer",
-                        }}>{label}</div>
+                          fontWeight: 700, fontSize: 14, color: paymentMethod === val ? NAVY : GRAY, cursor: "pointer" }}>{label}</div>
                       ))}
                     </div>
                   </div>
@@ -514,79 +488,92 @@ export default function App() {
               </div>
             )}
 
-            {/* STEP 3 — ที่อยู่ */}
-            {step === 3 && (
+            {/* STEP 2 — ที่อยู่ */}
+            {step === 2 && (
               <div>
-                <SectionTitle icon="🗺" title="ระบุตำแหน่งจัดส่ง" sub="แตะแผนที่หรือลากหมุดไปที่บ้านของคุณ"/>
+                <div style={{ fontSize: 17, fontWeight: 800, color: NAVY, marginBottom: 16 }}>🗺 ระบุตำแหน่งจัดส่ง</div>
                 <MapPicker onLocationSelect={handleLocationSelect} locationData={locData}/>
                 {locData?.zone && (
                   <div style={{ marginTop: 12 }}>
                     <textarea value={note} onChange={e => setNote(e.target.value)}
-                      placeholder="💬 หมายเหตุเพิ่มเติม เช่น หน้าบ้านมีป้ายสีแดง (ไม่บังคับ)"
-                      style={{ width: "100%", height: 68, padding: "10px 12px", borderRadius: 12,
-                        border: "2px solid #E5E7EB", fontSize: 13, resize: "none", color: GRAY, boxSizing: "border-box" }} />
+                      placeholder="💬 หมายเหตุเพิ่มเติม (ไม่บังคับ)"
+                      style={{ width: "100%", height: 68, padding: "10px 12px", borderRadius: 12, border: "2px solid #E5E7EB", fontSize: 13, resize: "none", color: GRAY, boxSizing: "border-box" }} />
                   </div>
                 )}
               </div>
             )}
 
-            {/* STEP 4 — ยืนยัน */}
-            {step === 4 && (
+            {/* STEP 3 — ยืนยัน */}
+            {step === 3 && (
               <div>
-                <SectionTitle icon="✅" title="ตรวจสอบออเดอร์" sub="กรุณาตรวจสอบข้อมูลก่อนยืนยัน"/>
-                <div style={{ marginBottom: 14 }}>
-                  {discountCode ? (
-                    <div style={{ background: "#F0FDF4", border: "1.5px solid #86EFAC",
-                      borderRadius: 12, padding: "10px 14px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                      <span style={{ fontSize: 13, color: "#166534", fontWeight: 700 }}>🏷 โค้ด <strong>{discountCode}</strong></span>
-                      <button onClick={() => { setDiscountCode(""); setDiscountInput(""); setDiscountMsg(null); }}
-                        style={{ background: "none", border: "none", color: GRAY, cursor: "pointer", fontSize: 12 }}>เปลี่ยน</button>
-                    </div>
-                  ) : (
-                    <div style={{ display: "flex", gap: 8 }}>
-                      <input value={discountInput} onChange={e => { setDiscountInput(e.target.value); setDiscountMsg(null); }}
-                        placeholder="โค้ดส่วนลด (ถ้ามี)"
-                        style={{ flex: 1, padding: "10px 12px", borderRadius: 10, border: "1.5px solid #E5E7EB", fontSize: 13, outline: "none" }} />
-                      <button onClick={applyDiscount} style={{
-                        padding: "10px 16px", borderRadius: 10, border: "none",
-                        background: NAVY, color: WHITE, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>ใช้โค้ด</button>
-                    </div>
-                  )}
-                  {discountMsg && <div style={{ fontSize: 12, marginTop: 6, color: "#16A34A" }}>{discountMsg.text}</div>}
-                </div>
+                <div style={{ fontSize: 17, fontWeight: 800, color: NAVY, marginBottom: 16 }}>✅ ตรวจสอบออเดอร์</div>
 
-                <div style={{ background: WHITE, borderRadius: 16, overflow: "hidden",
-                  boxShadow: "0 2px 16px rgba(0,0,0,.08)", marginBottom: 14 }}>
-                  <div style={{ background: `linear-gradient(135deg,${NAVY2},${NAVY})`,
-                    padding: "12px 16px", display: "flex", alignItems: "center", gap: 10 }}>
+                {/* Cart summary */}
+                <div style={{ background: WHITE, borderRadius: 16, overflow: "hidden", boxShadow: "0 2px 16px rgba(0,0,0,.08)", marginBottom: 14 }}>
+                  <div style={{ background: `linear-gradient(135deg,${NAVY2},${NAVY})`, padding: "12px 16px", display: "flex", alignItems: "center", gap: 10 }}>
                     <Logo size={26}/>
                     <span style={{ color: WHITE, fontWeight: 800, fontSize: 14 }}>สกุณา<span style={{ color: ORANGE }}>แก๊ส</span></span>
                   </div>
-                  <div style={{ padding: "4px 16px 14px" }}>
+                  <div style={{ padding: "8px 16px 14px" }}>
+                    {cart.map((item, i) => (
+                      <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid #F3F4F6", fontSize: 13 }}>
+                        <span style={{ color: GRAY }}>{item.brandName} · {item.productName} ×{item.qty}</span>
+                        <span style={{ color: NAVY, fontWeight: 700 }}>฿{(Number(item.unitPrice) * item.qty).toLocaleString()}</span>
+                      </div>
+                    ))}
                     {[
-                      ["🏷 ยี่ห้อ",   brandObj?.name],
-                      ["🛢 สินค้า",   `${prod?.name} × ${qty} ถัง`],
-                      ["👤 ชื่อ",     customerName],
-                      ["📞 เบอร์",    customerPhone],
-                      ["💳 ชำระ",    paymentMethod === "cash" ? "เงินสด" : "QR Code"],
-                      ["📍 ที่อยู่",  locData?.address],
-                      ["📏 ระยะ",    `~${locData?.distKm?.toFixed(1)} กม.`],
+                      ["👤 ชื่อ", customerName],
+                      ["📞 เบอร์", customerPhone],
+                      ["💳 ชำระ", paymentMethod === "cash" ? "เงินสด" : "QR Code"],
+                      ["📍 ที่อยู่", locData?.address],
+                      ["📏 ระยะ", `~${locData?.distKm?.toFixed(1)} กม.`],
                       note ? ["💬 หมายเหตุ", note] : null,
-                      ["🛵 ค่าส่ง",  "คำนวณโดยร้าน"],
-                      ["💰 สินค้า",  `฿${subtotal.toLocaleString()}`],
                     ].filter(Boolean).map(([k, v]) => (
-                      <div key={k} style={{ display: "flex", justifyContent: "space-between",
-                        padding: "9px 0", borderBottom: "1px solid #F3F4F6", fontSize: 13 }}>
+                      <div key={k} style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid #F3F4F6", fontSize: 13 }}>
                         <span style={{ color: GRAY, flexShrink: 0 }}>{k}</span>
                         <span style={{ color: NAVY, maxWidth: "62%", textAlign: "right", wordBreak: "break-word" }}>{v}</span>
                       </div>
                     ))}
+                    {/* Discount */}
+                    {discountAmount > 0 && (
+                      <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid #F3F4F6", fontSize: 13 }}>
+                        <span style={{ color: "#16A34A" }}>🏷 ส่วนลด ({discountCode})</span>
+                        <span style={{ color: "#16A34A", fontWeight: 700 }}>-฿{discountAmount.toLocaleString()}</span>
+                      </div>
+                    )}
+                    <div style={{ display: "flex", justifyContent: "space-between", padding: "10px 0", fontSize: 16, fontWeight: 900 }}>
+                      <span style={{ color: GRAY }}>💰 ยอดรวม</span>
+                      <span style={{ color: ORANGE }}>฿{cartTotal.toLocaleString()}</span>
+                    </div>
                   </div>
                 </div>
-                <div style={{ background: "#FFF7ED", borderRadius: 12, padding: 12,
-                  fontSize: 12, color: "#92400E", display: "flex", gap: 8 }}>
-                  <span>⏱</span>
-                  <span>จัดส่งโดยประมาณ <strong>30–60 นาที</strong> หลังยืนยัน · ระบบแจ้งสถานะผ่าน LINE</span>
+
+                {/* Discount code */}
+                <div style={{ background: WHITE, borderRadius: 14, padding: 14, marginBottom: 14, boxShadow: "0 2px 10px rgba(0,0,0,.06)" }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: NAVY, marginBottom: 8 }}>🏷 โค้ดส่วนลด</div>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <input value={discountInput} onChange={e => { setDiscountInput(e.target.value); setDiscountMsg(null); }}
+                      onKeyDown={e => e.key === "Enter" && validateDiscount()}
+                      placeholder="กรอกโค้ดส่วนลด (ถ้ามี)"
+                      style={{ flex: 1, padding: "10px 12px", borderRadius: 10,
+                        border: `1.5px solid ${discountMsg?.ok === false ? "#FCA5A5" : discountMsg?.ok ? "#86EFAC" : "#E5E7EB"}`,
+                        fontSize: 13, outline: "none" }} />
+                    <button onClick={validateDiscount} disabled={validatingCode} style={{
+                      padding: "10px 16px", borderRadius: 10, border: "none",
+                      background: validatingCode ? "#E5E7EB" : NAVY, color: WHITE, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
+                      {validatingCode ? "..." : "ใช้โค้ด"}
+                    </button>
+                  </div>
+                  {discountMsg && (
+                    <div style={{ fontSize: 12, marginTop: 6, color: discountMsg.ok ? "#16A34A" : "#DC2626", fontWeight: 700 }}>
+                      {discountMsg.ok ? "✅" : "❌"} {discountMsg.text}
+                    </div>
+                  )}
+                  {discountCode && <div style={{ fontSize: 11, color: GRAY, marginTop: 4 }}>💾 จำโค้ดนี้ไว้สำหรับครั้งถัดไปแล้ว</div>}
+                </div>
+
+                <div style={{ background: "#FFF7ED", borderRadius: 12, padding: 12, fontSize: 12, color: "#92400E", display: "flex", gap: 8 }}>
+                  <span>⏱</span><span>จัดส่งโดยประมาณ <strong>30–60 นาที</strong> · ระบบแจ้งสถานะผ่าน LINE</span>
                 </div>
               </div>
             )}
@@ -594,76 +581,78 @@ export default function App() {
         )}
       </div>
 
-      {/* Bottom Bar — only for new order flow */}
+      {/* Bottom Bar */}
       {!showReorder && (
-        <div style={{
-          position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)",
+        <div style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)",
           width: "100%", maxWidth: 460, boxSizing: "border-box",
-          background: WHITE, padding: "12px 16px 24px",
-          boxShadow: "0 -4px 20px rgba(0,0,0,.1)", display: "flex", gap: 10,
-        }}>
-          {step > 0 && (
-            <button onClick={() => setStep(step - 1)} style={{
-              flex: 1, padding: 14, borderRadius: 12, border: "2px solid #E5E7EB",
-              background: WHITE, fontWeight: 700, fontSize: 14, cursor: "pointer", color: NAVY }}>
-              ← กลับ
-            </button>
+          background: WHITE, padding: "12px 16px 24px", boxShadow: "0 -4px 20px rgba(0,0,0,.1)" }}>
+
+          {/* Step 0: cart actions */}
+          {step === 0 && (
+            <div style={{ display: "flex", gap: 10 }}>
+              {cart.length > 0 && (
+                <button onClick={() => setStep(1)} style={{
+                  flex: 2, padding: 14, borderRadius: 12, border: "none",
+                  background: `linear-gradient(135deg,${NAVY},${NAVY2})`, color: WHITE,
+                  fontWeight: 800, fontSize: 14, cursor: "pointer", boxShadow: "0 4px 16px rgba(26,43,107,.3)" }}>
+                  ดำเนินการต่อ ({cart.length} รายการ) →
+                </button>
+              )}
+              {cart.length === 0 && selProduct && (
+                <button onClick={addToCart} style={{
+                  flex: 1, padding: 14, borderRadius: 12, border: "none",
+                  background: `linear-gradient(135deg,${NAVY},${NAVY2})`, color: WHITE,
+                  fontWeight: 800, fontSize: 14, cursor: "pointer" }}>
+                  + เพิ่มลงตะกร้า
+                </button>
+              )}
+            </div>
           )}
-          <button onClick={handleNext} disabled={!canNext || submitting} style={{
-            flex: step === 0 ? 1 : 2, padding: 14, borderRadius: 12, border: "none",
-            background: canNext && !submitting ? `linear-gradient(135deg, ${NAVY} 0%, ${NAVY2} 100%)` : "#E5E7EB",
-            color: canNext && !submitting ? WHITE : "#9CA3AF",
-            fontWeight: 800, fontSize: 14,
-            cursor: canNext && !submitting ? "pointer" : "default",
-            boxShadow: canNext ? "0 4px 16px rgba(26,43,107,.3)" : "none",
-            transition: "all .2s",
-          }}>
-            {submitting ? "กำลังส่ง..." :
-              step === 4 ? "🛵 ยืนยันสั่งแก๊สเลย!" :
-              step === 3 ? "ตรวจสอบออเดอร์ →" : "ถัดไป →"}
-          </button>
+
+          {/* Steps 1-3 */}
+          {step > 0 && (
+            <div style={{ display: "flex", gap: 10 }}>
+              <button onClick={() => setStep(step - 1)} style={{ flex: 1, padding: 14, borderRadius: 12, border: "2px solid #E5E7EB", background: WHITE, fontWeight: 700, fontSize: 14, cursor: "pointer", color: NAVY }}>← กลับ</button>
+              <button onClick={handleNext} disabled={!canNext || submitting} style={{
+                flex: 2, padding: 14, borderRadius: 12, border: "none",
+                background: canNext && !submitting ? `linear-gradient(135deg,${NAVY},${NAVY2})` : "#E5E7EB",
+                color: canNext && !submitting ? WHITE : "#9CA3AF",
+                fontWeight: 800, fontSize: 14, cursor: canNext && !submitting ? "pointer" : "default",
+                boxShadow: canNext ? "0 4px 16px rgba(26,43,107,.3)" : "none" }}>
+                {submitting ? "กำลังส่ง..." : step === 3 ? "🛵 ยืนยันสั่งแก๊สเลย!" : step === 2 ? "ตรวจสอบออเดอร์ →" : "ถัดไป →"}
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>
   );
 }
 
-function DoneScreen({ order, onReset }) {
+function DoneScreen({ orders, onReset }) {
+  const total = orders.reduce((s, o) => s + Number(o.total), 0);
   return (
-    <div style={{ minHeight: "100vh", background: LGRAY,
-      display: "flex", flexDirection: "column", alignItems: "center",
-      justifyContent: "center", padding: 24 }}>
-      <div style={{ background: WHITE, borderRadius: 24, padding: 28,
-        maxWidth: 400, width: "100%", textAlign: "center",
-        boxShadow: "0 8px 40px rgba(0,0,0,.12)" }}>
+    <div style={{ minHeight: "100vh", background: LGRAY, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24 }}>
+      <div style={{ background: WHITE, borderRadius: 24, padding: 28, maxWidth: 400, width: "100%", textAlign: "center", boxShadow: "0 8px 40px rgba(0,0,0,.12)" }}>
         <Logo size={60}/>
         <div style={{ fontSize: 50, margin: "14px 0 8px" }}>🎉</div>
         <h1 style={{ fontSize: 20, fontWeight: 900, color: NAVY, marginBottom: 4 }}>สั่งซื้อสำเร็จแล้วค่ะ!</h1>
-        <p style={{ fontFamily: "monospace", fontSize: 22, fontWeight: 900,
-          color: ORANGE, letterSpacing: 1, marginBottom: 20 }}>#{order.orderNumber}</p>
-        <div style={{ background: LGRAY, borderRadius: 14, padding: 16, textAlign: "left", marginBottom: 16 }}>
-          {[
-            ["🛢 สินค้า",  `${order.product?.name} × ${order.qty} ถัง`],
-            ["📍 ที่อยู่",  order.deliveryAddress?.slice(0, 50) + (order.deliveryAddress?.length > 50 ? "..." : "")],
-            ["💰 ยอดชำระ", `฿${Number(order.total).toLocaleString()}`],
-            ["⏱ ประมาณ",  "30–60 นาที"],
-          ].map(([k, v]) => (
-            <div key={k} style={{ display: "flex", justifyContent: "space-between",
-              fontSize: 12, marginBottom: 7, gap: 8, alignItems: "flex-start" }}>
-              <span style={{ color: GRAY, flexShrink: 0 }}>{k}</span>
-              <span style={{ fontWeight: 600, color: NAVY, textAlign: "right",
-                wordBreak: "break-word", maxWidth: "60%" }}>{v}</span>
+        <div style={{ background: LGRAY, borderRadius: 14, padding: 14, textAlign: "left", marginBottom: 14 }}>
+          {orders.map((o, i) => (
+            <div key={i} style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 6 }}>
+              <span style={{ color: GRAY }}>{o.product?.name} × {o.qty}</span>
+              <span style={{ fontWeight: 700, color: ORANGE }}>#{o.orderNumber}</span>
             </div>
           ))}
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 15, fontWeight: 900, paddingTop: 8, borderTop: "1px solid #E5E7EB", marginTop: 6 }}>
+            <span style={{ color: GRAY }}>รวมทั้งหมด</span>
+            <span style={{ color: ORANGE }}>฿{total.toLocaleString()}</span>
+          </div>
         </div>
-        <div style={{ background: "#EEF2FF", borderRadius: 12, padding: 12,
-          fontSize: 12, color: NAVY, marginBottom: 20, lineHeight: 1.7 }}>
+        <div style={{ background: "#EEF2FF", borderRadius: 12, padding: 12, fontSize: 12, color: NAVY, marginBottom: 20, lineHeight: 1.7 }}>
           📱 ระบบจะส่งอัปเดตสถานะผ่าน <strong>LINE</strong> ให้อัตโนมัติทุกขั้นตอนค่ะ
         </div>
-        <button onClick={onReset} style={{
-          width: "100%", padding: 14, borderRadius: 12, border: "none",
-          background: `linear-gradient(135deg, ${NAVY}, ${NAVY2})`,
-          color: WHITE, fontWeight: 800, fontSize: 14, cursor: "pointer" }}>
+        <button onClick={onReset} style={{ width: "100%", padding: 14, borderRadius: 12, border: "none", background: `linear-gradient(135deg,${NAVY},${NAVY2})`, color: WHITE, fontWeight: 800, fontSize: 14, cursor: "pointer" }}>
           สั่งอีกรอบ
         </button>
       </div>
