@@ -6,11 +6,12 @@ async function listCodes(_req, res) {
 }
 
 async function createCode(req, res) {
-  const code = await DiscountCode.create({
-    ...req.body,
-    code: req.body.code.toUpperCase(),
-  });
-  res.status(201).json(code);
+  try {
+    const body = { ...req.body, code: req.body.code.toUpperCase() };
+    if (!body.expiresAt) body.expiresAt = null;
+    const code = await DiscountCode.create(body);
+    res.status(201).json(code);
+  } catch (e) { res.status(500).json({ error: e.message }); }
 }
 
 async function updateCode(req, res) {
