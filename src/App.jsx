@@ -183,7 +183,7 @@ export default function App() {
     const saved = ls.getCustomer();
     if (saved) { setCustomerName(saved.name || ""); setCustomerPhone(saved.phone || ""); setPaymentMethod(saved.paymentMethod || "cash"); }
     const savedCode = ls.getDiscount();
-    if (savedCode) { setDiscountInput(savedCode); setDiscountCode(savedCode); }
+    if (savedCode) { setDiscountInput(savedCode); } // pre-fill only; user must tap "ใช้โค้ด" to validate
     setSavedOrders(ls.getSavedOrders());
 
     async function initLiff() {
@@ -261,19 +261,21 @@ export default function App() {
     const results = [];
     try {
       for (const item of cart) {
-        const res = await fetch(`${API}/api/v1/orders`, {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            lineUserId, brandId: item.brandId, productId: item.productId,
-            qty: item.qty, customerName, customerPhone,
-            deliveryLat: locData.lat, deliveryLng: locData.lng,
-            deliveryAddress: locData.address, paymentMethod,
-            // Apply discount only to items the code is valid for
-            discountCode: (discountCode && (discountApplicableIds.length === 0 || discountApplicableIds.includes(item.productId))) ? discountCode : undefined,
-            note,
-          }),
-        });
-        const data = await res.json();
+        const codeForItem = (discountCode && discountApplicableIds.includes(item.productId)) ? discountCode : undefined;
+        const payload = {
+          lineUserId, brandId: item.brandId, productId: item.productId,
+          qty: item.qty, customerName, customerPhone,
+          deliveryLat: locData.lat, deliveryLng: locData.lng,
+          deliveryAddress: locData.address, paymentMethod,
+          discountCode: codeForItem, note,
+        };
+        let res = await fetch(`${API}/api/v1/orders`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+        let data = await res.json();
+        // If discount code caused a rejection, retry without it
+        if (!res.ok && codeForItem) {
+          res = await fetch(`${API}/api/v1/orders`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...payload, discountCode: undefined }) });
+          data = await res.json();
+        }
         if (!res.ok) throw new Error(data.error || "เกิดข้อผิดพลาด");
         results.push(data.order);
         // Save each item as a saved order template
