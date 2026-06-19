@@ -12,7 +12,7 @@ function generateOrderNumber() {
 }
 
 // ── Customer: create order ────────────────────────────────────────────────────
-async function createOrder(req, res) {
+async function createOrder(req, res) { try {
   const {
     lineUserId, brandId, productId, qty, customerName, customerPhone,
     deliveryLat, deliveryLng, deliveryAddress,
@@ -61,8 +61,6 @@ async function createOrder(req, res) {
       return res.status(400).json({ error: "โค้ดถูกใช้ครบแล้ว" });
     if (subtotal < Number(discountCodeRecord.minOrderAmount))
       return res.status(400).json({ error: `ยอดขั้นต่ำ ฿${discountCodeRecord.minOrderAmount}` });
-    if (discountCodeRecord.allowedZones?.length && !discountCodeRecord.allowedZones.includes(zone.name))
-      return res.status(400).json({ error: "โค้ดนี้ไม่สามารถใช้ในพื้นที่นี้" });
 
     discountAmount = discountCodeRecord.type === "percent"
       ? Math.round(subtotal * discountCodeRecord.value / 100)
@@ -134,6 +132,7 @@ async function createOrder(req, res) {
   }
 
   res.status(201).json({ order: fullOrder });
+  } catch (err) { res.status(500).json({ error: err.message }); }
 }
 
 // ── Get single order (customer track) ─────────────────────────────────────────
