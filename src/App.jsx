@@ -132,7 +132,7 @@ export default function App() {
   const [doneOrder, setDoneOrder]   = useState(null);
 
   useEffect(() => {
-    async function init() {
+    async function initLiff() {
       try {
         await liff.init({ liffId: LIFF_ID });
         if (liff.isLoggedIn()) {
@@ -141,14 +141,14 @@ export default function App() {
           setCustomerName(profile.displayName || "");
         } else {
           liff.login();
-          return;
         }
-        setLiffReady(true);
       } catch (e) {
         setLineUserId("dev-user");
-        setLiffReady(true);
       }
+      setLiffReady(true);
+    }
 
+    async function loadData() {
       try {
         const [bRes, pRes] = await Promise.all([
           fetch(`${API}/api/v1/products/brands`),
@@ -163,7 +163,9 @@ export default function App() {
       }
       setLoading(false);
     }
-    init();
+
+    initLiff();
+    loadData();
   }, []);
 
   const prod     = products.find(p => p.id === product);
