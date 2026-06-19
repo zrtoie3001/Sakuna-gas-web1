@@ -74,7 +74,7 @@ const ProductZonePrice = sequelize.define("ProductZonePrice", {
   productId: { type: DataTypes.UUID },
   zoneId:    { type: DataTypes.UUID },
   price:     { type: DataTypes.DECIMAL(10, 2) },
-}, { tableName: "product_zone_prices", underscored: true });
+}, { tableName: "product_zone_prices", underscored: true, timestamps: false });
 
 // ── DiscountCode ──────────────────────────────────────────────────────────────
 const DiscountCode = sequelize.define("DiscountCode", {
@@ -120,8 +120,6 @@ const Order = sequelize.define("Order", {
     type: DataTypes.ENUM("pending", "preparing", "out_for_delivery", "near_destination", "delivered", "cancelled"),
     defaultValue: "pending",
   },
-  estimatedMinutes: { type: DataTypes.INTEGER },
-  isOffHours:      { type: DataTypes.BOOLEAN, defaultValue: false },
 }, { tableName: "orders", underscored: true });
 
 // ── OrderStatusLog ────────────────────────────────────────────────────────────
