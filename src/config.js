@@ -21,7 +21,7 @@ export const BRANDS = [
     color: "#DC2626",
     bgColor: "#FEF2F2",
     // รูปจาก URL สาธารณะ (เปลี่ยนเป็นรูปจริงของถังแต่ละยี่ห้อได้เลย)
-    image: "https://upload.wikimedia.org/wikipedia/th/thumb/5/52/PTT_Logo.svg/200px-PTT_Logo.svg.png",
+    image: "/images/PTT.jpg",
     imageFallback: "🔴",
   },
   {
@@ -29,7 +29,7 @@ export const BRANDS = [
     name: "PAP",
     color: "#1D4ED8",
     bgColor: "#EFF6FF",
-    image: null, // ใส่ URL รูป PAP ที่นี่
+    image: "/images/PAP.jpg",
     imageFallback: "🔵",
   },
   {
@@ -37,7 +37,7 @@ export const BRANDS = [
     name: "เวิลด์",
     color: "#059669",
     bgColor: "#ECFDF5",
-    image: null,
+    image: "/images/World.jpg",
     imageFallback: "🟢",
   },
   {
@@ -45,7 +45,7 @@ export const BRANDS = [
     name: "ยูนิค",
     color: "#D97706",
     bgColor: "#FFFBEB",
-    image: null,
+    image: "/images/Unique.png",
     imageFallback: "🟠",
   },
   {
@@ -53,7 +53,7 @@ export const BRANDS = [
     name: "สยาม",
     color: "#7C3AED",
     bgColor: "#F5F3FF",
-    image: null,
+    image: "/images/Siam.png",
     imageFallback: "🟣",
   },
 ];
