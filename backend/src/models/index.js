@@ -113,7 +113,6 @@ const Order = sequelize.define("Order", {
   deliveryLng:     { type: DataTypes.DECIMAL(10, 7) },
   distanceKm:      { type: DataTypes.DECIMAL(8, 2) },
   zone:            { type: DataTypes.STRING(10) },
-  customerType:    { type: DataTypes.ENUM("home", "shop"), defaultValue: "home" },
   paymentMethod:   { type: DataTypes.ENUM("cash", "qr"), defaultValue: "cash" },
   slipUrl:         { type: DataTypes.TEXT },
   note:            { type: DataTypes.TEXT },
