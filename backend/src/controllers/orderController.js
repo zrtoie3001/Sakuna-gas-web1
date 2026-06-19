@@ -186,7 +186,7 @@ async function updateStatus(req, res) {
   });
   if (!order) return res.status(404).json({ error: "Order not found" });
 
-  if (req.user.role === "driver" && !["out_for_delivery", "near_destination", "delivered"].includes(status))
+  if (req.user.role === "driver" && !["out_for_delivery", "delivered"].includes(status))
     return res.status(403).json({ error: "Driver cannot set this status" });
 
   await order.update({ status });

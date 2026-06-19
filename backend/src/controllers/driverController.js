@@ -34,7 +34,7 @@ async function getMyOrders(req, res) {
     where: {
       driverId: req.user.id,
       [Op.or]: [
-        { status: ["preparing", "out_for_delivery", "near_destination"] },
+        { status: ["preparing", "out_for_delivery"] },
         { status: "delivered", updatedAt: { [Op.gte]: todayStart } },
       ],
     },

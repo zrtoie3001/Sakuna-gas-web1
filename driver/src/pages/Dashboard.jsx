@@ -5,17 +5,16 @@ import api from "../utils/api.js";
 const NAVY = "#1A2B6B"; const NAVY2 = "#0F1D52"; const ORANGE = "#F47B20"; const WHITE = "#FFFFFF"; const GRAY = "#6B7280";
 
 const STATUS_NEXT = {
-  pending:          { next: "preparing",        label: "รับงาน",    color: "#1E40AF", bg: "#DBEAFE" },
-  preparing:        { next: "out_for_delivery",  label: "ออกส่งแล้ว", color: "#075985", bg: "#E0F2FE" },
-  out_for_delivery: { next: "near_destination",  label: "ใกล้ถึงแล้ว", color: "#065F46", bg: "#D1FAE5" },
-  near_destination: { next: "delivered",         label: "ส่งสำเร็จ ✅", color: "#065F46", bg: "#D1FAE5" },
+  pending:          { next: "preparing",       label: "รับงาน",      color: "#1E40AF", bg: "#DBEAFE" },
+  preparing:        { next: "out_for_delivery", label: "ออกส่งแล้ว", color: "#075985", bg: "#E0F2FE" },
+  out_for_delivery: { next: "delivered",        label: "ส่งสำเร็จ ✅", color: "#065F46", bg: "#D1FAE5" },
 };
 
 const STATUS_LABEL = {
   pending:           "⏳ รอรับงาน",
   preparing:         "📦 เตรียมสินค้า",
   out_for_delivery:  "🛵 กำลังส่ง",
-  near_destination:  "📍 ใกล้ถึง",
+  near_destination:  "🛵 กำลังส่ง",
   delivered:         "✅ ส่งสำเร็จ",
 };
 
