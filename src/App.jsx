@@ -11,7 +11,7 @@ const WHITE  = "#FFFFFF";
 const LGRAY  = "#F4F6FB";
 const GRAY   = "#6B7280";
 
-const STEPS = ["ประเภท", "ยี่ห้อ", "สินค้า", "ที่อยู่", "ยืนยัน"];
+const STEPS = ["ยี่ห้อ", "สินค้า", "ที่อยู่", "ยืนยัน"];
 
 // ── Logo SVG ────────────────────────────────────────────────────────────────
 function Logo({ size = 48 }) {
@@ -117,7 +117,6 @@ function BrandImage({ brand, size = 56 }) {
 // ── Main App ─────────────────────────────────────────────────────────────────
 export default function App() {
   const [step, setStep]         = useState(0);
-  const [custType, setCustType] = useState(null);
   const [brand, setBrand]       = useState(null);
   const [product, setProduct]   = useState(null);
   const [qty, setQty]           = useState(1);
@@ -126,14 +125,11 @@ export default function App() {
   const [done, setDone]         = useState(false);
   const [discountCode, setDiscountCode] = useState(() => localStorage.getItem("discountCode") || "");
   const [discountInput, setDiscountInput] = useState("");
-  const [discountMsg, setDiscountMsg]     = useState(null); // { ok, text }
+  const [discountMsg, setDiscountMsg]     = useState(null);
 
   const prod      = PRODUCTS.find(p => p.id === product);
   const brandObj  = BRANDS.find(b => b.id === brand);
-  const zoneKey   = locData?.zone || "A";
-  const unitPrice = prod
-    ? (custType === "shop" ? prod.shopPrice[zoneKey] : prod.homePrice)
-    : 0;
+  const unitPrice = prod ? prod.homePrice : 0;
   const discountAmt = DISCOUNT_CODES[discountCode?.toLowerCase()] || 0;
   const total = Math.max(0, unitPrice * qty - discountAmt);
 
@@ -143,17 +139,16 @@ export default function App() {
   }, []);
 
   const canNext = [
-    !!custType,
     !!brand,
     !!product,
-    !!(locData && locData.zone),   // ต้องอยู่ในพื้นที่
+    !!(locData && locData.zone),
     true,
   ][step];
 
   const orderId = `SKG${Date.now().toString().slice(-6)}`;
 
   function handleNext() {
-    if (step < 4) setStep(step + 1);
+    if (step < 3) setStep(step + 1);
     else setDone(true);
   }
 
@@ -169,7 +164,7 @@ export default function App() {
   }
 
   function handleReset() {
-    setDone(false); setStep(0); setCustType(null); setBrand(null);
+    setDone(false); setStep(0); setBrand(null);
     setProduct(null); setQty(1); setLocData(null); setNote("");
   }
 
@@ -177,7 +172,7 @@ export default function App() {
     return (
       <DoneScreen
         orderId={orderId} prod={prod} qty={qty} brandObj={brandObj}
-        locData={locData} total={total} custType={custType} note={note}
+        locData={locData} total={total} note={note}
         onReset={handleReset}
       />
     );
@@ -223,47 +218,8 @@ export default function App() {
       {/* ─── Content ─── */}
       <div style={{ padding: "18px 16px 120px", maxWidth: 460, margin: "0 auto" }}>
 
-        {/* STEP 0 — ประเภทลูกค้า */}
+        {/* STEP 0 — ยี่ห้อ */}
         {step === 0 && (
-          <div>
-            <SectionTitle icon="👤" title="คุณเป็นลูกค้าประเภทไหน?"
-              sub="ราคาร้านค้าจะปรับอัตโนมัติตามระยะทางจากหมุดที่คุณปักในแผนที่"/>
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              {[
-                { k: "home", icon: "🏠", label: "บ้านพักอาศัย",
-                  desc: "ราคามาตรฐาน ไม่แบ่งโซน" },
-                { k: "shop", icon: "🍳", label: "ร้านค้า / ร้านอาหาร",
-                  desc: "ราคาพิเศษ — ระบบจะคำนวณโซนและราคาจากตำแหน่งที่คุณปักหมุดอัตโนมัติ" },
-              ].map(opt => (
-                <div key={opt.k} onClick={() => setCustType(opt.k)} style={{
-                  background:  custType === opt.k ? "#EEF2FF" : WHITE,
-                  border:      `2px solid ${custType === opt.k ? NAVY : "#E5E7EB"}`,
-                  borderRadius: 14, padding: "14px 16px", cursor: "pointer",
-                  display: "flex", alignItems: "center", gap: 12,
-                  transition: "all .15s",
-                  boxShadow: custType === opt.k
-                    ? "0 4px 16px rgba(26,43,107,.14)" : "0 1px 3px rgba(0,0,0,.05)",
-                }}>
-                  <div style={{ fontSize: 30 }}>{opt.icon}</div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 15, fontWeight: 800, color: NAVY }}>{opt.label}</div>
-                    <div style={{ fontSize: 11, color: GRAY, marginTop: 2, lineHeight: 1.5 }}>{opt.desc}</div>
-                  </div>
-                  <div style={{
-                    width: 22, height: 22, borderRadius: "50%", flexShrink: 0,
-                    background: custType === opt.k ? NAVY : "transparent",
-                    border: `2px solid ${custType === opt.k ? NAVY : "#D1D5DB"}`,
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    color: WHITE, fontSize: 11,
-                  }}>{custType === opt.k ? "✓" : ""}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* STEP 1 — ยี่ห้อ */}
-        {step === 1 && (
           <div>
             <SectionTitle icon="🏷" title="เลือกยี่ห้อแก๊ส"
               sub="เลือกยี่ห้อถังแก๊สที่ต้องการ"/>
@@ -295,11 +251,11 @@ export default function App() {
           </div>
         )}
 
-        {/* STEP 2 — สินค้า */}
-        {step === 2 && (
+        {/* STEP 1 — สินค้า */}
+        {step === 1 && (
           <div>
             <SectionTitle icon="🛢" title="เลือกขนาดถังแก๊ส"
-              sub={`ยี่ห้อ ${brandObj?.name} · ${custType === "shop" ? "ราคาร้านค้า" : "ราคาบ้านพักอาศัย"}`}/>
+              sub={`ยี่ห้อ ${brandObj?.name}`}/>
 
             {/* brand chip */}
             {brandObj && (
@@ -318,9 +274,6 @@ export default function App() {
 
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               {PRODUCTS.map(p => {
-                const price    = custType === "shop" ? p.shopPrice[zoneKey] : p.homePrice;
-                const isDisc   = custType === "shop" && price < p.homePrice;
-
                 return (
                   <div key={p.id} onClick={() => { setProduct(p.id); setQty(1); }} style={{
                     background:   product === p.id ? "#EEF2FF" : WHITE,
@@ -345,12 +298,7 @@ export default function App() {
                       <div style={{ fontSize: 11, color: GRAY, marginTop: 1 }}>{p.desc}</div>
                     </div>
                     <div style={{ textAlign: "right" }}>
-                      {isDisc && (
-                        <div style={{ fontSize: 10, color: "#9CA3AF", textDecoration: "line-through" }}>
-                          ฿{p.homePrice}
-                        </div>
-                      )}
-                      <div style={{ fontSize: 18, fontWeight: 900, color: ORANGE }}>฿{price}</div>
+                      <div style={{ fontSize: 18, fontWeight: 900, color: ORANGE }}>฿{p.homePrice}</div>
                     </div>
                   </div>
                 );
@@ -391,8 +339,8 @@ export default function App() {
           </div>
         )}
 
-        {/* STEP 3 — ที่อยู่ / แผนที่ */}
-        {step === 3 && (
+        {/* STEP 2 — ที่อยู่ / แผนที่ */}
+        {step === 2 && (
           <div>
             <SectionTitle icon="🗺" title="ระบุตำแหน่งจัดส่ง"
               sub="แตะแผนที่หรือลากหมุดไปที่บ้าน/ร้านของคุณ"/>
@@ -415,23 +363,13 @@ export default function App() {
                     fontSize: 13, resize: "none", color: GRAY,
                   }}
                 />
-                {custType === "shop" && (
-                  <div style={{
-                    marginTop: 8, background: "#D1FAE5", borderRadius: 12,
-                    padding: "9px 12px", fontSize: 12, color: "#065F46",
-                  }}>
-                    🤖 ระบบกำหนดราคาร้านค้า: <strong>
-                      {ZONES[locData.zone]?.label} — {ZONES[locData.zone]?.desc}
-                    </strong> อัตโนมัติแล้วค่ะ
-                  </div>
-                )}
               </div>
             )}
           </div>
         )}
 
-        {/* STEP 4 — ยืนยัน */}
-        {step === 4 && (
+        {/* STEP 3 — ยืนยัน */}
+        {step === 3 && (
           <div>
             <SectionTitle icon="✅" title="ตรวจสอบออเดอร์"
               sub="กรุณาตรวจสอบข้อมูลก่อนยืนยัน"/>
@@ -497,10 +435,6 @@ export default function App() {
                 {[
                   ["🏷 ยี่ห้อ",  brandObj?.name],
                   ["🛢 สินค้า",  `${prod?.icon} ${prod?.name} × ${qty} ถัง`],
-                  ["👤 ประเภท",
-                    custType === "home"
-                      ? "บ้านพักอาศัย"
-                      : `ร้านค้า · ${ZONES[locData?.zone]?.label || ""}`],
                   ["📍 ที่อยู่",  locData?.address],
                   ["📏 ระยะทาง", `~${locData?.distKm?.toFixed(1)} กม.`],
                   note ? ["💬 หมายเหตุ", note] : null,
@@ -564,8 +498,8 @@ export default function App() {
             transition: "all .2s",
           }}
         >
-          {step === 4 ? "🛵 ยืนยันสั่งแก๊สเลย!"
-            : step === 3 ? "ตรวจสอบออเดอร์ →"
+          {step === 3 ? "🛵 ยืนยันสั่งแก๊สเลย!"
+            : step === 2 ? "ตรวจสอบออเดอร์ →"
             : "ถัดไป →"}
         </button>
       </div>
@@ -574,7 +508,7 @@ export default function App() {
 }
 
 // ── Done screen ───────────────────────────────────────────────────────────────
-function DoneScreen({ orderId, prod, qty, brandObj, locData, total, custType, note, onReset }) {
+function DoneScreen({ orderId, prod, qty, brandObj, locData, total, note, onReset }) {
   return (
     <div style={{
       minHeight: "100vh", background: LGRAY,
@@ -604,9 +538,6 @@ function DoneScreen({ orderId, prod, qty, brandObj, locData, total, custType, no
             ["🏷 ยี่ห้อ",   brandObj?.name],
             ["🛢 สินค้า",   `${prod?.name} × ${qty} ถัง`],
             ["📍 ที่อยู่",   locData?.address?.slice(0, 50) + (locData?.address?.length > 50 ? "..." : "")],
-            custType === "shop" && locData?.zone
-              ? ["📦 โซน", ZONES[locData.zone]?.label + " · " + ZONES[locData.zone]?.desc]
-              : null,
             note ? ["💬 หมายเหตุ", note] : null,
             ["💰 ยอดชำระ",  `฿${total?.toLocaleString()}`],
             ["⏱ ประมาณ",   "30–60 นาที"],
