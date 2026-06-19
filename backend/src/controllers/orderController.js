@@ -15,7 +15,7 @@ function generateOrderNumber() {
 async function createOrder(req, res) {
   const {
     lineUserId, brandId, productId, qty, customerName, customerPhone,
-    deliveryLat, deliveryLng, deliveryAddress, customerType,
+    deliveryLat, deliveryLng, deliveryAddress,
     paymentMethod, discountCode: codeStr, note,
   } = req.body;
 
@@ -44,12 +44,6 @@ async function createOrder(req, res) {
 
   // Price
   let unitPrice = Number(product.homePrice);
-  if (customerType === "shop") {
-    // Find zone price
-    const { ProductZonePrice } = require("../models");
-    const zp = await ProductZonePrice.findOne({ where: { productId, zoneId: zone.id } });
-    if (zp) unitPrice = Number(zp.price);
-  }
 
   const subtotal = unitPrice * qty;
 
@@ -119,11 +113,8 @@ async function createOrder(req, res) {
     deliveryLng,
     distanceKm,
     zone: zone.name,
-    customerType,
     paymentMethod,
     note,
-    estimatedMinutes: durationMins ? durationMins + 15 : null,
-    isOffHours: offHours,
   });
 
   // Increment discount usage
@@ -142,11 +133,7 @@ async function createOrder(req, res) {
     notifyAdminNewOrder(fullOrder).catch(() => {});
   }
 
-  res.status(201).json({
-    order: fullOrder,
-    isOffHours: offHours,
-    nextOpenTime: offHours ? getNextOpenTime() : null,
-  });
+  res.status(201).json({ order: fullOrder });
 }
 
 // ── Get single order (customer track) ─────────────────────────────────────────
@@ -188,7 +175,7 @@ async function listOrders(req, res) {
 
 // ── Admin/Driver: update status ───────────────────────────────────────────────
 async function updateStatus(req, res) {
-  const { status, note, estimatedMinutes } = req.body;
+  const { status, note } = req.body;
   const order = await Order.findByPk(req.params.id, {
     include: [
       { model: Brand, as: "brand" },
@@ -201,12 +188,12 @@ async function updateStatus(req, res) {
   if (req.user.role === "driver" && !["out_for_delivery", "near_destination", "delivered"].includes(status))
     return res.status(403).json({ error: "Driver cannot set this status" });
 
-  await order.update({ status, estimatedMinutes: estimatedMinutes || order.estimatedMinutes });
+  await order.update({ status });
   await OrderStatusLog.create({ orderId: order.id, status, note, changedBy: req.user.id });
 
   // LINE notification
   if (order.customer?.lineUserId) {
-    sendStatusUpdate(order.customer.lineUserId, order, status, estimatedMinutes).catch(() => {});
+    sendStatusUpdate(order.customer.lineUserId, order, status).catch(() => {});
   }
 
   res.json(order);
