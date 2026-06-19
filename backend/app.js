@@ -30,9 +30,13 @@ app.use(cors({
 }));
 
 app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 200, standardHeaders: true }));
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+
+// ── Webhook (ต้อง mount ก่อน express.json เพื่อให้ LINE middleware อ่าน raw body ได้) ──
+app.use("/webhook", require("./src/routes/webhook"));
+
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
-app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 // ── Routes ────────────────────────────────────────────────────────────────────
 app.use("/api/v1/auth",      require("./src/routes/auth"));
@@ -43,7 +47,6 @@ app.use("/api/v1/discounts", require("./src/routes/discounts"));
 app.use("/api/v1/drivers",   require("./src/routes/drivers"));
 app.use("/api/v1/reports",   require("./src/routes/reports"));
 app.use("/api/v1/maps",      require("./src/routes/maps"));
-app.use("/webhook",          require("./src/routes/webhook"));
 
 // ── Health ────────────────────────────────────────────────────────────────────
 app.get("/health", (_req, res) => res.json({ status: "ok", ts: new Date() }));
