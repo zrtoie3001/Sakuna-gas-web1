@@ -86,6 +86,7 @@ const DiscountCode = sequelize.define("DiscountCode", {
   maxUses:      { type: DataTypes.INTEGER },
   usedCount:    { type: DataTypes.INTEGER, defaultValue: 0 },
   expiresAt:    { type: DataTypes.DATE },
+  allowedProducts: { type: DataTypes.ARRAY(DataTypes.UUID) },
   isActive:     { type: DataTypes.BOOLEAN, defaultValue: true },
   description:  { type: DataTypes.TEXT },
 }, { tableName: "discount_codes", underscored: true });

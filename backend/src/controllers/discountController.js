@@ -29,12 +29,14 @@ async function deleteCode(req, res) {
 }
 
 async function validateCode(req, res) {
-  const { code, subtotal, zone } = req.body;
+  const { code, subtotal, productId } = req.body;
   const dc = await DiscountCode.findOne({ where: { code: code.toUpperCase(), isActive: true } });
   if (!dc) return res.status(400).json({ error: "โค้ดไม่ถูกต้อง" });
   if (dc.expiresAt && new Date() > dc.expiresAt) return res.status(400).json({ error: "โค้ดหมดอายุแล้ว" });
   if (dc.maxUses && dc.usedCount >= dc.maxUses) return res.status(400).json({ error: "โค้ดถูกใช้ครบแล้ว" });
   if (subtotal < Number(dc.minOrderAmount)) return res.status(400).json({ error: `ยอดขั้นต่ำ ฿${dc.minOrderAmount}` });
+  if (dc.allowedProducts?.length && productId && !dc.allowedProducts.includes(productId))
+    return res.status(400).json({ error: "โค้ดนี้ใช้ได้เฉพาะบางสินค้าเท่านั้น" });
   const discount = dc.type === "percent"
     ? Math.round(subtotal * dc.value / 100)
     : Math.min(Number(dc.value), subtotal);

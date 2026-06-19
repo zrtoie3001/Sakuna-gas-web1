@@ -61,6 +61,8 @@ async function createOrder(req, res) { try {
       return res.status(400).json({ error: "โค้ดถูกใช้ครบแล้ว" });
     if (subtotal < Number(discountCodeRecord.minOrderAmount))
       return res.status(400).json({ error: `ยอดขั้นต่ำ ฿${discountCodeRecord.minOrderAmount}` });
+    if (discountCodeRecord.allowedProducts?.length && !discountCodeRecord.allowedProducts.includes(productId))
+      return res.status(400).json({ error: "โค้ดนี้ใช้ได้เฉพาะบางสินค้าเท่านั้น" });
 
     discountAmount = discountCodeRecord.type === "percent"
       ? Math.round(subtotal * discountCodeRecord.value / 100)
