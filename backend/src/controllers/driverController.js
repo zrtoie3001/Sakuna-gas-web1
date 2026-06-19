@@ -27,8 +27,17 @@ async function updateDriver(req, res) {
 }
 
 async function getMyOrders(req, res) {
+  const { Op } = require("sequelize");
+  // Today's start (driver sees today's delivered orders too)
+  const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
   const orders = await Order.findAll({
-    where: { driverId: req.user.id, status: ["preparing", "out_for_delivery", "near_destination"] },
+    where: {
+      driverId: req.user.id,
+      [Op.or]: [
+        { status: ["preparing", "out_for_delivery", "near_destination"] },
+        { status: "delivered", updatedAt: { [Op.gte]: todayStart } },
+      ],
+    },
     include: [
       { model: Brand, as: "brand" },
       { model: Product, as: "product" },
