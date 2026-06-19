@@ -30,6 +30,29 @@ async function handleEvent(event) {
   const text = event.message.text.trim().toLowerCase();
   const replyToken = event.replyToken;
 
+  if (["ติดต่อ", "ติดต่อร้าน", "เบอร์", "โทร"].some(k => text.includes(k))) {
+    return client.replyMessage({
+      replyToken,
+      messages: [{
+        type: "flex",
+        altText: "ติดต่อสกุณาแก๊ส",
+        contents: {
+          type: "bubble",
+          body: {
+            type: "box", layout: "vertical", spacing: "md",
+            contents: [
+              { type: "text", text: "📞 ติดต่อสกุณาแก๊ส", weight: "bold", size: "lg", color: "#1A2B6B" },
+              { type: "separator" },
+              { type: "button", action: { type: "uri", label: "📱 097-121-3054", uri: "tel:0971213054" }, style: "secondary", margin: "md" },
+              { type: "button", action: { type: "uri", label: "📱 092-631-4331", uri: "tel:0926314331" }, style: "secondary", margin: "sm" },
+              { type: "button", action: { type: "uri", label: "☎️ 02-970-9385", uri: "tel:029709385" }, style: "secondary", margin: "sm" },
+            ],
+          },
+        },
+      }],
+    });
+  }
+
   if (["สั่ง", "สั่งแก๊ส", "order", "ออเดอร์", "สวัสดี", "hello", "hi"].some(k => text.includes(k))) {
     const open = isOpen();
     if (!open) {
