@@ -1,11 +1,29 @@
+import { useState, useEffect } from "react";
+import generatePayload from "promptpay-qr";
+import QRCode from "qrcode";
+
 const NAVY   = "#1A2B6B";
 const NAVY2  = "#0F1D52";
 const ORANGE = "#F47B20";
 const WHITE  = "#FFFFFF";
 const GRAY   = "#6B7280";
 
+const PROMPTPAY_ID = import.meta.env.VITE_PROMPTPAY_ID || "0971213054";
+
 export default function QRPayment({ order, onDone }) {
   const total = Number(order.total);
+  const [svgData, setSvgData] = useState("");
+
+  useEffect(() => {
+    const payload = generatePayload(PROMPTPAY_ID, { amount: total });
+    QRCode.toString(payload, {
+      type: "svg",
+      width: 280,
+      margin: 2,
+      color: { dark: "#000000", light: "#FFFFFF" },
+      errorCorrectionLevel: "H",
+    }).then(setSvgData).catch(() => {});
+  }, [total]);
 
   return (
     <div style={{ minHeight: "100vh", background: "#F4F6FB",
@@ -34,18 +52,28 @@ export default function QRPayment({ order, onDone }) {
           </div>
         </div>
 
-        {/* QR Code image */}
-        <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
-          <div style={{ padding: 12, border: `3px solid ${NAVY}`, borderRadius: 16,
-            background: WHITE, display: "inline-block" }}>
-            <img src="/images/qr-promptpay.png" alt="QR PromptPay"
-              style={{ width: 240, height: 240, objectFit: "contain", display: "block" }} />
+        {/* QR Code SVG */}
+        <div style={{ display: "flex", justifyContent: "center", marginBottom: 20 }}>
+          <div style={{
+            padding: 16, background: WHITE, borderRadius: 20,
+            boxShadow: "0 2px 16px rgba(0,0,0,.10)",
+            border: "1.5px solid #E5E7EB",
+            display: "inline-block",
+          }}>
+            {svgData
+              ? <div dangerouslySetInnerHTML={{ __html: svgData }}
+                  style={{ width: 240, height: 240, display: "block" }} />
+              : <div style={{ width: 240, height: 240, display: "flex", alignItems: "center", justifyContent: "center", color: GRAY, fontSize: 13 }}>กำลังโหลด...</div>
+            }
           </div>
         </div>
 
-        <div style={{ fontSize: 12, color: GRAY, marginBottom: 24, background: "#F8FAFC",
-          borderRadius: 10, padding: "8px 14px" }}>
-          สแกน QR ด้วยแอปธนาคารหรือวอลเล็ตของคุณ
+        <div style={{ fontSize: 12, color: GRAY, marginBottom: 6 }}>
+          สแกนด้วยแอปธนาคารหรือวอลเล็ต
+        </div>
+        <div style={{ fontSize: 12, color: NAVY, fontWeight: 700, marginBottom: 24, background: "#F0F3FF",
+          borderRadius: 10, padding: "8px 14px", display: "inline-block" }}>
+          PromptPay · {PROMPTPAY_ID}
         </div>
 
         {/* Confirm button */}
