@@ -198,7 +198,7 @@ export default function App() {
             <div style={{ marginLeft: "auto", background: "rgba(255,255,255,.12)",
               borderRadius: 20, padding: "4px 10px", fontSize: 10,
               color: "rgba(255,255,255,.85)", whiteSpace: "nowrap" }}>
-              🕐 08:00–20:00
+              🕐 {new Date().getDay() === 0 ? "07:00–13:00" : "07:00–19:00"}
             </div>
           </div>
           <StepBar step={step}/>
