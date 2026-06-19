@@ -9,6 +9,7 @@ const { sequelize } = require("./src/config/database");
 const logger = require("./src/utils/logger");
 
 const app = express();
+app.set("trust proxy", 1);
 
 // ── Security & Performance ────────────────────────────────────────────────────
 app.use(helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }));
