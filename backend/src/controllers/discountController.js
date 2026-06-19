@@ -34,8 +34,6 @@ async function validateCode(req, res) {
   if (dc.expiresAt && new Date() > dc.expiresAt) return res.status(400).json({ error: "โค้ดหมดอายุแล้ว" });
   if (dc.maxUses && dc.usedCount >= dc.maxUses) return res.status(400).json({ error: "โค้ดถูกใช้ครบแล้ว" });
   if (subtotal < Number(dc.minOrderAmount)) return res.status(400).json({ error: `ยอดขั้นต่ำ ฿${dc.minOrderAmount}` });
-  if (dc.allowedZones?.length && !dc.allowedZones.includes(zone)) return res.status(400).json({ error: "โค้ดนี้ไม่สามารถใช้ในพื้นที่นี้" });
-
   const discount = dc.type === "percent"
     ? Math.round(subtotal * dc.value / 100)
     : Math.min(Number(dc.value), subtotal);

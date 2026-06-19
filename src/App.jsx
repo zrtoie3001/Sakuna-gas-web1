@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import liff from "@line/liff";
 import MapPicker from "./components/MapPicker.jsx";
+import QRPayment from "./components/QRPayment.jsx";
 
 const LIFF_ID = "2010449303-edxrP9ho";
 const API = import.meta.env.VITE_API_URL || "";
@@ -118,7 +119,7 @@ function ReorderCard({ last, brands, products, lineUserId, onReordered, onNewOrd
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "เกิดข้อผิดพลาด");
       saveLastOrder({ ...last });
-      onReordered(data.order);
+      onReordered({ ...data.order, _showQR: last.paymentMethod === "qr" });
     } catch (e) {
       alert(e.message);
     } finally {
@@ -277,7 +278,8 @@ export default function App() {
         lat: locData.lat, lng: locData.lng, address: locData.address,
         distKm: locData.distKm, zone: locData.zone, note,
       });
-      setDoneOrder(data.order);
+      const orderData = { ...data.order, _showQR: paymentMethod === "qr" };
+      setDoneOrder(orderData);
     } catch (e) {
       alert(e.message);
     } finally {
@@ -329,6 +331,10 @@ export default function App() {
             background: NAVY, color: WHITE, fontWeight: 700, cursor: "pointer" }}>ลองใหม่</button>
       </div>
     );
+  }
+
+  if (doneOrder && doneOrder._showQR) {
+    return <QRPayment order={doneOrder} onDone={() => setDoneOrder({ ...doneOrder, _showQR: false })} />;
   }
 
   if (doneOrder) {

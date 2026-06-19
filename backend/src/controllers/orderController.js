@@ -36,7 +36,7 @@ async function createOrder(req, res) { try {
   for (const z of zones) {
     if (distanceKm <= z.maxKm) {
       zone = z;
-      deliveryFee = Number(z.deliveryFee);
+      deliveryFee = 0; // ไม่คิดค่าส่งตอนนี้
       break;
     }
   }
