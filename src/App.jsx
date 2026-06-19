@@ -13,18 +13,16 @@ const GRAY   = "#6B7280";
 
 const STEPS = ["ยี่ห้อ", "สินค้า", "ที่อยู่", "ยืนยัน"];
 
-// ── Logo SVG ────────────────────────────────────────────────────────────────
+// ── Logo ────────────────────────────────────────────────────────────────────
 function Logo({ size = 48 }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 100 100" fill="none">
-      <circle cx="50" cy="50" r="48" fill={NAVY} stroke={ORANGE} strokeWidth="3"/>
-      <path d="M62 30 C65 40 70 45 66 56 C63 63 55 67 55 67 C57 60 53 55 50 52 C50 58 46 63 44 67 C40 60 38 50 42 40 C45 33 52 28 62 30Z" fill={ORANGE}/>
-      <path d="M50 52 C48 56 46 62 48 67 C45 63 43 57 44 52 C42 55 41 60 42 65 C39 58 38 50 42 40 C44 45 48 48 50 52Z" fill="#FFD166"/>
-      <rect x="38" y="55" width="24" height="28" rx="5" fill="#2563EB"/>
-      <rect x="38" y="55" width="24" height="8"  rx="3" fill="#1D4ED8"/>
-      <rect x="46" y="50" width="8"  height="6"  rx="2" fill="#92400E"/>
-      <rect x="44" y="48" width="12" height="3"  rx="1.5" fill="#B45309"/>
-    </svg>
+    <img
+      src="/images/Logo Sanuka.png"
+      alt="สกุณาแก๊ส"
+      width={size}
+      height={size}
+      style={{ objectFit: "contain", borderRadius: "50%" }}
+    />
   );
 }
 
