@@ -9,6 +9,7 @@ export default function Discounts() {
   const [codes, setCodes]       = useState([]);
   const [products, setProducts] = useState([]);
   const [modal, setModal]       = useState(false);
+  const [editId, setEditId]     = useState(null); // null = create, string = edit
   const [form, setForm]         = useState(EMPTY);
 
   const load = () => api.get("/api/v1/discounts").then(r => setCodes(r.data)).catch(() => {});
@@ -17,27 +18,46 @@ export default function Discounts() {
     api.get("/api/v1/products").then(r => setProducts(Array.isArray(r.data) ? r.data : r.data.products || [])).catch(() => {});
   }, []);
 
+  function openCreate() { setEditId(null); setForm(EMPTY); setModal(true); }
+  function openEdit(c) {
+    setEditId(c.id);
+    setForm({
+      code: c.code, type: c.type,
+      value: String(c.value),
+      minOrderAmount: String(c.minOrderAmount ?? "0"),
+      maxUses: c.maxUses != null ? String(c.maxUses) : "",
+      expiresAt: c.expiresAt ? c.expiresAt.slice(0, 10) : "",
+      description: c.description || "",
+      allowedProducts: c.allowedProducts || [],
+    });
+    setModal(true);
+  }
+
   async function save() {
     try {
-      await api.post("/api/v1/discounts", {
+      const payload = {
         ...form,
         value: Number(form.value),
         maxUses: form.maxUses ? Number(form.maxUses) : null,
         minOrderAmount: Number(form.minOrderAmount),
         expiresAt: form.expiresAt || null,
         allowedProducts: form.allowedProducts.length ? form.allowedProducts : null,
-      });
-      setModal(false); setForm(EMPTY); load();
+      };
+      if (editId) await api.put(`/api/v1/discounts/${editId}`, payload);
+      else await api.post("/api/v1/discounts", payload);
+      setModal(false); setForm(EMPTY); setEditId(null); load();
     } catch (e) { alert(e.response?.data?.error || "เกิดข้อผิดพลาด"); }
   }
 
   async function toggle(id, isActive) {
-    await api.put(`/api/v1/discounts/${id}`, { isActive }); load();
+    try { await api.put(`/api/v1/discounts/${id}`, { isActive }); load(); }
+    catch (e) { alert(e.response?.data?.error || "เกิดข้อผิดพลาด"); }
   }
 
   async function remove(id) {
     if (!confirm("ลบโค้ดนี้?")) return;
-    await api.delete(`/api/v1/discounts/${id}`); load();
+    try { await api.delete(`/api/v1/discounts/${id}`); load(); }
+    catch (e) { alert(e.response?.data?.error || "ลบไม่ได้: " + e.message); }
   }
 
   function toggleProduct(pid) {
@@ -63,7 +83,7 @@ export default function Discounts() {
     <div>
       <div style={{ display: "flex", alignItems: "center", marginBottom: 16 }}>
         <h1 style={{ fontSize: 20, fontWeight: 900, color: NAVY }}>🎟 โค้ดส่วนลด</h1>
-        <button onClick={() => setModal(true)} style={{ marginLeft: "auto", padding: "8px 16px", borderRadius: 8, background: NAVY, color: WHITE, border: "none", fontSize: 13, fontWeight: 700 }}>+ สร้างโค้ด</button>
+        <button onClick={openCreate} style={{ marginLeft: "auto", padding: "8px 16px", borderRadius: 8, background: NAVY, color: WHITE, border: "none", fontSize: 13, fontWeight: 700 }}>+ สร้างโค้ด</button>
       </div>
 
       <div style={{ background: WHITE, borderRadius: 14, overflow: "hidden", boxShadow: "0 2px 12px rgba(0,0,0,.06)" }}>
@@ -103,6 +123,10 @@ export default function Discounts() {
                   </td>
                   <td style={{ padding: "10px 12px" }}>
                     <div style={{ display: "flex", gap: 6 }}>
+                      <button onClick={() => openEdit(c)}
+                        style={{ padding: "4px 10px", borderRadius: 6, border: "1.5px solid #6B7280", background: WHITE, color: "#374151", fontSize: 11, fontWeight: 700 }}>
+                        แก้ไข
+                      </button>
                       <button onClick={() => toggle(c.id, !c.isActive)}
                         style={{ padding: "4px 10px", borderRadius: 6, border: `1.5px solid ${NAVY}`, background: WHITE, color: NAVY, fontSize: 11, fontWeight: 700 }}>
                         {c.isActive ? "ปิด" : "เปิด"}
@@ -126,7 +150,7 @@ export default function Discounts() {
           display: "flex", alignItems: "center", justifyContent: "center", padding: 16, overflowY: "auto" }}>
           <div style={{ background: WHITE, borderRadius: 16, padding: 24, width: "100%", maxWidth: 420, margin: "auto" }}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
-              <h2 style={{ fontSize: 16, fontWeight: 800, color: NAVY }}>สร้างโค้ดส่วนลด</h2>
+              <h2 style={{ fontSize: 16, fontWeight: 800, color: NAVY }}>{editId ? "แก้ไขโค้ดส่วนลด" : "สร้างโค้ดส่วนลด"}</h2>
               <button onClick={() => setModal(false)} style={{ background: "none", border: "none", fontSize: 20, color: GRAY }}>✕</button>
             </div>
 
@@ -166,7 +190,7 @@ export default function Discounts() {
 
             <button onClick={save} style={{ width: "100%", padding: 12, borderRadius: 10, border: "none",
               background: NAVY, color: WHITE, fontWeight: 800, fontSize: 14 }}>
-              สร้างโค้ด
+              {editId ? "บันทึกการแก้ไข" : "สร้างโค้ด"}
             </button>
           </div>
         </div>

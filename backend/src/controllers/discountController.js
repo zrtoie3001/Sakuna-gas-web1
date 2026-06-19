@@ -22,10 +22,19 @@ async function updateCode(req, res) {
 }
 
 async function deleteCode(req, res) {
-  const code = await DiscountCode.findByPk(req.params.id);
-  if (!code) return res.status(404).json({ error: "Not found" });
-  await code.destroy();
-  res.json({ message: "Deleted" });
+  try {
+    const code = await DiscountCode.findByPk(req.params.id);
+    if (!code) return res.status(404).json({ error: "Not found" });
+    // Deactivate instead of hard-delete if orders reference it
+    const { Order } = require("../models");
+    const linked = await Order.count({ where: { discountCodeId: req.params.id } });
+    if (linked > 0) {
+      await code.update({ isActive: false, code: `[ลบ]${code.code}` });
+      return res.json({ message: "Deactivated (has linked orders)" });
+    }
+    await code.destroy();
+    res.json({ message: "Deleted" });
+  } catch (e) { res.status(500).json({ error: e.message }); }
 }
 
 async function validateCode(req, res) {
