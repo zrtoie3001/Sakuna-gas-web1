@@ -159,7 +159,7 @@ export default function App() {
         setBrands(Array.isArray(bData) ? bData : bData.brands || []);
         setProducts(Array.isArray(pData) ? pData : pData.products || []);
       } catch (e) {
-        setError("โหลดข้อมูลสินค้าไม่ได้: " + e.message);
+        setError(`โหลดไม่ได้: ${e.message} | URL: ${API}/api/v1/products/brands`);
       }
       setLoading(false);
     }
