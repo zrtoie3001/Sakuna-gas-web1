@@ -1,3 +1,6 @@
+import { useState } from "react";
+
+const API = import.meta.env.VITE_API_URL || "";
 const NAVY   = "#1A2B6B";
 const NAVY2  = "#0F1D52";
 const ORANGE = "#F47B20";
@@ -6,6 +9,14 @@ const GRAY   = "#6B7280";
 
 export default function QRPayment({ order, onDone }) {
   const total = Number(order.total);
+  const [confirming, setConfirming] = useState(false);
+
+  async function handleConfirm() {
+    setConfirming(true);
+    await fetch(`${API}/api/v1/orders/${order.id}/payment-confirmed`, { method: "POST" }).catch(() => {});
+    setConfirming(false);
+    onDone();
+  }
 
   return (
     <div style={{
@@ -71,14 +82,14 @@ export default function QRPayment({ order, onDone }) {
         </div>
 
         {/* Confirm */}
-        <button onClick={onDone} style={{
+        <button onClick={handleConfirm} disabled={confirming} style={{
           width: "100%", padding: "15px 0", borderRadius: 16, border: "none",
           background: `linear-gradient(135deg, #059669, #047857)`,
           color: WHITE, fontWeight: 800, fontSize: 16, cursor: "pointer",
           boxShadow: "0 4px 16px rgba(5,150,105,.35)",
           letterSpacing: 0.5,
         }}>
-          ✅ โอนเงินเรียบร้อยแล้ว
+          {confirming ? "กำลังแจ้ง..." : "✅ โอนเงินเรียบร้อยแล้ว"}
         </button>
         <div style={{ fontSize: 11, color: GRAY, marginTop: 10 }}>
           กดหลังจากสแกนและโอนเงินเสร็จแล้ว

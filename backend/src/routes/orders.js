@@ -2,6 +2,8 @@ const router = require("express").Router();
 const multer = require("multer");
 const path = require("path");
 const { createOrder, getOrderById, listOrders, updateStatus, acceptOrder } = require("../controllers/orderController");
+const { notifyAdminPaymentConfirmed } = require("../services/lineService");
+const { Order, Brand, Product } = require("../models");
 const { requireAuth, requireRole } = require("../middleware/auth");
 
 const upload = multer({
@@ -24,6 +26,19 @@ router.post("/:id/slip", upload.single("slip"), async (req, res) => {
   if (!order) return res.status(404).json({ error: "Not found" });
   await order.update({ slipUrl: `/uploads/${req.file.filename}` });
   res.json({ slipUrl: order.slipUrl });
+});
+
+// Customer confirms QR payment — notify admin via LINE
+router.post("/:id/payment-confirmed", async (req, res) => {
+  try {
+    const order = await Order.findByPk(req.params.id, {
+      include: [{ model: Brand, as: "brand" }, { model: Product, as: "product" }],
+    });
+    if (!order) return res.status(404).json({ error: "Not found" });
+    await order.update({ paymentConfirmedAt: new Date() }).catch(() => {}); // best-effort
+    notifyAdminPaymentConfirmed(order).catch(() => {});
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 // Staff

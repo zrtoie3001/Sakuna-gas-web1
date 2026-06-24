@@ -77,6 +77,15 @@ async function notifyAdminNewOrder(order) {
   ));
 }
 
+async function notifyAdminPaymentConfirmed(order) {
+  const adminIds = (process.env.LINE_ADMIN_IDS || "").split(",").filter(Boolean);
+  if (!adminIds.length) return;
+  const text = `💸 ลูกค้าแจ้งโอนเงินแล้ว!\n\n📋 ออเดอร์ #${order.orderNumber}\n👤 ${order.customerName} (${order.customerPhone})\n💰 ฿${Number(order.total).toLocaleString()}\n🛢 ${order.product?.name} × ${order.qty}\n📍 ${order.deliveryAddress?.slice(0, 50)}`;
+  await Promise.all(adminIds.map(id =>
+    client.pushMessage({ to: id, messages: [{ type: "text", text }] })
+  ));
+}
+
 function infoRow(label, value) {
   return {
     type: "box", layout: "horizontal",
@@ -87,4 +96,4 @@ function infoRow(label, value) {
   };
 }
 
-module.exports = { client, sendOrderConfirmation, sendStatusUpdate, notifyAdminNewOrder };
+module.exports = { client, sendOrderConfirmation, sendStatusUpdate, notifyAdminNewOrder, notifyAdminPaymentConfirmed };
