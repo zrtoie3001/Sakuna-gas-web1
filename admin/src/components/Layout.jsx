@@ -1,5 +1,6 @@
 import { Outlet, NavLink, useNavigate } from "react-router-dom";
 import { useState } from "react";
+import api from "../utils/api.js";
 
 const NAVY   = "#1A2B6B";
 const NAVY2  = "#0F1D52";
@@ -20,6 +21,18 @@ export default function Layout() {
   const navigate  = useNavigate();
   const user      = JSON.parse(localStorage.getItem("admin_user") || "{}");
   const [sideOpen, setSideOpen] = useState(false);
+  const [pwModal, setPwModal]   = useState(false);
+  const [pwForm, setPwForm]     = useState({ current: "", next: "", confirm: "" });
+
+  async function changeMyPassword() {
+    if (pwForm.next.length < 6) return alert("รหัสผ่านใหม่ต้องมีอย่างน้อย 6 ตัว");
+    if (pwForm.next !== pwForm.confirm) return alert("รหัสผ่านใหม่ไม่ตรงกัน");
+    try {
+      await api.put(`/api/v1/drivers/${user.id}`, { password: pwForm.next });
+      alert("เปลี่ยนรหัสผ่านเรียบร้อยแล้ว");
+      setPwModal(false); setPwForm({ current: "", next: "", confirm: "" });
+    } catch (e) { alert(e.response?.data?.error || "เกิดข้อผิดพลาด"); }
+  }
 
   function logout() {
     localStorage.removeItem("admin_token");
@@ -66,8 +79,14 @@ export default function Layout() {
         <div style={{ fontSize: 13, color: "rgba(255,255,255,.8)", marginBottom: 10 }}>
           👤 {user.name || "Admin"}
         </div>
+        <button onClick={() => setPwModal(true)} style={{
+          width: "100%", padding: "7px", borderRadius: 8, border: "1px solid rgba(255,255,255,.2)",
+          background: "transparent", color: "rgba(255,255,255,.7)", fontSize: 12, cursor: "pointer", marginBottom: 6,
+        }}>
+          🔑 เปลี่ยนรหัสผ่าน
+        </button>
         <button onClick={logout} style={{
-          width: "100%", padding: "8px", borderRadius: 8, border: "1px solid rgba(255,255,255,.2)",
+          width: "100%", padding: "7px", borderRadius: 8, border: "1px solid rgba(255,255,255,.2)",
           background: "transparent", color: "rgba(255,255,255,.7)", fontSize: 12, cursor: "pointer",
         }}>
           ออกจากระบบ
@@ -126,6 +145,29 @@ export default function Layout() {
           .desktop-sidebar { display: block !important; }
         }
       `}</style>
+
+      {/* Change password modal */}
+      {pwModal && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", zIndex: 400, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+          <div style={{ background: WHITE, borderRadius: 16, padding: 24, width: "100%", maxWidth: 360 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
+              <h2 style={{ fontSize: 16, fontWeight: 800, color: NAVY }}>🔑 เปลี่ยนรหัสผ่าน</h2>
+              <button onClick={() => setPwModal(false)} style={{ background: "none", border: "none", fontSize: 20, color: "#6B7280" }}>✕</button>
+            </div>
+            <p style={{ fontSize: 13, color: "#6B7280", marginBottom: 14 }}>บัญชี: <strong style={{ color: NAVY }}>{user.name}</strong></p>
+            {[["รหัสผ่านใหม่ (อย่างน้อย 6 ตัว)", "next"], ["ยืนยันรหัสผ่านใหม่", "confirm"]].map(([label, key]) => (
+              <div key={key} style={{ marginBottom: 12 }}>
+                <label style={{ fontSize: 11, color: "#6B7280", display: "block", marginBottom: 4, fontWeight: 700 }}>{label}</label>
+                <input type="password" value={pwForm[key]} onChange={e => setPwForm(f => ({ ...f, [key]: e.target.value }))}
+                  style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 14, boxSizing: "border-box" }} />
+              </div>
+            ))}
+            <button onClick={changeMyPassword} style={{ width: "100%", padding: 12, borderRadius: 10, border: "none", background: NAVY, color: WHITE, fontWeight: 800, fontSize: 14, cursor: "pointer" }}>
+              บันทึกรหัสผ่านใหม่
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
