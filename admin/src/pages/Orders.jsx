@@ -36,6 +36,52 @@ export default function Orders() {
 
   useEffect(() => { fetch(); }, [fetch]);
 
+  function printReceipt(o) {
+    const date = new Date(o.createdAt).toLocaleString("th-TH", { dateStyle: "short", timeStyle: "short" });
+    const pay  = o.paymentMethod === "cash" ? "เงินสด" : "โอน QR";
+    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
+<title>ใบเสร็จ ${o.orderNumber}</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family: 'Sarabun', sans-serif; width: 80mm; padding: 8px; font-size: 13px; }
+  .center { text-align: center; }
+  .bold { font-weight: bold; }
+  .big { font-size: 18px; }
+  .divider { border-top: 1px dashed #000; margin: 6px 0; }
+  .row { display: flex; justify-content: space-between; padding: 3px 0; }
+  .total { font-size: 16px; font-weight: bold; }
+  @media print { body { margin: 0; } }
+</style></head><body>
+<div class="center bold" style="font-size:16px; margin-bottom:4px;">สกุณาแก๊ส</div>
+<div class="center" style="font-size:11px; margin-bottom:2px;">🛢 ร้านแก๊สชุมชน ปลอดภัย มั่นใจ</div>
+<div class="center" style="font-size:11px; margin-bottom:8px;">โทร 097-121-3054</div>
+<div class="divider"></div>
+<div class="row"><span class="bold">เลขที่</span><span class="bold">${o.orderNumber}</span></div>
+<div class="row"><span>วันที่</span><span>${date}</span></div>
+<div class="divider"></div>
+<div class="row"><span class="bold">รายการ</span></div>
+<div class="row" style="margin-top:4px;">
+  <span>${o.brand?.name || ""} ${o.product?.name || ""} × ${o.qty}</span>
+  <span>฿${Number(o.total).toLocaleString()}</span>
+</div>
+${o.discountAmount > 0 ? `<div class="row"><span>ส่วนลด</span><span>-฿${Number(o.discountAmount).toLocaleString()}</span></div>` : ""}
+<div class="divider"></div>
+<div class="row total"><span>ยอดรวม</span><span>฿${Number(o.total).toLocaleString()}</span></div>
+<div class="row" style="margin-top:2px;"><span>ชำระ</span><span>${pay}</span></div>
+<div class="divider"></div>
+<div style="margin-top:4px;font-size:12px;"><span class="bold">ลูกค้า:</span> ${o.customerName}</div>
+<div style="font-size:12px;"><span class="bold">โทร:</span> ${o.customerPhone}</div>
+<div style="font-size:11px; margin-top:3px; word-break:break-all;">📍 ${o.deliveryAddress || ""}</div>
+${o.note ? `<div style="font-size:11px;margin-top:3px;">💬 ${o.note}</div>` : ""}
+<div class="divider"></div>
+<div class="center" style="font-size:11px; margin-top:4px;">ขอบคุณที่ใช้บริการค่ะ 🙏</div>
+<script>window.onload=()=>{ window.print(); window.onafterprint=()=>window.close(); }</script>
+</body></html>`;
+    const w = window.open("", "_blank", "width=400,height=600");
+    w.document.write(html);
+    w.document.close();
+  }
+
   async function updateStatus(orderId, status) {
     setUpdating(true);
     await api.put(`/api/v1/orders/${orderId}/status`, { status });
@@ -106,9 +152,15 @@ export default function Orders() {
       {/* Right: Detail */}
       {selected && (
         <div style={{ flex: "0 0 320px", background: WHITE, borderRadius: 14, padding: 20, boxShadow: "0 2px 12px rgba(0,0,0,.06)", alignSelf: "flex-start", position: "sticky", top: 80 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 14 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
             <h2 style={{ fontSize: 16, fontWeight: 900, color: NAVY }}>{selected.orderNumber}</h2>
-            <button onClick={() => setSelected(null)} style={{ background: "none", border: "none", fontSize: 20, color: GRAY }}>✕</button>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button onClick={() => printReceipt(selected)} style={{
+                padding: "6px 12px", borderRadius: 8, border: `2px solid ${NAVY}`,
+                background: WHITE, color: NAVY, fontSize: 12, fontWeight: 700, cursor: "pointer",
+              }}>🖨 ปริ้น</button>
+              <button onClick={() => setSelected(null)} style={{ background: "none", border: "none", fontSize: 20, color: GRAY }}>✕</button>
+            </div>
           </div>
 
           {[
