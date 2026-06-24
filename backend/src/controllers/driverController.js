@@ -26,7 +26,7 @@ async function createDriver(req, res) {
 }
 
 async function updateDriver(req, res) {
-  const driver = await User.findOne({ where: { id: req.params.id, role: "driver" } });
+  const driver = await User.findByPk(req.params.id);
   if (!driver) return res.status(404).json({ error: "Not found" });
   const { password, ...data } = req.body;
   if (password) data.passwordHash = await bcrypt.hash(password, 12);
