@@ -80,6 +80,9 @@ export default function Drivers() {
               </p>
             )}
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              {d.role === "admin" && (
+                <span style={{ fontSize: 11, padding: "3px 8px", borderRadius: 6, fontWeight: 700, background: "#EEF2FF", color: NAVY }}>Admin</span>
+              )}
               <span style={{ fontSize: 11, padding: "3px 8px", borderRadius: 6, fontWeight: 700, background: d.isActive ? "#D1FAE5" : "#FEE2E2", color: d.isActive ? "#065F46" : "#991B1B" }}>
                 {d.isActive ? "ทำงาน" : "หยุดพัก"}
               </span>

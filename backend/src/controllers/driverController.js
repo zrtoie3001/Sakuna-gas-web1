@@ -3,18 +3,26 @@ const { User, Order, Brand, Product, Customer } = require("../models");
 const { optimizeRoute } = require("../services/mapsService");
 
 async function listDrivers(_req, res) {
+  // Show both drivers and admins — admins can deliver too
   const drivers = await User.findAll({
-    where: { role: "driver" },
+    where: { isActive: true },
     attributes: { exclude: ["passwordHash"] },
+    order: [["role", "ASC"], ["name", "ASC"]],
   });
   res.json(drivers);
 }
 
 async function createDriver(req, res) {
-  const { name, email, phone, password } = req.body;
-  const passwordHash = await bcrypt.hash(password, 12);
-  const driver = await User.create({ name, email, phone, passwordHash, role: "driver" });
-  res.status(201).json({ id: driver.id, name: driver.name, email: driver.email, role: driver.role });
+  try {
+    const { name, email, phone, password } = req.body;
+    const passwordHash = await bcrypt.hash(password, 12);
+    const driver = await User.create({ name, email, phone, passwordHash, role: "driver" });
+    res.status(201).json({ id: driver.id, name: driver.name, email: driver.email, role: driver.role });
+  } catch (e) {
+    if (e.name === "SequelizeUniqueConstraintError")
+      return res.status(400).json({ error: "Email นี้มีในระบบแล้ว" });
+    res.status(500).json({ error: e.message });
+  }
 }
 
 async function updateDriver(req, res) {
