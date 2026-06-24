@@ -86,6 +86,36 @@ async function notifyAdminPaymentConfirmed(order) {
   ));
 }
 
+async function sendPaymentReceivedToCustomer(lineUserId, order) {
+  const total = Number(order.total).toLocaleString("th-TH", { minimumFractionDigits: 2 });
+  await client.pushMessage({
+    to: lineUserId,
+    messages: [{
+      type: "flex",
+      altText: `✅ รับทราบการโอนเงิน ฿${total} แล้วค่ะ`,
+      contents: {
+        type: "bubble",
+        body: {
+          type: "box", layout: "vertical", spacing: "md",
+          contents: [
+            { type: "text", text: "✅ รับทราบการโอนเงินแล้วค่ะ", weight: "bold", size: "lg", color: "#059669" },
+            { type: "separator" },
+            infoRow("📋 ออเดอร์", `#${order.orderNumber}`),
+            infoRow("🛢 สินค้า", `${order.product?.name} × ${order.qty} ถัง`),
+            infoRow("💰 ยอดโอน", `฿${total}`),
+            { type: "separator" },
+            {
+              type: "text",
+              text: "ขอบคุณค่ะ 🙏 ทีมงานจะรีบจัดส่งให้โดยเร็วที่สุด",
+              size: "sm", color: "#6B7280", wrap: true,
+            },
+          ],
+        },
+      },
+    }],
+  });
+}
+
 function infoRow(label, value) {
   return {
     type: "box", layout: "horizontal",
@@ -96,4 +126,4 @@ function infoRow(label, value) {
   };
 }
 
-module.exports = { client, sendOrderConfirmation, sendStatusUpdate, notifyAdminNewOrder, notifyAdminPaymentConfirmed };
+module.exports = { client, sendOrderConfirmation, sendStatusUpdate, notifyAdminNewOrder, notifyAdminPaymentConfirmed, sendPaymentReceivedToCustomer };

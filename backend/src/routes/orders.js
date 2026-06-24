@@ -2,8 +2,8 @@ const router = require("express").Router();
 const multer = require("multer");
 const path = require("path");
 const { createOrder, getOrderById, listOrders, updateStatus, acceptOrder } = require("../controllers/orderController");
-const { notifyAdminPaymentConfirmed } = require("../services/lineService");
-const { Order, Brand, Product } = require("../models");
+const { notifyAdminPaymentConfirmed, sendPaymentReceivedToCustomer } = require("../services/lineService");
+const { Order, Brand, Product, Customer } = require("../models");
 const { requireAuth, requireRole } = require("../middleware/auth");
 
 const upload = multer({
@@ -32,11 +32,19 @@ router.post("/:id/slip", upload.single("slip"), async (req, res) => {
 router.post("/:id/payment-confirmed", async (req, res) => {
   try {
     const order = await Order.findByPk(req.params.id, {
-      include: [{ model: Brand, as: "brand" }, { model: Product, as: "product" }],
+      include: [
+        { model: Brand, as: "brand" },
+        { model: Product, as: "product" },
+        { model: Customer, as: "customer" },
+      ],
     });
     if (!order) return res.status(404).json({ error: "Not found" });
-    await order.update({ paymentConfirmedAt: new Date() }).catch(() => {}); // best-effort
+    // Notify admin
     notifyAdminPaymentConfirmed(order).catch(() => {});
+    // Send confirmation back to customer's LINE chat
+    if (order.customer?.lineUserId) {
+      sendPaymentReceivedToCustomer(order.customer.lineUserId, order).catch(() => {});
+    }
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
