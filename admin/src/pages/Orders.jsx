@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import api from "../utils/api.js";
+import qrBase64 from "../assets/qrBase64.js";
 
 const NAVY   = "#1A2B6B";
 const ORANGE = "#F47B20";
@@ -36,16 +37,13 @@ export default function Orders() {
 
   useEffect(() => { fetch(); }, [fetch]);
 
-  async function printReceipt(o) {
+  function printReceipt(o) {
     const dateStr = new Date(o.createdAt).toLocaleDateString("th-TH", { dateStyle: "short" });
     const timeStr = new Date(o.createdAt).toLocaleTimeString("th-TH", { timeStyle: "short" });
     const pay     = o.paymentMethod === "cash" ? "เงินสด" : "โอน QR";
     const discount  = Number(o.discountAmount || 0);
     const subtotal  = Number(o.total) + discount;
-    const qrDataUrl = await fetch("/images/qr-promptpay.png")
-      .then(r => r.blob())
-      .then(b => new Promise(res => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.readAsDataURL(b); }))
-      .catch(() => "");
+    const qrDataUrl = qrBase64;
     const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
 <title>ใบเสร็จ ${o.orderNumber}</title>
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;700;800&display=swap" rel="stylesheet">
