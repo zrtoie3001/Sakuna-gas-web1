@@ -50,7 +50,7 @@ export default function Orders() {
 
   useEffect(() => {
     api.get("/api/v1/products/brands").then(r => setBrands(Array.isArray(r.data) ? r.data : r.data.brands || [])).catch(() => {});
-    api.get("/api/v1/products?limit=100").then(r => setProducts(r.data.products || [])).catch(() => {});
+    api.get("/api/v1/products?limit=100").then(r => setProducts(Array.isArray(r.data) ? r.data : r.data.products || [])).catch(() => {});
   }, []);
 
   async function createOrder() {
