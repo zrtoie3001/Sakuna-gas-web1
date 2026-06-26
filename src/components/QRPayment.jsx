@@ -77,7 +77,7 @@ export default function QRPayment({ order, onDone }) {
           marginBottom: 22,
           border: "1px solid #E5E7EB",
         }}>
-          <div style={{ fontSize: 15, fontWeight: 800, color: NAVY, marginBottom: 4 }}>นาง รุจิรา ดวงเพ็ชรแสง</div>
+          <div style={{ fontSize: 15, fontWeight: 800, color: NAVY, marginBottom: 4 }}>สกุณา</div>
           <div style={{ fontSize: 12, color: GRAY }}>PromptPay · ธนาคารกสิกรไทย</div>
         </div>
 

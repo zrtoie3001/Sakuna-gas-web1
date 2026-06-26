@@ -846,7 +846,7 @@ function PreQRScreen({ total, onConfirmed, onBack }) {
           <img src={qrBase64} alt="QR PromptPay" style={{ width: 220, height: 220, objectFit: "contain", display: "block" }} />
         </div>
         <div style={{ background: "#F8FAFF", borderRadius: 14, padding: "12px 16px", marginBottom: 22, border: "1px solid #E5E7EB" }}>
-          <div style={{ fontSize: 15, fontWeight: 800, color: "#1A2B6B", marginBottom: 4 }}>นาง รุจิรา ดวงเพ็ชรแสง</div>
+          <div style={{ fontSize: 15, fontWeight: 800, color: "#1A2B6B", marginBottom: 4 }}>สกุณา</div>
           <div style={{ fontSize: 12, color: "#6B7280" }}>PromptPay · ธนาคารกสิกรไทย</div>
         </div>
         <button onClick={handleConfirm} disabled={confirming} style={{ width: "100%", padding: "15px 0", borderRadius: 16, border: "none", background: "linear-gradient(135deg,#059669,#047857)", color: "#FFFFFF", fontWeight: 800, fontSize: 16, cursor: "pointer", boxShadow: "0 4px 16px rgba(5,150,105,.35)", marginBottom: 10 }}>
