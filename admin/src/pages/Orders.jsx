@@ -49,10 +49,8 @@ export default function Orders() {
   }, [fetch]);
 
   useEffect(() => {
-    api.get("/api/v1/products?limit=100").then(r => {
-      setBrands([...new Map(r.data.products.map(p => [p.brand?.id, p.brand])).values()].filter(Boolean));
-      setProducts(r.data.products || []);
-    }).catch(() => {});
+    api.get("/api/v1/products/brands").then(r => setBrands(r.data.brands || [])).catch(() => {});
+    api.get("/api/v1/products?limit=100").then(r => setProducts(r.data.products || [])).catch(() => {});
   }, []);
 
   async function createOrder() {
@@ -254,7 +252,7 @@ export default function Orders() {
             ["📞 โทร",      selected.customerPhone],
             ["📍 ที่อยู่",  selected.deliveryAddress],
             ["💰 ยอดรวม",  `฿${Number(selected.total).toLocaleString()}`],
-            ["💳 ชำระ",    selected.paymentMethod === "cash" ? "เงินสด" : "QR โอน"],
+            ["💳 ชำระ",    selected.paymentMethod === "cash" ? "เงินสด" : selected.paymentMethod === "qr" ? "QR โอน" : "เก็บปลายทาง"],
             ["📏 ระยะทาง", selected.distanceKm ? `${Number(selected.distanceKm).toFixed(1)} กม.` : "-"],
             ["🛵 คนส่ง",   selected.driver?.name || "ยังไม่มีคนรับงาน"],
           ].map(([k, v]) => (
@@ -270,7 +268,23 @@ export default function Orders() {
             </div>
           )}
 
-          <div style={{ marginTop: 14 }}>
+          <div style={{ marginTop: 14, marginBottom: 14 }}>
+            <p style={{ fontSize: 12, fontWeight: 700, color: NAVY, marginBottom: 8 }}>เปลี่ยนวิธีชำระ</p>
+            <div style={{ display: "flex", gap: 6 }}>
+              {[["cash","เงินสด"],["qr","โอน"],["cod","เก็บปลายทาง"]].map(([val, label]) => (
+                <button key={val} onClick={async () => {
+                  await api.put(`/api/v1/orders/${selected.id}/payment`, { paymentMethod: val });
+                  setSelected(s => ({ ...s, paymentMethod: val })); fetch();
+                }} style={{
+                  flex: 1, padding: "6px 4px", borderRadius: 8, border: `2px solid ${selected.paymentMethod === val ? NAVY : "#E5E7EB"}`,
+                  background: selected.paymentMethod === val ? "#EEF2FF" : WHITE,
+                  color: selected.paymentMethod === val ? NAVY : GRAY, fontSize: 11, fontWeight: 700, cursor: "pointer",
+                }}>{label}</button>
+              ))}
+            </div>
+          </div>
+
+          <div style={{ marginTop: 0 }}>
             <p style={{ fontSize: 12, fontWeight: 700, color: NAVY, marginBottom: 8 }}>อัปเดตสถานะ</p>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
               {STATUSES.filter(s => s.key && s.key !== "cancelled").map(s => (
@@ -310,23 +324,25 @@ export default function Orders() {
                   style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 14, boxSizing: "border-box" }} />
               </div>
             ))}
-            <div style={{ marginBottom: 12 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>ยี่ห้อ *</div>
-              <select value={createForm.brandId} onChange={e => setCreateForm(f => ({ ...f, brandId: e.target.value, productId: "" }))}
-                style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 14, boxSizing: "border-box" }}>
-                <option value="">-- เลือกยี่ห้อ --</option>
-                {brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-              </select>
-            </div>
-            <div style={{ marginBottom: 12 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>สินค้า *</div>
-              <select value={createForm.productId} onChange={e => setCreateForm(f => ({ ...f, productId: e.target.value }))}
-                style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 14, boxSizing: "border-box" }}>
-                <option value="">-- เลือกสินค้า --</option>
-                {products.filter(p => String(p.brand?.id) === String(createForm.brandId)).map(p => (
-                  <option key={p.id} value={p.id}>{p.name} — ฿{Number(p.price).toLocaleString()}</option>
-                ))}
-              </select>
+            <div style={{ display: "flex", gap: 12, marginBottom: 12 }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>ยี่ห้อ *</div>
+                <select value={createForm.brandId} onChange={e => setCreateForm(f => ({ ...f, brandId: e.target.value, productId: "" }))}
+                  style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 14, boxSizing: "border-box" }}>
+                  <option value="">-- เลือก --</option>
+                  {brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                </select>
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>น้ำหนัก *</div>
+                <select value={createForm.productId} onChange={e => setCreateForm(f => ({ ...f, productId: e.target.value }))}
+                  style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 14, boxSizing: "border-box" }}>
+                  <option value="">-- เลือก --</option>
+                  {products.map(p => (
+                    <option key={p.id} value={p.id}>{p.name} — ฿{Number(p.price).toLocaleString()}</option>
+                  ))}
+                </select>
+              </div>
             </div>
             <div style={{ display: "flex", gap: 12, marginBottom: 16 }}>
               <div style={{ flex: 1 }}>
@@ -339,7 +355,8 @@ export default function Orders() {
                 <select value={createForm.paymentMethod} onChange={e => setCreateForm(f => ({ ...f, paymentMethod: e.target.value }))}
                   style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 14, boxSizing: "border-box" }}>
                   <option value="cash">เงินสด</option>
-                  <option value="qr">QR โอน</option>
+                  <option value="qr">โอน</option>
+                  <option value="cod">เก็บปลายทาง</option>
                 </select>
               </div>
             </div>
