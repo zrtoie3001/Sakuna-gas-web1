@@ -42,95 +42,91 @@ export default function Orders() {
   }, [fetch]);
 
   function printReceipt(o) {
-    const dateStr = new Date(o.createdAt).toLocaleDateString("th-TH", { dateStyle: "short" });
-    const timeStr = new Date(o.createdAt).toLocaleTimeString("th-TH", { timeStyle: "short" });
-    const pay     = o.paymentMethod === "cash" ? "เงินสด" : "โอน QR";
+    const dateStr   = new Date(o.createdAt).toLocaleDateString("th-TH", { dateStyle: "short" });
     const discount  = Number(o.discountAmount || 0);
     const subtotal  = Number(o.total) + discount;
-    const qrDataUrl = qrBase64;
+    const unitPrice = o.qty > 0 ? Math.round(subtotal / o.qty) : 0;
     const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
 <title>ใบเสร็จ ${o.orderNumber}</title>
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;700;800&display=swap" rel="stylesheet">
 <style>
   * { margin:0; padding:0; box-sizing:border-box; }
-  body { font-family: 'Sarabun', 'TH Sarabun New', sans-serif; width: 80mm; padding: 6px 8px 12px; font-size: 14px; color: #000; }
+  body { font-family: 'Sarabun', 'TH Sarabun New', sans-serif; width: 80mm; padding: 10px 10px 16px; font-size: 13px; color: #000; }
   .center { text-align: center; }
-  .bold   { font-weight: 800; }
-  .divider-solid { border-top: 1.5px solid #000; margin: 5px 0; }
-  .divider-dash  { border-top: 1px dashed #000; margin: 5px 0; }
+  .right  { text-align: right; }
+  .bold   { font-weight: 700; }
+  .solid  { border-top: 1.5px solid #000; margin: 8px 0; }
+  .dash   { border-top: 1px dashed #000; margin: 8px 0; }
+  .double { border-top: 3px double #000; margin-top: 2px; }
   table { width: 100%; border-collapse: collapse; }
-  th { font-size: 12px; font-weight: 800; padding: 3px 2px; border-bottom: 1px solid #000; }
-  td { font-size: 13px; padding: 3px 2px; vertical-align: top; }
-  .col-item { width: 52%; }
-  .col-qty  { width: 12%; text-align: center; }
-  .col-unit { width: 18%; text-align: right; }
-  .col-amt  { width: 18%; text-align: right; }
-  .info { font-size: 12px; line-height: 1.7; }
-  .qr-section { display: flex; justify-content: center; margin-top: 8px; }
-  .qr-section img { width: 52mm; height: 52mm; object-fit: contain; }
-  @media print { body { margin:0; } @page { margin: 0; size: 80mm auto; } }
+  td, th { padding: 3px 2px; font-size: 13px; }
+  @media print { body { margin:0; } @page { margin:0; size:80mm auto; } }
 </style></head><body>
-<div class="center bold" style="font-size:18px; letter-spacing:1px;">สกุณาแก๊ส</div>
-<div class="center" style="font-size:11px;">39 ซอยพหลโยธิน 48 แขวงท่าแร้ง เขตบางเขน กทม. 10220</div>
-<div class="center" style="font-size:12px;">097-121-3054 | 092-631-4331 | 02-970-9385</div>
-<div class="divider-solid" style="margin-top:6px;"></div>
 
-<div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:2px;">
-  <span>เลขที่: <span class="bold">${o.orderNumber}</span></span>
-  <span>${dateStr} ${timeStr}</span>
-</div>
-<div class="divider-dash"></div>
+<div class="center bold" style="font-size:28px; font-weight:800; letter-spacing:1px; margin-bottom:6px;">สกุณาแก๊ส</div>
+<div class="center" style="font-size:12px; margin-bottom:2px;">39 ซอยพหลโยธิน 48 แขวงท่าแร้ง เขตบางเขน กทม. 10220</div>
+<div class="center" style="font-size:12px; margin-bottom:6px;">097-121-3054, 092-631-4331, 02-970-9385</div>
+<div class="solid"></div>
+
+<table style="margin-bottom:8px;">
+  <tr>
+    <td style="width:50%;">ลูกค้า</td>
+    <td style="width:50%; text-align:right;">วันที่ ${dateStr}</td>
+  </tr>
+  <tr><td colspan="2">เลขออเดอร์: ${o.orderNumber}</td></tr>
+  <tr><td colspan="2">เบอร์โทร ${o.customerPhone || "-"}</td></tr>
+  <tr><td colspan="2" style="word-break:break-word;">ที่อยู่ ${o.deliveryAddress || "-"}</td></tr>
+</table>
+<div class="dash"></div>
 
 <table>
   <thead>
-    <tr>
-      <th class="col-item" style="text-align:left;">รายการ</th>
-      <th class="col-qty">จำนวน</th>
-      <th class="col-unit">ราคา/ถัง</th>
-      <th class="col-amt">รวม</th>
+    <tr style="border-bottom:1px solid #000;">
+      <th style="text-align:left; width:40%;">รายการ</th>
+      <th style="text-align:center; width:15%;">จำนวน</th>
+      <th style="text-align:right; width:22%;">ราคา/ ถัง</th>
+      <th style="text-align:right; width:23%;">รวม</th>
     </tr>
   </thead>
   <tbody>
+    <tr style="height:8px;"></tr>
     <tr>
-      <td class="col-item">${o.brand?.name || ""} ${o.product?.name || ""}</td>
-      <td class="col-qty" style="text-align:center;">${o.qty}</td>
-      <td class="col-unit" style="text-align:right;">${o.qty > 0 ? Number(Math.round(subtotal / o.qty)).toLocaleString() : "-"}</td>
-      <td class="col-amt" style="text-align:right;">${subtotal.toLocaleString()}</td>
+      <td>${(o.brand?.name || "") + " " + (o.product?.name || "")}</td>
+      <td style="text-align:center;">${o.qty}</td>
+      <td style="text-align:right;">${unitPrice.toLocaleString()}</td>
+      <td style="text-align:right;">${subtotal.toLocaleString()}</td>
     </tr>
+    <tr style="height:16px;"></tr>
   </tbody>
 </table>
-<div class="divider-solid"></div>
+<div class="solid"></div>
 
-<table style="font-size:13px;">
-  ${discount > 0 ? `
+<table style="margin-bottom:4px;">
   <tr>
-    <td>ราคาก่อนลด</td>
-    <td style="text-align:right;">${subtotal.toLocaleString()} บาท</td>
+    <td>ยอดรวม</td>
+    <td style="text-align:right;">${subtotal.toLocaleString()}</td>
+    <td style="width:28px; padding-left:4px;">บาท</td>
   </tr>
   <tr>
     <td>ส่วนลด${o.discountCode ? ` (${o.discountCode})` : ""}</td>
-    <td style="text-align:right;">-${discount.toLocaleString()} บาท</td>
+    <td style="text-align:right;">${discount > 0 ? discount.toLocaleString() : "0"}</td>
+    <td style="padding-left:4px;">บาท</td>
   </tr>
-  <tr><td colspan="2"><div class="divider-dash" style="margin:3px 0;"></div></td></tr>` : ""}
   <tr>
-    <td style="font-size:15px; font-weight:800;">ยอดรวมชำระ</td>
-    <td style="text-align:right; font-size:15px; font-weight:800;">${Number(o.total).toLocaleString()} บาท</td>
+    <td class="bold">รวมทั้งสิ้น</td>
+    <td style="text-align:right;" class="bold">${Number(o.total).toLocaleString()}</td>
+    <td style="padding-left:4px;" class="bold">บาท</td>
   </tr>
 </table>
-<div class="divider-dash"></div>
+<div class="double"></div>
+<div class="dash" style="margin-top:6px;"></div>
 
-<div class="info">
-  <div>ลูกค้า: <span class="bold">ลูกค้า</span></div>
-  <div>โทร: ${o.customerPhone || "-"}</div>
-  <div>ที่อยู่: ${o.deliveryAddress || "-"}</div>
-  <div>ชำระ: ${pay}</div>
-  ${o.note ? `<div>หมายเหตุ: ${o.note}</div>` : ""}
-</div>
-<div class="divider-dash"></div>
+<div class="center" style="font-size:12px; margin:6px 0 4px;">สแกนโอนเงิน PromptPay</div>
+<div class="center"><img src="${qrBase64}" style="width:48mm; height:48mm; object-fit:contain;" /></div>
+<div class="center" style="font-size:12px; margin-top:3px;">สกุณา</div>
+<div class="dash" style="margin-top:8px;"></div>
 
-<div class="qr-section">
-  <img src="${qrDataUrl}" alt="QR PromptPay" />
-</div>
+<div class="center" style="font-size:12px; margin-top:6px;">ขอบคุณที่ใช้บริการค่ะ</div>
 <div class="center" style="font-size:11px; font-weight:700; margin-top:3px;">สแกนโอนเงิน PromptPay</div>
 <div class="center" style="font-size:11px; margin-top:2px;">นาง รุจิรา ดวงเพ็ชรแสง (KBank)</div>
 <div class="divider-dash" style="margin-top:6px;"></div>
