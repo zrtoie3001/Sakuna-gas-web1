@@ -47,8 +47,9 @@ async function sendOrderConfirmation(lineUserId, order) {
         contents: [{
           type: "button", style: "primary", color: "#1A2B6B",
           action: {
-            type: "uri", label: "ติดตามคำสั่งซื้อ",
-            uri: `${process.env.FRONTEND_URL}/track/${order.id}`,
+            type: "postback", label: "📍 ติดตามสถานะ",
+            data: `action=track&orderId=${order.id}`,
+            displayText: "ติดตามสถานะออเดอร์",
           },
         }],
       },

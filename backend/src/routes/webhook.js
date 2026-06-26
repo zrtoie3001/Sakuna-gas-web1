@@ -1,6 +1,7 @@
 const router = require("express").Router();
 const line = require("@line/bot-sdk");
 const { isOpen, getNextOpenTime } = require("../utils/businessHours");
+const { Order, Brand, Product } = require("../models");
 
 const middleware = line.middleware({
   channelSecret: process.env.LINE_CHANNEL_SECRET,
@@ -11,6 +12,15 @@ const client = new line.messagingApi.MessagingApiClient({
 });
 
 const LIFF_URL = `https://liff.line.me/${process.env.LINE_LIFF_ID}`;
+
+const STATUS_LABELS = {
+  pending:            { text: "⏳ รอรับงาน",            detail: "ร้านกำลังรับออเดอร์ของคุณค่ะ" },
+  preparing:          { text: "📦 เตรียมสินค้า",         detail: "กำลังเตรียมแก๊สให้คุณค่ะ" },
+  out_for_delivery:   { text: "🛵 กำลังส่ง",             detail: "พนักงานออกส่งแล้วค่ะ จะถึงเร็วๆ นี้!" },
+  near_destination:   { text: "📍 ใกล้ถึงแล้ว",          detail: "อีกไม่นานพนักงานจะถึงบ้านคุณแล้วค่ะ" },
+  delivered:          { text: "✅ ส่งสำเร็จแล้ว",        detail: "ได้รับแก๊สเรียบร้อยแล้วค่ะ ขอบคุณที่ใช้บริการ!" },
+  cancelled:          { text: "❌ ยกเลิกคำสั่งซื้อ",    detail: "คำสั่งซื้อถูกยกเลิกแล้วค่ะ" },
+};
 
 router.post("/", middleware, async (req, res) => {
   const events = req.body.events || [];
@@ -25,6 +35,53 @@ router.post("/line", middleware, async (req, res) => {
 });
 
 async function handleEvent(event) {
+  // Handle postback (tracking button)
+  if (event.type === "postback") {
+    const params = new URLSearchParams(event.postback.data);
+    if (params.get("action") === "track") {
+      const orderId = params.get("orderId");
+      const order = await Order.findByPk(orderId, {
+        include: [{ model: Brand, as: "brand" }, { model: Product, as: "product" }],
+      }).catch(() => null);
+      if (!order) return client.replyMessage({ replyToken: event.replyToken, messages: [{ type: "text", text: "ไม่พบออเดอร์นี้ค่ะ" }] });
+      const st = STATUS_LABELS[order.status] || { text: order.status, detail: "" };
+      return client.replyMessage({
+        replyToken: event.replyToken,
+        messages: [{
+          type: "flex",
+          altText: `สถานะออเดอร์ #${order.orderNumber}: ${st.text}`,
+          contents: {
+            type: "bubble",
+            header: {
+              type: "box", layout: "vertical", backgroundColor: "#1A2B6B",
+              contents: [{ type: "text", text: "สกุณาแก๊ส — สถานะออเดอร์", color: "#FFFFFF", weight: "bold", size: "md" }],
+            },
+            body: {
+              type: "box", layout: "vertical", spacing: "md",
+              contents: [
+                { type: "text", text: `#${order.orderNumber}`, weight: "bold", size: "xl", color: "#F47B20" },
+                { type: "separator" },
+                { type: "text", text: st.text, weight: "bold", size: "lg", color: "#1A2B6B" },
+                { type: "text", text: st.detail, size: "sm", color: "#6B7280", wrap: true },
+                { type: "separator" },
+                { type: "text", text: `${order.brand?.name || ""} ${order.product?.name || ""} × ${order.qty} ถัง`, size: "sm", color: "#374151" },
+                { type: "text", text: `฿${Number(order.total).toLocaleString()}`, size: "sm", color: "#374151" },
+              ],
+            },
+            footer: {
+              type: "box", layout: "vertical",
+              contents: [{
+                type: "button", style: "primary", color: "#1A2B6B",
+                action: { type: "postback", label: "🔄 รีเฟรชสถานะ", data: `action=track&orderId=${order.id}`, displayText: "ติดตามสถานะออเดอร์" },
+              }],
+            },
+          },
+        }],
+      });
+    }
+    return;
+  }
+
   if (event.type !== "message" || event.message.type !== "text") return;
 
   const text = event.message.text.trim().toLowerCase();
