@@ -70,7 +70,7 @@ export default function Orders() {
 
 <table style="margin-bottom:8px;">
   <tr>
-    <td style="width:50%;">ลูกค้า</td>
+    <td style="width:50%;">ลูกค้า ${o.customerName || ""}</td>
     <td style="width:50%; text-align:right;">วันที่ ${dateStr}</td>
   </tr>
   <tr><td colspan="2">เลขออเดอร์: ${o.orderNumber}</td></tr>
