@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import liff from "@line/liff";
 import MapPicker from "./components/MapPicker.jsx";
+import qrBase64 from "./assets/qrBase64.js";
 import QRPayment from "./components/QRPayment.jsx";
 
 const LIFF_ID = "2010449303-edxrP9ho";
@@ -95,11 +96,18 @@ function CartItem({ item, onRemove, onQtyChange }) {
 }
 
 // ── Saved Order Card ──────────────────────────────────────────────────────────
-function SavedOrderCard({ saved, brands, products, lineUserId, onReordered }) {
+function SavedOrderCard({ saved, idx, brands, products, lineUserId, onReordered, onDelete, onSave }) {
   const [submitting, setSubmitting] = useState(false);
+  const [editing, setEditing]       = useState(false);
+  const [form, setForm]             = useState({ qty: saved.qty, note: saved.note || "", discountCode: saved.discountCode || "" });
   const brand = brands.find(b => b.id === saved.brandId);
   const prod  = products.find(p => p.id === saved.productId);
   if (!brand || !prod) return null;
+
+  function saveEdit() {
+    onSave(idx, { ...saved, qty: Number(form.qty) || 1, note: form.note, discountCode: form.discountCode });
+    setEditing(false);
+  }
 
   async function handleReorder() {
     setSubmitting(true);
@@ -111,7 +119,6 @@ function SavedOrderCard({ saved, brands, products, lineUserId, onReordered }) {
         deliveryLng: saved.lng, deliveryAddress: saved.address,
         paymentMethod: saved.paymentMethod, note: saved.note || "",
       };
-      // Try with saved discount code first; if rejected, retry without it
       let res = await fetch(`${API}/api/v1/orders`, {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...base, discountCode: saved.discountCode || undefined }),
@@ -140,6 +147,10 @@ function SavedOrderCard({ saved, brands, products, lineUserId, onReordered }) {
           <div style={{ fontSize: 11, color: GRAY, marginTop: 1 }}>📍 {saved.address?.slice(0, 40)}{saved.address?.length > 40 ? "..." : ""}</div>
           {saved.discountCode && <div style={{ fontSize: 10, color: "#16A34A", marginTop: 1 }}>🏷 โค้ด: {saved.discountCode}</div>}
         </div>
+        <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+          <button onClick={() => setEditing(true)} style={{ padding: "4px 8px", borderRadius: 7, border: `1.5px solid ${NAVY}`, background: WHITE, color: NAVY, fontSize: 11, fontWeight: 700, cursor: "pointer" }}>✏️</button>
+          <button onClick={() => { if (confirm("ลบรายการนี้?")) onDelete(idx); }} style={{ padding: "4px 8px", borderRadius: 7, border: "1.5px solid #EF4444", background: WHITE, color: "#EF4444", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>🗑</button>
+        </div>
       </div>
       <button onClick={handleReorder} disabled={submitting} style={{
         width: "100%", padding: "9px 0", borderRadius: 10, border: "none",
@@ -147,6 +158,30 @@ function SavedOrderCard({ saved, brands, products, lineUserId, onReordered }) {
         color: WHITE, fontWeight: 700, fontSize: 13, cursor: submitting ? "default" : "pointer" }}>
         {submitting ? "กำลังส่ง..." : "⚡ สั่งซ้ำเลย!"}
       </button>
+
+      {/* Edit modal */}
+      {editing && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", zIndex: 500, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+          <div style={{ background: WHITE, borderRadius: 20, padding: 24, width: "100%", maxWidth: 360 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
+              <div style={{ fontWeight: 800, fontSize: 16, color: NAVY }}>✏️ แก้ไขรายการ</div>
+              <button onClick={() => setEditing(false)} style={{ background: "none", border: "none", fontSize: 20, color: GRAY, cursor: "pointer" }}>✕</button>
+            </div>
+            <div style={{ fontSize: 13, color: GRAY, marginBottom: 14 }}>{brand.name} · {prod.name}</div>
+            {[["จำนวน (ถัง)", "qty", "number"], ["หมายเหตุ", "note", "text"], ["โค้ดส่วนลด", "discountCode", "text"]].map(([label, key, type]) => (
+              <div key={key} style={{ marginBottom: 12 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>{label}</div>
+                <input type={type} value={form[key]} min={type === "number" ? 1 : undefined}
+                  onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))}
+                  style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 14, boxSizing: "border-box" }} />
+              </div>
+            ))}
+            <button onClick={saveEdit} style={{ width: "100%", padding: 13, borderRadius: 12, border: "none", background: NAVY, color: WHITE, fontWeight: 800, fontSize: 14, cursor: "pointer" }}>
+              บันทึก
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -186,6 +221,7 @@ export default function App() {
   const [submitting, setSubmitting] = useState(false);
   const [doneOrders, setDoneOrders] = useState(null);
   const [showNewOrder, setShowNewOrder] = useState(false);
+  const [showPreQR, setShowPreQR] = useState(false); // QR before order created
 
   useEffect(() => {
     const saved = ls.getCustomer();
@@ -320,6 +356,7 @@ export default function App() {
 
   function handleNext() {
     if (step < 3) setStep(step + 1);
+    else if (paymentMethod === "qr") setShowPreQR(true); // show QR first, submit after payment
     else submitOrders();
   }
 
@@ -339,11 +376,48 @@ export default function App() {
     </div>
   );
 
+  // Pre-order QR: show QR before creating order, submit after customer confirms payment
+  if (showPreQR) {
+    const preTotal = cart.reduce((s, item) => {
+      const applicable = discountCode && discountApplicableIds.includes(item.productId);
+      const itemTotal = item.unitPrice * item.qty;
+      return s + (applicable ? itemTotal - discountAmount : itemTotal);
+    }, 0);
+    return (
+      <PreQRScreen total={preTotal} onConfirmed={() => { setShowPreQR(false); submitOrders(); }} onBack={() => setShowPreQR(false)} />
+    );
+  }
+
   if (qrOrder) return (
     <QRPayment order={qrOrder} onDone={() => setDoneOrders(prev => prev.map(o => o.id === qrOrder.id ? { ...o, _showQR: false } : o))} />
   );
 
   if (doneOrders) return <DoneScreen orders={doneOrders} onReset={handleReset} />;
+
+  // Business hours check
+  const now  = new Date();
+  const hour = now.getHours() + now.getMinutes() / 60;
+  const isSun = now.getDay() === 0;
+  const closeHour = isSun ? 13 : 19;
+  const isOpen = hour >= 7 && hour < closeHour;
+
+  if (!isOpen) return (
+    <div style={{ minHeight: "100vh", background: LGRAY, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+      <div style={{ background: WHITE, borderRadius: 24, padding: 32, maxWidth: 360, width: "100%", textAlign: "center", boxShadow: "0 8px 40px rgba(0,0,0,.12)" }}>
+        <Logo size={64}/>
+        <div style={{ fontSize: 44, margin: "16px 0 8px" }}>🌙</div>
+        <h1 style={{ fontSize: 18, fontWeight: 900, color: NAVY, marginBottom: 8 }}>ขณะนี้ร้านปิดแล้วค่ะ</h1>
+        <p style={{ fontSize: 14, color: GRAY, lineHeight: 1.7, marginBottom: 16 }}>
+          เวลาทำการ<br/>
+          จันทร์–เสาร์: 07:00–19:00 น.<br/>
+          อาทิตย์: 07:00–13:00 น.
+        </p>
+        <div style={{ background: "#EEF2FF", borderRadius: 12, padding: 12, fontSize: 13, color: NAVY, fontWeight: 700 }}>
+          กรุณาสั่งใหม่วันพรุ่งนี้ตั้งแต่ 07:00 น. ค่ะ
+        </div>
+      </div>
+    </div>
+  );
 
   // Reorder home screen
   const showReorder = savedOrders.length > 0 && !showNewOrder && step === 0 && cart.length === 0 && !selBrand;
@@ -377,8 +451,10 @@ export default function App() {
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               {savedOrders.map((so, i) => (
-                <SavedOrderCard key={i} saved={so} brands={brands} products={products} lineUserId={lineUserId}
-                  onReordered={(order) => { setSavedOrders(ls.getSavedOrders()); setDoneOrders([order]); }} />
+                <SavedOrderCard key={i} idx={i} saved={so} brands={brands} products={products} lineUserId={lineUserId}
+                  onReordered={(order) => { setSavedOrders(ls.getSavedOrders()); setDoneOrders([order]); }}
+                  onDelete={(idx) => { const next = savedOrders.filter((_, j) => j !== idx); ls.setSavedOrders(next); setSavedOrders(next); }}
+                  onSave={(idx, updated) => { const next = savedOrders.map((s, j) => j === idx ? updated : s); ls.setSavedOrders(next); setSavedOrders(next); }} />
               ))}
             </div>
           </div>
@@ -744,6 +820,40 @@ function DoneScreen({ orders, onReset }) {
         <button onClick={onReset} style={{ width: "100%", padding: 14, borderRadius: 12, border: `2px solid ${NAVY}`, background: WHITE, color: NAVY, fontWeight: 800, fontSize: 14, cursor: "pointer" }}>
           สั่งอีกรอบ
         </button>
+      </div>
+    </div>
+  );
+}
+
+
+function PreQRScreen({ total, onConfirmed, onBack }) {
+  const [confirming, setConfirming] = useState(false);
+  async function handleConfirm() {
+    setConfirming(true);
+    await new Promise(r => setTimeout(r, 500));
+    onConfirmed();
+  }
+  return (
+    <div style={{ minHeight: "100vh", background: `linear-gradient(160deg,#0F1D52 0%,#1A2B6B 50%,#2D3F8F 100%)`, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+      <div style={{ background: "#FFFFFF", borderRadius: 28, padding: "28px 24px", maxWidth: 360, width: "100%", textAlign: "center", boxShadow: "0 20px 60px rgba(0,0,0,.35)" }}>
+        <div style={{ fontSize: 13, color: "#6B7280", letterSpacing: 1, textTransform: "uppercase", marginBottom: 4 }}>ชำระเงินผ่าน PromptPay</div>
+        <div style={{ fontSize: 26, fontWeight: 900, color: "#1A2B6B", marginBottom: 18 }}>สกุณา<span style={{ color: "#F47B20" }}>แก๊ส</span></div>
+        <div style={{ background: "linear-gradient(135deg,#0F1D52,#1A2B6B)", borderRadius: 16, padding: "14px 20px", marginBottom: 22 }}>
+          <div style={{ color: "rgba(255,255,255,.65)", fontSize: 12, marginBottom: 4 }}>ยอดที่ต้องชำระ</div>
+          <div style={{ color: "#FFFFFF", fontSize: 38, fontWeight: 900, letterSpacing: -1 }}>฿{total.toLocaleString("th-TH", { minimumFractionDigits: 2 })}</div>
+        </div>
+        <div style={{ display: "inline-block", padding: 14, background: "#FFFFFF", borderRadius: 20, boxShadow: "0 4px 24px rgba(0,0,0,.12)", border: "1.5px solid #E5E7EB", marginBottom: 18 }}>
+          <img src={qrBase64} alt="QR PromptPay" style={{ width: 220, height: 220, objectFit: "contain", display: "block" }} />
+        </div>
+        <div style={{ background: "#F8FAFF", borderRadius: 14, padding: "12px 16px", marginBottom: 22, border: "1px solid #E5E7EB" }}>
+          <div style={{ fontSize: 15, fontWeight: 800, color: "#1A2B6B", marginBottom: 4 }}>นาง รุจิรา ดวงเพ็ชรแสง</div>
+          <div style={{ fontSize: 12, color: "#6B7280" }}>PromptPay · ธนาคารกสิกรไทย</div>
+        </div>
+        <button onClick={handleConfirm} disabled={confirming} style={{ width: "100%", padding: "15px 0", borderRadius: 16, border: "none", background: "linear-gradient(135deg,#059669,#047857)", color: "#FFFFFF", fontWeight: 800, fontSize: 16, cursor: "pointer", boxShadow: "0 4px 16px rgba(5,150,105,.35)", marginBottom: 10 }}>
+          {confirming ? "กำลังดำเนินการ..." : "✅ โอนเงินเรียบร้อยแล้ว"}
+        </button>
+        <div style={{ fontSize: 11, color: "#6B7280", marginBottom: 12 }}>กดหลังจากสแกนและโอนเงินเสร็จแล้ว ระบบจะยืนยันออเดอร์ให้ทันที</div>
+        <button onClick={onBack} style={{ background: "none", border: "none", fontSize: 13, color: "#6B7280", cursor: "pointer", textDecoration: "underline" }}>← ย้อนกลับ</button>
       </div>
     </div>
   );
