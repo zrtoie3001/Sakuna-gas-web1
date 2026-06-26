@@ -4,6 +4,7 @@ const { Order, Customer, DeliveryAddress, Brand, Product, DiscountCode, OrderSta
 const { getDeliveryInfo } = require("../services/mapsService");
 const { sendOrderConfirmation, sendStatusUpdate, notifyAdminNewOrder } = require("../services/lineService");
 const { isOpen, getNextOpenTime } = require("../utils/businessHours");
+const { appendOrder, updateOrderStatus } = require("../services/sheetsService");
 
 function generateOrderNumber() {
   const d = new Date();
@@ -132,6 +133,7 @@ async function createOrder(req, res) { try {
     sendOrderConfirmation(lineUserId, fullOrder).catch(() => {});
     notifyAdminNewOrder(fullOrder).catch(() => {});
   }
+  appendOrder(fullOrder).catch(() => {});
 
   res.status(201).json({ order: fullOrder });
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -196,6 +198,7 @@ async function updateStatus(req, res) {
   if (order.customer?.lineUserId) {
     sendStatusUpdate(order.customer.lineUserId, order, status).catch(() => {});
   }
+  updateOrderStatus(order).catch(() => {});
 
   res.json(order);
 }
