@@ -52,6 +52,15 @@ router.post("/:id/payment-confirmed", async (req, res) => {
 // Staff
 router.get("/", requireAuth, listOrders);
 router.put("/:id/status", requireAuth, updateStatus);
+router.put("/:id/payment", requireAuth, async (req, res) => {
+  const { Order } = require("../models");
+  const { paymentMethod } = req.body;
+  if (!["cash","qr","cod"].includes(paymentMethod)) return res.status(400).json({ error: "Invalid payment method" });
+  const order = await Order.findByPk(req.params.id);
+  if (!order) return res.status(404).json({ error: "Not found" });
+  await order.update({ paymentMethod });
+  res.json({ ok: true });
+});
 router.post("/:id/accept", requireAuth, requireRole("driver", "admin"), acceptOrder);
 
 module.exports = router;
