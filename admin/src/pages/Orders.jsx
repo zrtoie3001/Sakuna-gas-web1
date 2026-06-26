@@ -35,7 +35,11 @@ export default function Orders() {
     setTotal(r.data.total);
   }, [page, statusFilter, date]);
 
-  useEffect(() => { fetch(); }, [fetch]);
+  useEffect(() => {
+    fetch();
+    const interval = setInterval(fetch, 30000);
+    return () => clearInterval(interval);
+  }, [fetch]);
 
   function printReceipt(o) {
     const dateStr = new Date(o.createdAt).toLocaleDateString("th-TH", { dateStyle: "short" });

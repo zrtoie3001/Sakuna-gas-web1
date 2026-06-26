@@ -652,8 +652,71 @@ export default function App() {
   );
 }
 
+const STATUS_LABELS = {
+  pending:          { label: "รอรับงาน",      icon: "⏳", color: "#92400E", bg: "#FEF3C7" },
+  preparing:        { label: "เตรียมสินค้า",  icon: "📦", color: "#1E40AF", bg: "#DBEAFE" },
+  out_for_delivery: { label: "กำลังส่ง",      icon: "🛵", color: "#075985", bg: "#E0F2FE" },
+  near_destination: { label: "ใกล้ถึงแล้ว",  icon: "📍", color: "#065F46", bg: "#D1FAE5" },
+  delivered:        { label: "ส่งสำเร็จแล้ว",icon: "✅", color: "#065F46", bg: "#D1FAE5" },
+  cancelled:        { label: "ยกเลิก",        icon: "❌", color: "#991B1B", bg: "#FEE2E2" },
+};
+
 function DoneScreen({ orders, onReset }) {
+  const API = import.meta.env.VITE_API_URL || "";
   const total = orders.reduce((s, o) => s + Number(o.total), 0);
+  const [tracking, setTracking] = useState(false);
+  const [statuses, setStatuses] = useState({});
+
+  useEffect(() => {
+    if (!tracking) return;
+    async function poll() {
+      const results = await Promise.all(
+        orders.map(o => fetch(`${API}/api/v1/orders/${o.id}`).then(r => r.json()).catch(() => null))
+      );
+      const map = {};
+      results.forEach((r, i) => { if (r) map[orders[i].id] = r.status; });
+      setStatuses(map);
+    }
+    poll();
+    const iv = setInterval(poll, 15000);
+    return () => clearInterval(iv);
+  }, [tracking]);
+
+  if (tracking) {
+    return (
+      <div style={{ minHeight: "100vh", background: LGRAY, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24 }}>
+        <div style={{ background: WHITE, borderRadius: 24, padding: 28, maxWidth: 400, width: "100%", boxShadow: "0 8px 40px rgba(0,0,0,.12)" }}>
+          <Logo size={50}/>
+          <h1 style={{ fontSize: 18, fontWeight: 900, color: NAVY, margin: "12px 0 16px", textAlign: "center" }}>ติดตามคำสั่งซื้อ</h1>
+          {orders.map((o, i) => {
+            const st = STATUS_LABELS[statuses[o.id]] || STATUS_LABELS.pending;
+            return (
+              <div key={i} style={{ background: LGRAY, borderRadius: 14, padding: 14, marginBottom: 12 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+                  <span style={{ fontSize: 13, fontWeight: 800, color: NAVY }}>#{o.orderNumber}</span>
+                  <span style={{ fontSize: 13, color: GRAY }}>{o.product?.name} × {o.qty}</span>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, background: st.bg, borderRadius: 10, padding: "10px 14px" }}>
+                  <span style={{ fontSize: 22 }}>{st.icon}</span>
+                  <div>
+                    <div style={{ fontSize: 15, fontWeight: 800, color: st.color }}>{st.label}</div>
+                    {statuses[o.id] === "delivered" && (
+                      <div style={{ fontSize: 11, color: st.color, marginTop: 2 }}>ได้รับสินค้าเรียบร้อยแล้วค่ะ</div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+          <div style={{ fontSize: 11, color: GRAY, textAlign: "center", marginBottom: 16 }}>อัปเดตสถานะอัตโนมัติทุก 15 วินาที</div>
+          <button onClick={onReset} style={{ width: "100%", padding: 14, borderRadius: 12, border: "none", background: `linear-gradient(135deg,${NAVY},${NAVY2})`, color: WHITE, fontWeight: 800, fontSize: 14, cursor: "pointer" }}>
+            สั่งอีกรอบ
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div style={{ minHeight: "100vh", background: LGRAY, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24 }}>
       <div style={{ background: WHITE, borderRadius: 24, padding: 28, maxWidth: 400, width: "100%", textAlign: "center", boxShadow: "0 8px 40px rgba(0,0,0,.12)" }}>
@@ -672,10 +735,13 @@ function DoneScreen({ orders, onReset }) {
             <span style={{ color: ORANGE }}>฿{total.toLocaleString()}</span>
           </div>
         </div>
-        <div style={{ background: "#EEF2FF", borderRadius: 12, padding: 12, fontSize: 12, color: NAVY, marginBottom: 20, lineHeight: 1.7 }}>
+        <div style={{ background: "#EEF2FF", borderRadius: 12, padding: 12, fontSize: 12, color: NAVY, marginBottom: 16, lineHeight: 1.7 }}>
           📱 ระบบจะส่งอัปเดตสถานะผ่าน <strong>LINE</strong> ให้อัตโนมัติทุกขั้นตอนค่ะ
         </div>
-        <button onClick={onReset} style={{ width: "100%", padding: 14, borderRadius: 12, border: "none", background: `linear-gradient(135deg,${NAVY},${NAVY2})`, color: WHITE, fontWeight: 800, fontSize: 14, cursor: "pointer" }}>
+        <button onClick={() => setTracking(true)} style={{ width: "100%", padding: 14, borderRadius: 12, border: "none", background: ORANGE, color: WHITE, fontWeight: 800, fontSize: 14, cursor: "pointer", marginBottom: 10 }}>
+          📍 ติดตามคำสั่งซื้อ
+        </button>
+        <button onClick={onReset} style={{ width: "100%", padding: 14, borderRadius: 12, border: `2px solid ${NAVY}`, background: WHITE, color: NAVY, fontWeight: 800, fontSize: 14, cursor: "pointer" }}>
           สั่งอีกรอบ
         </button>
       </div>
