@@ -49,7 +49,7 @@ export default function Orders() {
   }, [fetch]);
 
   useEffect(() => {
-    api.get("/api/v1/products/brands").then(r => setBrands(r.data.brands || [])).catch(() => {});
+    api.get("/api/v1/products/brands").then(r => setBrands(Array.isArray(r.data) ? r.data : r.data.brands || [])).catch(() => {});
     api.get("/api/v1/products?limit=100").then(r => setProducts(r.data.products || [])).catch(() => {});
   }, []);
 
