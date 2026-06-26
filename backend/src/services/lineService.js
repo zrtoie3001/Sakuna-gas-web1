@@ -91,30 +91,47 @@ async function sendPaymentReceivedToCustomer(lineUserId, order) {
   const total = Number(order.total).toLocaleString("th-TH", { minimumFractionDigits: 2 });
   await client.pushMessage({
     to: lineUserId,
-    messages: [{
-      type: "flex",
-      altText: `✅ รับทราบการโอนเงิน ฿${total} แล้วค่ะ`,
-      contents: {
-        type: "bubble",
-        body: {
-          type: "box", layout: "vertical", spacing: "md",
-          contents: [
-            { type: "text", text: "✅ รับทราบการโอนเงินแล้วค่ะ", weight: "bold", size: "lg", color: "#059669" },
-            { type: "separator" },
-            infoRow("📋 ออเดอร์", `#${order.orderNumber}`),
-            infoRow("🛢 สินค้า", `${order.product?.name} × ${order.qty} ถัง`),
-            infoRow("💰 ยอดโอน", `฿${total}`),
-            { type: "separator" },
-            {
-              type: "text",
-              text: "ขอบคุณค่ะ 🙏 ทีมงานจะรีบจัดส่งให้โดยเร็วที่สุด",
-              size: "sm", color: "#6B7280", wrap: true,
-            },
-          ],
+    messages: [
+      {
+        type: "flex",
+        altText: `รับทราบการโอนเงิน ฿${total} แล้วค่ะ — กรุณาส่งสลิปด้วยนะคะ`,
+        contents: {
+          type: "bubble",
+          body: {
+            type: "box", layout: "vertical", spacing: "md",
+            contents: [
+              { type: "text", text: "✅ รับทราบการโอนเงินแล้วค่ะ", weight: "bold", size: "lg", color: "#059669" },
+              { type: "separator" },
+              infoRow("📋 ออเดอร์", `#${order.orderNumber}`),
+              infoRow("🛢 สินค้า", `${order.product?.name} × ${order.qty} ถัง`),
+              infoRow("💰 ยอดโอน", `฿${total}`),
+              { type: "separator" },
+              {
+                type: "text",
+                text: "📎 รบกวนส่งสลิปการโอนเงินมาในแชทนี้ด้วยนะคะ เพื่อยืนยันการชำระเงิน",
+                size: "sm", color: "#92400E", wrap: true, weight: "bold",
+              },
+              { type: "text", text: "ขอบคุณค่ะ 🙏", size: "sm", color: "#6B7280", wrap: true, margin: "sm" },
+            ],
+          },
         },
       },
-    }],
+    ],
   });
+}
+
+async function notifyAdminSlipReceived(lineUserId, imageUrl, customerName) {
+  const adminIds = (process.env.LINE_ADMIN_IDS || "").split(",").filter(Boolean);
+  if (!adminIds.length) return;
+  await Promise.all(adminIds.map(id =>
+    client.pushMessage({
+      to: id,
+      messages: [
+        { type: "text", text: `📎 ลูกค้าส่งสลิปมาแล้วค่ะ!\n👤 ${customerName || lineUserId}` },
+        { type: "image", originalContentUrl: imageUrl, previewImageUrl: imageUrl },
+      ],
+    })
+  ));
 }
 
 function infoRow(label, value) {
@@ -127,4 +144,4 @@ function infoRow(label, value) {
   };
 }
 
-module.exports = { client, sendOrderConfirmation, sendStatusUpdate, notifyAdminNewOrder, notifyAdminPaymentConfirmed, sendPaymentReceivedToCustomer };
+module.exports = { client, sendOrderConfirmation, sendStatusUpdate, notifyAdminNewOrder, notifyAdminPaymentConfirmed, sendPaymentReceivedToCustomer, notifyAdminSlipReceived };

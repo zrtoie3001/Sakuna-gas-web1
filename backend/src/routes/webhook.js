@@ -1,7 +1,8 @@
 const router = require("express").Router();
 const line = require("@line/bot-sdk");
 const { isOpen, getNextOpenTime } = require("../utils/businessHours");
-const { Order, Brand, Product } = require("../models");
+const { Order, Brand, Product, Customer } = require("../models");
+const { notifyAdminSlipReceived } = require("../services/lineService");
 
 const middleware = line.middleware({
   channelSecret: process.env.LINE_CHANNEL_SECRET,
@@ -80,6 +81,20 @@ async function handleEvent(event) {
       });
     }
     return;
+  }
+
+  // Handle image messages (slip)
+  if (event.type === "message" && event.message.type === "image") {
+    const lineUserId = event.source.userId;
+    // Get image content URL (LINE CDN)
+    const imageUrl = `https://api-data.line.me/v2/bot/message/${event.message.id}/content`;
+    // Find customer name from recent orders
+    const customer = await Customer.findOne({ where: { lineUserId }, attributes: ["name"] }).catch(() => null);
+    await notifyAdminSlipReceived(lineUserId, imageUrl, customer?.name).catch(() => {});
+    return client.replyMessage({
+      replyToken: event.replyToken,
+      messages: [{ type: "text", text: "✅ ได้รับสลิปแล้วค่ะ ทางร้านจะตรวจสอบและจัดส่งให้โดยเร็วที่สุดเลยค่ะ 🙏" }],
+    });
   }
 
   if (event.type !== "message" || event.message.type !== "text") return;

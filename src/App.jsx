@@ -852,7 +852,7 @@ function PreQRScreen({ total, onConfirmed, onBack }) {
         <button onClick={handleConfirm} disabled={confirming} style={{ width: "100%", padding: "15px 0", borderRadius: 16, border: "none", background: "linear-gradient(135deg,#059669,#047857)", color: "#FFFFFF", fontWeight: 800, fontSize: 16, cursor: "pointer", boxShadow: "0 4px 16px rgba(5,150,105,.35)", marginBottom: 10 }}>
           {confirming ? "กำลังดำเนินการ..." : "✅ โอนเงินเรียบร้อยแล้ว"}
         </button>
-        <div style={{ fontSize: 11, color: "#6B7280", marginBottom: 12 }}>กดหลังจากสแกนและโอนเงินเสร็จแล้ว ระบบจะยืนยันออเดอร์ให้ทันที</div>
+        <div style={{ fontSize: 12, color: "#92400E", fontWeight: 700, background: "#FEF3C7", borderRadius: 10, padding: "10px 14px", marginBottom: 12 }}>📎 หลังโอนเงินแล้ว กรุณาส่งสลิปในแชท LINE ด้วยนะคะ</div>
         <button onClick={onBack} style={{ background: "none", border: "none", fontSize: 13, color: "#6B7280", cursor: "pointer", textDecoration: "underline" }}>← ย้อนกลับ</button>
       </div>
     </div>
