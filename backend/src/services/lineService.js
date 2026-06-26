@@ -55,7 +55,11 @@ async function sendOrderConfirmation(lineUserId, order) {
       },
     },
   };
-  return client.pushMessage({ to: lineUserId, messages: [msg] });
+  const messages = [msg];
+  if (order.paymentMethod === "qr") {
+    messages.push({ type: "text", text: "💸 สำหรับท่านที่ชำระผ่าน QR Code\nโอนเสร็จแล้วรบกวนส่งสลิปมาในแชทนี้ด้วยนะคะ 📎\nขอบคุณค่ะ 🙏" });
+  }
+  return client.pushMessage({ to: lineUserId, messages });
 }
 
 async function sendStatusUpdate(lineUserId, order, newStatus, estimatedMins) {
