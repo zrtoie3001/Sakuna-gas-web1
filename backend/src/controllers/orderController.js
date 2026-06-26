@@ -1,6 +1,6 @@
 const { Op } = require("sequelize");
 const { v4: uuid } = require("uuid");
-const { Order, Customer, DeliveryAddress, Brand, Product, DiscountCode, OrderStatusLog, DeliveryZone } = require("../models");
+const { Order, Customer, DeliveryAddress, Brand, Product, DiscountCode, OrderStatusLog, DeliveryZone, User } = require("../models");
 const { getDeliveryInfo } = require("../services/mapsService");
 const { sendOrderConfirmation, sendStatusUpdate, notifyAdminNewOrder } = require("../services/lineService");
 const { isOpen, getNextOpenTime } = require("../utils/businessHours");
@@ -168,6 +168,7 @@ async function listOrders(req, res) {
       { model: Brand, as: "brand" },
       { model: Product, as: "product" },
       { model: Customer, as: "customer" },
+      { model: User, as: "driver", attributes: ["id", "name"], required: false },
     ],
     order: [["createdAt", "DESC"]],
     limit: parseInt(limit),

@@ -17,6 +17,8 @@ const STATUSES = [
   { key: "cancelled",         label: "ยกเลิก",         bg: "#FEE2E2", color: "#991B1B" },
 ];
 
+const EMPTY_ORDER = { customerName: "", customerPhone: "", brandId: "", productId: "", qty: 1, paymentMethod: "cash", deliveryAddress: "", note: "" };
+
 export default function Orders() {
   const [orders, setOrders]     = useState([]);
   const [total, setTotal]       = useState(0);
@@ -25,6 +27,11 @@ export default function Orders() {
   const [date, setDate]         = useState(new Date().toISOString().split("T")[0]);
   const [selected, setSelected] = useState(null);
   const [updating, setUpdating] = useState(false);
+  const [showCreate, setShowCreate] = useState(false);
+  const [createForm, setCreateForm] = useState(EMPTY_ORDER);
+  const [creating, setCreating]     = useState(false);
+  const [brands, setBrands]         = useState([]);
+  const [products, setProducts]     = useState([]);
 
   const fetch = useCallback(async () => {
     const params = new URLSearchParams({ page, limit: 20 });
@@ -40,6 +47,24 @@ export default function Orders() {
     const interval = setInterval(fetch, 30000);
     return () => clearInterval(interval);
   }, [fetch]);
+
+  useEffect(() => {
+    api.get("/api/v1/products?limit=100").then(r => {
+      setBrands([...new Map(r.data.products.map(p => [p.brand?.id, p.brand])).values()].filter(Boolean));
+      setProducts(r.data.products || []);
+    }).catch(() => {});
+  }, []);
+
+  async function createOrder() {
+    if (!createForm.customerName || !createForm.customerPhone || !createForm.brandId || !createForm.productId || !createForm.deliveryAddress)
+      return alert("กรุณากรอกข้อมูลให้ครบถ้วน");
+    setCreating(true);
+    try {
+      await api.post("/api/v1/orders", { ...createForm, qty: Number(createForm.qty) || 1 });
+      setShowCreate(false); setCreateForm(EMPTY_ORDER); fetch();
+    } catch (e) { alert(e.response?.data?.error || "เกิดข้อผิดพลาด"); }
+    finally { setCreating(false); }
+  }
 
   function printReceipt(o) {
     const dateStr   = new Date(o.createdAt).toLocaleDateString("th-TH", { dateStyle: "short" });
@@ -155,7 +180,8 @@ export default function Orders() {
       <div style={{ flex: "1 1 500px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
           <h1 style={{ fontSize: 20, fontWeight: 900, color: NAVY }}>📦 ออเดอร์</h1>
-          <span style={{ marginLeft: "auto", fontSize: 13, color: GRAY }}>{total} รายการ</span>
+          <button onClick={() => setShowCreate(true)} style={{ marginLeft: "auto", padding: "7px 14px", borderRadius: 8, background: ORANGE, color: WHITE, border: "none", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>+ เพิ่มออเดอร์</button>
+          <span style={{ fontSize: 13, color: GRAY }}>{total} รายการ</span>
         </div>
 
         {/* Filters */}
@@ -186,6 +212,7 @@ export default function Orders() {
                   </div>
                   <p style={{ fontSize: 12, color: NAVY }}>{o.customerName} · {o.customerPhone}</p>
                   <p style={{ fontSize: 12, color: GRAY }}>{o.product?.name} ×{o.qty} · ฿{Number(o.total).toLocaleString()}</p>
+                  {o.driver && <p style={{ fontSize: 11, color: "#059669", fontWeight: 700 }}>🛵 {o.driver.name}</p>}
                 </div>
                 <div style={{ fontSize: 11, color: GRAY, textAlign: "right", flexShrink: 0 }}>
                   {new Date(o.createdAt).toLocaleTimeString("th-TH", { timeStyle: "short" })}
@@ -229,6 +256,7 @@ export default function Orders() {
             ["💰 ยอดรวม",  `฿${Number(selected.total).toLocaleString()}`],
             ["💳 ชำระ",    selected.paymentMethod === "cash" ? "เงินสด" : "QR โอน"],
             ["📏 ระยะทาง", selected.distanceKm ? `${Number(selected.distanceKm).toFixed(1)} กม.` : "-"],
+            ["🛵 คนส่ง",   selected.driver?.name || "ยังไม่มีคนรับงาน"],
           ].map(([k, v]) => (
             <div key={k} style={{ display: "flex", gap: 8, padding: "7px 0", borderBottom: "1px solid #F3F4F6", fontSize: 13 }}>
               <span style={{ color: GRAY, flexShrink: 0, width: 80 }}>{k}</span>
@@ -258,6 +286,66 @@ export default function Orders() {
                 </button>
               ))}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create order modal */}
+      {showCreate && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", zIndex: 400, display: "flex", alignItems: "center", justifyContent: "center", padding: 16, overflowY: "auto" }}>
+          <div style={{ background: WHITE, borderRadius: 20, padding: 24, width: "100%", maxWidth: 420, margin: "auto" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
+              <h2 style={{ fontSize: 16, fontWeight: 800, color: NAVY }}>📞 เพิ่มออเดอร์ (ลูกค้าโทรสั่ง)</h2>
+              <button onClick={() => setShowCreate(false)} style={{ background: "none", border: "none", fontSize: 20, color: GRAY, cursor: "pointer" }}>✕</button>
+            </div>
+            {[
+              ["ชื่อลูกค้า *", "customerName", "text"],
+              ["เบอร์โทร *", "customerPhone", "tel"],
+              ["ที่อยู่จัดส่ง *", "deliveryAddress", "text"],
+              ["หมายเหตุ", "note", "text"],
+            ].map(([label, key, type]) => (
+              <div key={key} style={{ marginBottom: 12 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>{label}</div>
+                <input type={type} value={createForm[key]} onChange={e => setCreateForm(f => ({ ...f, [key]: e.target.value }))}
+                  style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 14, boxSizing: "border-box" }} />
+              </div>
+            ))}
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>ยี่ห้อ *</div>
+              <select value={createForm.brandId} onChange={e => setCreateForm(f => ({ ...f, brandId: e.target.value, productId: "" }))}
+                style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 14, boxSizing: "border-box" }}>
+                <option value="">-- เลือกยี่ห้อ --</option>
+                {brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+              </select>
+            </div>
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>สินค้า *</div>
+              <select value={createForm.productId} onChange={e => setCreateForm(f => ({ ...f, productId: e.target.value }))}
+                style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 14, boxSizing: "border-box" }}>
+                <option value="">-- เลือกสินค้า --</option>
+                {products.filter(p => String(p.brand?.id) === String(createForm.brandId)).map(p => (
+                  <option key={p.id} value={p.id}>{p.name} — ฿{Number(p.price).toLocaleString()}</option>
+                ))}
+              </select>
+            </div>
+            <div style={{ display: "flex", gap: 12, marginBottom: 16 }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>จำนวน (ถัง)</div>
+                <input type="number" min="1" value={createForm.qty} onChange={e => setCreateForm(f => ({ ...f, qty: e.target.value }))}
+                  style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 14, boxSizing: "border-box" }} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>ชำระ</div>
+                <select value={createForm.paymentMethod} onChange={e => setCreateForm(f => ({ ...f, paymentMethod: e.target.value }))}
+                  style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 14, boxSizing: "border-box" }}>
+                  <option value="cash">เงินสด</option>
+                  <option value="qr">QR โอน</option>
+                </select>
+              </div>
+            </div>
+            <button onClick={createOrder} disabled={creating} style={{ width: "100%", padding: 13, borderRadius: 12, border: "none", background: ORANGE, color: WHITE, fontWeight: 800, fontSize: 15, cursor: "pointer", opacity: creating ? 0.6 : 1 }}>
+              {creating ? "กำลังสร้าง..." : "✅ สร้างออเดอร์"}
+            </button>
           </div>
         </div>
       )}
