@@ -186,14 +186,16 @@ export default function Stock() {
                                 <button onClick={() => adjust(brand, w, f.key, -1)} style={{ width: 22, height: 22, borderRadius: 4, border: "none", background: "#EF4444", color: WHITE, cursor: "pointer", fontSize: 13, lineHeight: 1, flexShrink: 0 }}>−</button>
                                 <input
                                   type="number" min="0"
-                                  value={row[f.key] || 0}
-                                  onChange={async e => {
+                                  defaultValue={row[f.key] || 0}
+                                  key={`${brand}-${w}-${f.key}-${row[f.key] || 0}`}
+                                  onBlur={async e => {
                                     const val = Math.max(0, parseInt(e.target.value) || 0);
                                     const old = Number(row[f.key] || 0);
                                     if (val === old) return;
                                     await api.post("/api/v1/stock/gas", { brandName: brand, weightKg: w, ...getCell(brand, w), [f.key]: val });
                                     fetchStock();
                                   }}
+                                  onKeyDown={e => { if (e.key === "Enter") e.target.blur(); }}
                                   style={{ width: 40, textAlign: "center", fontWeight: 700, color: Number(row[f.key]) > 0 ? f.color : GRAY, border: "1px solid #E5E7EB", borderRadius: 4, padding: "2px 4px", fontSize: 13 }}
                                 />
                                 <button onClick={() => adjust(brand, w, f.key, 1)} style={{ width: 22, height: 22, borderRadius: 4, border: "none", background: "#22C55E", color: WHITE, cursor: "pointer", fontSize: 13, lineHeight: 1, flexShrink: 0 }}>+</button>
