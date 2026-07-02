@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import api from "../api";
+import api from "../utils/api.js";
 
 const NAVY = "#1B2A6B";
 const ORANGE = "#E8873A";
