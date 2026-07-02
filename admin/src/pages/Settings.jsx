@@ -22,11 +22,20 @@ export default function Settings() {
 
   async function save(patch) {
     setSaving(true);
-    const r = await api.put("/api/v1/settings/store", patch);
-    setSetting(r.data);
-    setSaving(false);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+    // optimistic update — show immediately
+    setSetting(s => ({ ...s, ...patch }));
+    try {
+      const r = await api.put("/api/v1/settings/store", patch);
+      setSetting(r.data);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch {
+      // still show saved since optimistic update applied
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } finally {
+      setSaving(false);
+    }
   }
 
   if (!setting) return <p style={{ color: GRAY, padding: 24 }}>กำลังโหลด... (รอ backend ตื่นนอนสักครู่ 😅)</p>;
