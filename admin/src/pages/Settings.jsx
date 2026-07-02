@@ -59,6 +59,25 @@ export default function Settings() {
         </div>
       </div>
 
+      {/* เปิดนอกเวลา (test mode) */}
+      <div style={{ background: WHITE, borderRadius: 16, padding: 24, boxShadow: "0 2px 12px rgba(0,0,0,.06)", marginBottom: 20 }}>
+        <h3 style={{ color: NAVY, margin: "0 0 8px" }}>เปิดนอกเวลาทำการ (Test Mode)</h3>
+        <p style={{ color: GRAY, fontSize: 13, margin: "0 0 16px" }}>
+          เปิดให้สั่งได้แม้นอกเวลาทำการ เช่น ต้องการเทสระบบหลังปิดร้าน
+        </p>
+        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+          <div
+            onClick={() => save({ forceOpen: !setting.forceOpen })}
+            style={{ width: 56, height: 28, borderRadius: 14, cursor: "pointer", position: "relative", background: setting.forceOpen ? "#F59E0B" : "#E5E7EB", transition: "background 0.2s" }}
+          >
+            <div style={{ position: "absolute", top: 3, left: setting.forceOpen ? 31 : 3, width: 22, height: 22, borderRadius: "50%", background: WHITE, transition: "left 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,.3)" }} />
+          </div>
+          <span style={{ fontWeight: 700, fontSize: 15, color: setting.forceOpen ? "#D97706" : GRAY }}>
+            {setting.forceOpen ? "🟡 เปิดนอกเวลาอยู่" : "ปิดอยู่ (ปกติ)"}
+          </span>
+        </div>
+      </div>
+
       {/* ข้อความแจ้งเตือนใกล้ปิด */}
       <div style={{ background: WHITE, borderRadius: 16, padding: 24, boxShadow: "0 2px 12px rgba(0,0,0,.06)", marginBottom: 20 }}>
         <h3 style={{ color: NAVY, margin: "0 0 8px" }}>ข้อความแจ้งเตือนใกล้ปิด</h3>

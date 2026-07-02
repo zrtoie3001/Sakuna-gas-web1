@@ -403,18 +403,19 @@ export default function App() {
   const closeHour = isSun ? 13 : 19;
   const isOpen = hour >= 7 && hour < closeHour;
   const forceClose = storeSetting?.forceClose === true;
+  const forceOpen  = storeSetting?.forceOpen  === true;
 
   // Warning banner: show when within warningStart time
   const warningMsg = storeSetting?.warningMessage;
-  const warningStart = storeSetting?.warningStart; // e.g. "18:45"
+  const warningStart = storeSetting?.warningStart;
   let showWarning = false;
-  if (warningStart && isOpen && !forceClose) {
+  if (warningStart && (isOpen || forceOpen) && !forceClose) {
     const [wh, wm] = warningStart.split(":").map(Number);
     const wHour = wh + wm / 60;
     showWarning = hour >= wHour;
   }
 
-  if (!isOpen || forceClose) return (
+  if ((!isOpen && !forceOpen) || forceClose) return (
     <div style={{ minHeight: "100vh", background: LGRAY, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
       <div style={{ background: WHITE, borderRadius: 24, padding: 32, maxWidth: 360, width: "100%", textAlign: "center", boxShadow: "0 8px 40px rgba(0,0,0,.12)" }}>
         <Logo size={64}/>
