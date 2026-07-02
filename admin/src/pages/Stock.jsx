@@ -64,9 +64,11 @@ export default function Stock() {
   }
 
   async function saveEdit() {
-    await api.post("/api/v1/stock/gas", editCell);
+    const { brandName, weightKg, hasGas = 0, newTank = 0, emptyTank = 0, damagedTank = 0, heldTank = 0 } = editCell;
+    await api.post("/api/v1/stock/gas", { brandName, weightKg, hasGas, newTank, emptyTank, damagedTank, heldTank });
     setEditCell(null);
     fetchStock();
+    fetchLogs();
   }
 
   async function adjust(brand, weight, field, delta) {
@@ -136,7 +138,14 @@ export default function Stock() {
       {/* ── GAS STOCK ── */}
       {tab === "gas" && (
         <div>
-          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginBottom: 12 }}>
+            <button onClick={async () => {
+              if (!confirm("รีเซ็ตสต็อกทั้งหมดเป็น 0?")) return;
+              await Promise.all(BRANDS.flatMap(b => WEIGHTS.map(w =>
+                api.post("/api/v1/stock/gas", { brandName: b, weightKg: w, hasGas: 0, newTank: 0, emptyTank: 0, damagedTank: 0, heldTank: 0 })
+              )));
+              fetchStock();
+            }} style={btn("#EF4444")}>🔄 รีเซ็ตทั้งหมด</button>
             <button onClick={() => setShowRefill(true)} style={btn(ORANGE)}>+ บันทึกรับแก๊ส</button>
           </div>
 
@@ -172,11 +181,22 @@ export default function Stock() {
                           {wi === 0 && <td rowSpan={WEIGHTS.length} style={{ padding: "8px 12px", fontWeight: 700, color: NAVY, verticalAlign: "middle", borderRight: "2px solid #E5E7EB" }}>{brand}</td>}
                           <td style={{ padding: "6px 8px", textAlign: "center", color: GRAY }}>{w} kg</td>
                           {FIELDS.map(f => (
-                            <td key={f.key} style={{ padding: "4px 8px", textAlign: "center" }}>
-                              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 4 }}>
-                                <button onClick={() => adjust(brand, w, f.key, -1)} style={{ width: 20, height: 20, borderRadius: 4, border: "none", background: "#EF4444", color: WHITE, cursor: "pointer", fontSize: 12, lineHeight: 1 }}>−</button>
-                                <span style={{ minWidth: 24, textAlign: "center", fontWeight: 600, color: Number(row[f.key]) > 0 ? f.color : GRAY }}>{row[f.key] || 0}</span>
-                                <button onClick={() => adjust(brand, w, f.key, 1)} style={{ width: 20, height: 20, borderRadius: 4, border: "none", background: "#22C55E", color: WHITE, cursor: "pointer", fontSize: 12, lineHeight: 1 }}>+</button>
+                            <td key={f.key} style={{ padding: "4px 6px", textAlign: "center" }}>
+                              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 3 }}>
+                                <button onClick={() => adjust(brand, w, f.key, -1)} style={{ width: 22, height: 22, borderRadius: 4, border: "none", background: "#EF4444", color: WHITE, cursor: "pointer", fontSize: 13, lineHeight: 1, flexShrink: 0 }}>−</button>
+                                <input
+                                  type="number" min="0"
+                                  value={row[f.key] || 0}
+                                  onChange={async e => {
+                                    const val = Math.max(0, parseInt(e.target.value) || 0);
+                                    const old = Number(row[f.key] || 0);
+                                    if (val === old) return;
+                                    await api.post("/api/v1/stock/gas", { brandName: brand, weightKg: w, ...getCell(brand, w), [f.key]: val });
+                                    fetchStock();
+                                  }}
+                                  style={{ width: 40, textAlign: "center", fontWeight: 700, color: Number(row[f.key]) > 0 ? f.color : GRAY, border: "1px solid #E5E7EB", borderRadius: 4, padding: "2px 4px", fontSize: 13 }}
+                                />
+                                <button onClick={() => adjust(brand, w, f.key, 1)} style={{ width: 22, height: 22, borderRadius: 4, border: "none", background: "#22C55E", color: WHITE, cursor: "pointer", fontSize: 13, lineHeight: 1, flexShrink: 0 }}>+</button>
                               </div>
                             </td>
                           ))}
