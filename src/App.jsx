@@ -440,8 +440,10 @@ export default function App() {
     <div style={{ minHeight: "100vh", background: LGRAY }}>
       {/* Warning banner */}
       {showWarning && warningMsg && (
-        <div style={{ background: "#FEF3C7", borderBottom: "2px solid #F59E0B", padding: "10px 16px", textAlign: "center", fontSize: 13, color: "#92400E", fontWeight: 600, lineHeight: 1.5 }}>
-          ⚠️ {warningMsg}
+        <div style={{ background: "#FEF3C7", borderBottom: "2px solid #F59E0B", padding: "10px 16px", fontSize: 13, color: "#92400E", fontWeight: 600, lineHeight: 1.7 }}>
+          {warningMsg.split("\n").map((line, i) => (
+            <div key={i}>{i === 0 ? "⚠️ " : "• "}{line}</div>
+          ))}
         </div>
       )}
       {/* Header */}
