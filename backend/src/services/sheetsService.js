@@ -150,67 +150,7 @@ async function syncStockToSheet() {
       requestBody: { values: [header, ...data] },
     });
 
-    const sheetId = await getSheetId(sheets, "สต็อก");
-    if (sheetId === null) return;
-
-    const totalRows = data.length + 1;
-    const requests = [];
-
-    // freeze row 1
-    requests.push({ updateSheetProperties: { properties: { sheetId, gridProperties: { frozenRowCount: 1 } }, fields: "gridProperties.frozenRowCount" } });
-
-    // header row: navy background, white bold text, center
-    requests.push({ repeatCell: {
-      range: { sheetId, startRowIndex: 0, endRowIndex: 1, startColumnIndex: 0, endColumnIndex: 8 },
-      cell: { userEnteredFormat: {
-        backgroundColor: rgb(27, 42, 107),
-        textFormat: { bold: true, foregroundColor: rgb(255,255,255), fontSize: 11 },
-        horizontalAlignment: "CENTER",
-      }},
-      fields: "userEnteredFormat(backgroundColor,textFormat,horizontalAlignment)",
-    }});
-
-    // alternating row colors by brand
-    let rowIdx = 1;
-    const brandColors = [rgb(240,245,255), rgb(255,252,240), rgb(240,255,245), rgb(255,240,245), rgb(245,240,255)];
-    BRANDS.forEach((brand, bi) => {
-      const brandRows = data.filter(r => r[0] === brand);
-      brandRows.forEach(() => {
-        requests.push({ repeatCell: {
-          range: { sheetId, startRowIndex: rowIdx, endRowIndex: rowIdx + 1, startColumnIndex: 0, endColumnIndex: 8 },
-          cell: { userEnteredFormat: { backgroundColor: brandColors[bi % brandColors.length] } },
-          fields: "userEnteredFormat.backgroundColor",
-        }});
-        rowIdx++;
-      });
-    });
-
-    // center-align numeric columns (B-H)
-    requests.push({ repeatCell: {
-      range: { sheetId, startRowIndex: 1, endRowIndex: totalRows, startColumnIndex: 1, endColumnIndex: 8 },
-      cell: { userEnteredFormat: { horizontalAlignment: "CENTER" } },
-      fields: "userEnteredFormat.horizontalAlignment",
-    }});
-
-    // bold "รวม" column (H)
-    requests.push({ repeatCell: {
-      range: { sheetId, startRowIndex: 1, endRowIndex: totalRows, startColumnIndex: 7, endColumnIndex: 8 },
-      cell: { userEnteredFormat: { textFormat: { bold: true }, backgroundColor: rgb(220,230,255) } },
-      fields: "userEnteredFormat(textFormat,backgroundColor)",
-    }});
-
-    // auto-resize columns
-    requests.push({ autoResizeDimensions: { dimensions: { sheetId, dimension: "COLUMNS", startIndex: 0, endIndex: 8 } } });
-
-    // border around all data
-    requests.push({ updateBorders: {
-      range: { sheetId, startRowIndex: 0, endRowIndex: totalRows, startColumnIndex: 0, endColumnIndex: 8 },
-      top: { style: "SOLID", width: 1 }, bottom: { style: "SOLID", width: 1 },
-      left: { style: "SOLID", width: 1 }, right: { style: "SOLID", width: 1 },
-      innerHorizontal: { style: "SOLID", width: 1 }, innerVertical: { style: "SOLID", width: 1 },
-    }});
-
-    await sheets.spreadsheets.batchUpdate({ spreadsheetId: SHEET_ID, requestBody: { requests } });
+    // data only — no formatting so user's custom format stays intact
   } catch (e) {
     console.error("Sheets stock sync error:", e.message);
   }
