@@ -171,6 +171,19 @@ const GasStock = sequelize.define("GasStock", {
   heldTank:    { type: DataTypes.INTEGER, defaultValue: 0 },   // ค้างถัง
 }, { tableName: "gas_stocks", underscored: true });
 
+// ── GasStockLog ───────────────────────────────────────────────────────────────
+const GasStockLog = sequelize.define("GasStockLog", {
+  id:        { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+  brandName: { type: DataTypes.STRING(100), allowNull: false },
+  weightKg:  { type: DataTypes.DECIMAL(6, 2), allowNull: false },
+  field:     { type: DataTypes.STRING(50) },   // hasGas / newTank / emptyTank / damagedTank / heldTank / all
+  oldValue:  { type: DataTypes.INTEGER },
+  newValue:  { type: DataTypes.INTEGER },
+  delta:     { type: DataTypes.INTEGER },
+  action:    { type: DataTypes.STRING(50) },   // adjust / refill / manual
+  note:      { type: DataTypes.TEXT },
+}, { tableName: "gas_stock_logs", underscored: true });
+
 // ── GasRefill ─────────────────────────────────────────────────────────────────
 const GasRefill = sequelize.define("GasRefill", {
   id:          { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
@@ -217,6 +230,7 @@ module.exports = {
   Order,
   OrderStatusLog,
   GasStock,
+  GasStockLog,
   GasRefill,
   Equipment,
   EquipmentSale,

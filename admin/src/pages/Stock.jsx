@@ -17,11 +17,15 @@ const FIELDS = [
   { key: "heldTank",    label: "ค้างถัง",  color: "#8B5CF6" },
 ];
 
+const FIELD_LABEL = { hasGas: "ถังมีแก๊ส", newTank: "ถังใหม่", emptyTank: "ถังเปล่า", damagedTank: "ถังเสีย", heldTank: "ค้างถัง" };
+const ACTION_LABEL = { refill: "เติมแก๊ส", adjust: "ปรับสต็อก", manual: "แก้ไขด้วยตัวเอง" };
+
 export default function Stock() {
-  const [tab, setTab] = useState("gas"); // gas | refill | equipment
+  const [tab, setTab] = useState("gas"); // gas | refill | equipment | history
   const [stock, setStock] = useState([]);
   const [refills, setRefills] = useState([]);
   const [equipment, setEquipment] = useState([]);
+  const [logs, setLogs] = useState([]);
 
   // modals
   const [editCell, setEditCell] = useState(null); // { brandName, weightKg, row }
@@ -43,7 +47,11 @@ export default function Stock() {
     api.get("/api/v1/stock/equipment").then(r => setEquipment(r.data)).catch(() => {});
   }, []);
 
-  useEffect(() => { fetchStock(); fetchRefills(); fetchEquipment(); }, [fetchStock, fetchRefills, fetchEquipment]);
+  const fetchLogs = useCallback(() => {
+    api.get("/api/v1/stock/gas/logs?limit=200").then(r => setLogs(r.data)).catch(() => {});
+  }, []);
+
+  useEffect(() => { fetchStock(); fetchRefills(); fetchEquipment(); fetchLogs(); }, [fetchStock, fetchRefills, fetchEquipment, fetchLogs]);
 
   function getCell(brand, weight) {
     return stock.find(s => s.brandName === brand && Number(s.weightKg) === weight) || {
@@ -117,7 +125,7 @@ export default function Stock() {
 
       {/* Tabs */}
       <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-        {[["gas","⛽ สต็อกถัง"],["refill","🔄 บันทึกเติมแก๊ส"],["equipment","🔧 อุปกรณ์"]].map(([key, label]) => (
+        {[["gas","⛽ สต็อกถัง"],["refill","🔄 บันทึกเติมแก๊ส"],["equipment","🔧 อุปกรณ์"],["history","📋 ประวัติการเปลี่ยนแปลง"]].map(([key, label]) => (
           <button key={key} onClick={() => setTab(key)} style={{
             ...btn(tab === key ? NAVY : "#E5E7EB", tab === key ? WHITE : NAVY),
             padding: "8px 20px",
@@ -260,6 +268,45 @@ export default function Stock() {
               </div>
             ))}
             {equipment.length === 0 && <p style={{ color: GRAY }}>ยังไม่มีอุปกรณ์</p>}
+          </div>
+        </div>
+      )}
+
+      {/* ── HISTORY ── */}
+      {tab === "history" && (
+        <div>
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 13 }}>
+              <thead>
+                <tr style={{ background: NAVY, color: WHITE }}>
+                  {["วันที่/เวลา","ยี่ห้อ","น้ำหนัก","ประเภทถัง","ก่อน","หลัง","เปลี่ยน","การกระทำ","หมายเหตุ"].map(h => (
+                    <th key={h} style={{ padding: "8px 12px", textAlign: "left", whiteSpace: "nowrap" }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {logs.map((r, i) => (
+                  <tr key={r.id} style={{ background: i % 2 === 0 ? WHITE : LIGHT }}>
+                    <td style={{ padding: "8px 12px", whiteSpace: "nowrap", color: GRAY }}>
+                      {new Date(r.createdAt).toLocaleString("th-TH", { dateStyle: "short", timeStyle: "short" })}
+                    </td>
+                    <td style={{ padding: "8px 12px", fontWeight: 600 }}>{r.brandName}</td>
+                    <td style={{ padding: "8px 12px" }}>{r.weightKg} kg</td>
+                    <td style={{ padding: "8px 12px" }}>{FIELD_LABEL[r.field] || r.field}</td>
+                    <td style={{ padding: "8px 12px", textAlign: "center" }}>{r.oldValue}</td>
+                    <td style={{ padding: "8px 12px", textAlign: "center", fontWeight: 700 }}>{r.newValue}</td>
+                    <td style={{ padding: "8px 12px", textAlign: "center", fontWeight: 700, color: r.delta > 0 ? "#22C55E" : "#EF4444" }}>
+                      {r.delta > 0 ? `+${r.delta}` : r.delta}
+                    </td>
+                    <td style={{ padding: "8px 12px" }}>{ACTION_LABEL[r.action] || r.action}</td>
+                    <td style={{ padding: "8px 12px", color: GRAY }}>{r.note || "-"}</td>
+                  </tr>
+                ))}
+                {logs.length === 0 && (
+                  <tr><td colSpan={9} style={{ padding: 24, textAlign: "center", color: GRAY }}>ยังไม่มีประวัติ</td></tr>
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
       )}

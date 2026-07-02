@@ -88,6 +88,39 @@ async function updateOrderStatus(order) {
   }
 }
 
+const FIELD_LABEL = { hasGas: "ถังมีแก๊ส", newTank: "ถังใหม่", emptyTank: "ถังเปล่า", damagedTank: "ถังเสีย", heldTank: "ค้างถัง" };
+
+async function appendStockLog(log) {
+  if (!SHEET_ID || !process.env.GOOGLE_SERVICE_ACCOUNT_JSON) return;
+  try {
+    const sheets = getClient();
+    // ensure header
+    const res = await sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID, range: "ประวัติสต็อก!A1:A1" });
+    if (!res.data.values?.[0]) {
+      await sheets.spreadsheets.values.update({
+        spreadsheetId: SHEET_ID, range: "ประวัติสต็อก!A1", valueInputOption: "RAW",
+        requestBody: { values: [["วันที่", "เวลา", "ยี่ห้อ", "น้ำหนัก (kg)", "ประเภทถัง", "ก่อน", "หลัง", "เปลี่ยน", "การกระทำ", "หมายเหตุ"]] },
+      });
+    }
+    const now = new Date();
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: SHEET_ID, range: "ประวัติสต็อก!A:J",
+      valueInputOption: "RAW", insertDataOption: "INSERT_ROWS",
+      requestBody: { values: [[
+        now.toLocaleDateString("th-TH", { dateStyle: "short" }),
+        now.toLocaleTimeString("th-TH", { timeStyle: "short" }),
+        log.brandName, Number(log.weightKg),
+        FIELD_LABEL[log.field] || log.field,
+        log.oldValue, log.newValue, log.delta > 0 ? `+${log.delta}` : log.delta,
+        log.action === "refill" ? "เติมแก๊ส" : log.action === "adjust" ? "ปรับสต็อก" : "แก้ไขด้วยตัวเอง",
+        log.note || "",
+      ]] },
+    });
+  } catch (e) {
+    console.error("Sheets stock log error:", e.message);
+  }
+}
+
 async function syncStockToSheet() {
   if (!SHEET_ID || !process.env.GOOGLE_SERVICE_ACCOUNT_JSON) return;
   try {
@@ -110,4 +143,4 @@ async function syncStockToSheet() {
   }
 }
 
-module.exports = { appendOrder, updateOrderStatus, syncStockToSheet };
+module.exports = { appendOrder, updateOrderStatus, syncStockToSheet, appendStockLog };

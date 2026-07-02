@@ -5,6 +5,7 @@ const ctrl = require("../controllers/stockController");
 router.get("/gas",              requireAuth, ctrl.getGasStock);
 router.post("/gas",             requireAuth, ctrl.upsertGasStock);
 router.post("/gas/adjust",      requireAuth, ctrl.adjustGasStock);
+router.get("/gas/logs",         requireAuth, ctrl.getStockLogs);
 
 router.get("/refills",          requireAuth, ctrl.getRefills);
 router.post("/refills",         requireAuth, ctrl.addRefill);

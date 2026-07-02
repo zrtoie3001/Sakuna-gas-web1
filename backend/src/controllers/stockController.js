@@ -1,8 +1,17 @@
-const { GasStock, GasRefill, Equipment, EquipmentSale } = require("../models");
-const { syncStockToSheet } = require("../services/sheetsService");
+const { GasStock, GasStockLog, GasRefill, Equipment, EquipmentSale } = require("../models");
+const { syncStockToSheet, appendStockLog } = require("../services/sheetsService");
 
-const BRANDS = ["ปตท", "PAP", "เวิลด์", "สยาม", "ยูนิค"];
-const WEIGHTS = [4, 7, 8, 11.5, 13.5, 15, 48];
+const STOCK_FIELDS = ["hasGas", "newTank", "emptyTank", "damagedTank", "heldTank"];
+
+async function writeLog(brandName, weightKg, field, oldValue, newValue, action, note = "") {
+  await GasStockLog.create({
+    brandName, weightKg, field,
+    oldValue: Number(oldValue || 0),
+    newValue: Number(newValue || 0),
+    delta: Number(newValue || 0) - Number(oldValue || 0),
+    action, note,
+  });
+}
 
 // ── Gas Stock ─────────────────────────────────────────────────────────────────
 
@@ -14,10 +23,17 @@ async function getGasStock(_req, res) {
 async function upsertGasStock(req, res) {
   const { brandName, weightKg, hasGas, newTank, emptyTank, damagedTank, heldTank } = req.body;
   let row = await GasStock.findOne({ where: { brandName, weightKg } });
+  const prev = row ? { ...row.dataValues } : {};
+  const next = { hasGas, newTank, emptyTank, damagedTank, heldTank };
   if (row) {
-    await row.update({ hasGas, newTank, emptyTank, damagedTank, heldTank });
+    await row.update(next);
   } else {
-    row = await GasStock.create({ brandName, weightKg, hasGas, newTank, emptyTank, damagedTank, heldTank });
+    row = await GasStock.create({ brandName, weightKg, ...next });
+  }
+  // log each changed field
+  for (const f of STOCK_FIELDS) {
+    const o = Number(prev[f] || 0), n = Number(next[f] || 0);
+    if (o !== n) await writeLog(brandName, weightKg, f, o, n, "manual");
   }
   syncStockToSheet().catch(() => {});
   res.json(row);
@@ -27,10 +43,22 @@ async function adjustGasStock(req, res) {
   const { brandName, weightKg, field, delta } = req.body;
   let row = await GasStock.findOne({ where: { brandName, weightKg } });
   if (!row) row = await GasStock.create({ brandName, weightKg });
-  const current = Number(row[field] || 0);
-  await row.update({ [field]: Math.max(0, current + delta) });
+  const oldVal = Number(row[field] || 0);
+  const newVal = Math.max(0, oldVal + delta);
+  await row.update({ [field]: newVal });
+  await writeLog(brandName, weightKg, field, oldVal, newVal, "adjust");
+  appendStockLog({ brandName, weightKg, field, oldValue: oldVal, newValue: newVal, delta, action: "adjust" }).catch(() => {});
   syncStockToSheet().catch(() => {});
   res.json(row);
+}
+
+async function getStockLogs(req, res) {
+  const { brandName, weightKg, limit = 200 } = req.query;
+  const where = {};
+  if (brandName) where.brandName = brandName;
+  if (weightKg) where.weightKg = weightKg;
+  const logs = await GasStockLog.findAll({ where, order: [["createdAt", "DESC"]], limit: parseInt(limit) });
+  res.json(logs);
 }
 
 // ── Gas Refill ────────────────────────────────────────────────────────────────
@@ -45,10 +73,13 @@ async function addRefill(req, res) {
   const totalCost = (Number(costPerUnit) || 0) * Number(qty);
   const refill = await GasRefill.create({ brandName, weightKg, qty, costPerUnit, totalCost, note });
 
-  // เพิ่มสต็อก hasGas
   let stock = await GasStock.findOne({ where: { brandName, weightKg } });
   if (!stock) stock = await GasStock.create({ brandName, weightKg });
-  await stock.update({ hasGas: Number(stock.hasGas) + Number(qty) });
+  const oldVal = Number(stock.hasGas);
+  const newVal = oldVal + Number(qty);
+  await stock.update({ hasGas: newVal });
+  await writeLog(brandName, weightKg, "hasGas", oldVal, newVal, "refill", note);
+  appendStockLog({ brandName, weightKg, field: "hasGas", oldValue: oldVal, newValue: newVal, delta: Number(qty), action: "refill", note }).catch(() => {});
   syncStockToSheet().catch(() => {});
   res.status(201).json(refill);
 }
@@ -89,4 +120,4 @@ async function sellEquipment(req, res) {
   res.status(201).json(sale);
 }
 
-module.exports = { getGasStock, upsertGasStock, adjustGasStock, getRefills, addRefill, getEquipment, createEquipment, updateEquipment, deleteEquipment, sellEquipment };
+module.exports = { getGasStock, upsertGasStock, adjustGasStock, getStockLogs, getRefills, addRefill, getEquipment, createEquipment, updateEquipment, deleteEquipment, sellEquipment };
