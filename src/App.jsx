@@ -222,7 +222,7 @@ export default function App() {
   const [doneOrders, setDoneOrders] = useState(null);
   const [showNewOrder, setShowNewOrder] = useState(false);
   const [showPreQR, setShowPreQR] = useState(false); // QR before order created
-  const [storeSetting, setStoreSetting] = useState(null);
+  const [storeSetting, setStoreSetting] = useState({ forceClose: false, forceOpen: false, warningMessage: "", warningStart: "18:00" });
 
   useEffect(() => {
     const saved = ls.getCustomer();
