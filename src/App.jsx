@@ -222,6 +222,7 @@ export default function App() {
   const [doneOrders, setDoneOrders] = useState(null);
   const [showNewOrder, setShowNewOrder] = useState(false);
   const [showPreQR, setShowPreQR] = useState(false); // QR before order created
+  const [storeSetting, setStoreSetting] = useState(null);
 
   useEffect(() => {
     const saved = ls.getCustomer();
@@ -229,6 +230,7 @@ export default function App() {
     const savedCode = ls.getDiscount();
     if (savedCode) { setDiscountInput(savedCode); } // pre-fill only; user must tap "ใช้โค้ด" to validate
     setSavedOrders(ls.getSavedOrders());
+    fetch(`${import.meta.env.VITE_API_URL || ""}/api/v1/settings/store`).then(r => r.json()).then(setStoreSetting).catch(() => {});
 
     async function initLiff() {
       try {
@@ -394,14 +396,25 @@ export default function App() {
 
   if (doneOrders) return <DoneScreen orders={doneOrders} onReset={handleReset} />;
 
-  // Business hours check
+  // Business hours + force close check
   const now  = new Date();
   const hour = now.getHours() + now.getMinutes() / 60;
   const isSun = now.getDay() === 0;
   const closeHour = isSun ? 13 : 19;
   const isOpen = hour >= 7 && hour < closeHour;
+  const forceClose = storeSetting?.forceClose === true;
 
-  if (!isOpen) return (
+  // Warning banner: show when within warningStart time
+  const warningMsg = storeSetting?.warningMessage;
+  const warningStart = storeSetting?.warningStart; // e.g. "18:45"
+  let showWarning = false;
+  if (warningStart && isOpen && !forceClose) {
+    const [wh, wm] = warningStart.split(":").map(Number);
+    const wHour = wh + wm / 60;
+    showWarning = hour >= wHour;
+  }
+
+  if (!isOpen || forceClose) return (
     <div style={{ minHeight: "100vh", background: LGRAY, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
       <div style={{ background: WHITE, borderRadius: 24, padding: 32, maxWidth: 360, width: "100%", textAlign: "center", boxShadow: "0 8px 40px rgba(0,0,0,.12)" }}>
         <Logo size={64}/>
@@ -424,6 +437,12 @@ export default function App() {
 
   return (
     <div style={{ minHeight: "100vh", background: LGRAY }}>
+      {/* Warning banner */}
+      {showWarning && warningMsg && (
+        <div style={{ background: "#FEF3C7", borderBottom: "2px solid #F59E0B", padding: "10px 16px", textAlign: "center", fontSize: 13, color: "#92400E", fontWeight: 600, lineHeight: 1.5 }}>
+          ⚠️ {warningMsg}
+        </div>
+      )}
       {/* Header */}
       <div style={{ background: `linear-gradient(135deg,${NAVY2},${NAVY})`, padding: "16px 20px 20px",
         position: "sticky", top: 0, zIndex: 100, boxShadow: "0 4px 20px rgba(10,18,50,.35)" }}>

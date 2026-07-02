@@ -171,6 +171,14 @@ const GasStock = sequelize.define("GasStock", {
   heldTank:    { type: DataTypes.INTEGER, defaultValue: 0 },   // ค้างถัง
 }, { tableName: "gas_stocks", underscored: true });
 
+// ── StoreSetting ──────────────────────────────────────────────────────────────
+const StoreSetting = sequelize.define("StoreSetting", {
+  id:             { type: DataTypes.INTEGER, primaryKey: true, defaultValue: 1 },
+  forceClose:     { type: DataTypes.BOOLEAN, defaultValue: false },
+  warningMessage: { type: DataTypes.TEXT, defaultValue: "ร้านค้าจะปิดรับออเดอร์ตั้งแต่เวลา 18:45 น. แต่ลูกค้าสามารถมาเปลี่ยนถังเอง หรือใช้บริการที่หน้าร้านค้าได้ถึง 19:00 น." },
+  warningStart:   { type: DataTypes.STRING(5), defaultValue: "18:45" },
+}, { tableName: "store_settings", underscored: true });
+
 // ── GasStockLog ───────────────────────────────────────────────────────────────
 const GasStockLog = sequelize.define("GasStockLog", {
   id:        { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
@@ -229,6 +237,7 @@ module.exports = {
   DiscountCode,
   Order,
   OrderStatusLog,
+  StoreSetting,
   GasStock,
   GasStockLog,
   GasRefill,
