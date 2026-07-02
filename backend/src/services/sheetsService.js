@@ -121,23 +121,96 @@ async function appendStockLog(log) {
   }
 }
 
+function rgb(r, g, b) { return { red: r/255, green: g/255, blue: b/255 }; }
+
+async function getSheetId(sheets, sheetName) {
+  const meta = await sheets.spreadsheets.get({ spreadsheetId: SHEET_ID });
+  const sheet = meta.data.sheets.find(s => s.properties.title === sheetName);
+  return sheet?.properties?.sheetId ?? null;
+}
+
 async function syncStockToSheet() {
   if (!SHEET_ID || !process.env.GOOGLE_SERVICE_ACCOUNT_JSON) return;
   try {
     const { GasStock } = require("../models");
     const sheets = getClient();
     const rows = await GasStock.findAll({ order: [["brandName", "ASC"], ["weightKg", "ASC"]] });
+    const BRANDS = ["ปตท", "PAP", "เวิลด์", "สยาม", "ยูนิค"];
+
     const header = ["ยี่ห้อ", "น้ำหนัก (kg)", "ถังมีแก๊ส", "ถังใหม่", "ถังเปล่า", "ถังเสีย", "ค้างถัง", "รวม"];
     const data = rows.map(r => {
       const total = Number(r.hasGas) + Number(r.newTank) + Number(r.emptyTank) + Number(r.damagedTank) + Number(r.heldTank);
-      return [r.brandName, Number(r.weightKg), r.hasGas, r.newTank, r.emptyTank, r.damagedTank, r.heldTank, total];
+      return [r.brandName, Number(r.weightKg), Number(r.hasGas), Number(r.newTank), Number(r.emptyTank), Number(r.damagedTank), Number(r.heldTank), total];
     });
+
+    // write data
     await sheets.spreadsheets.values.update({
-      spreadsheetId: SHEET_ID,
-      range: "สต็อก!A1",
+      spreadsheetId: SHEET_ID, range: "สต็อก!A1",
       valueInputOption: "RAW",
       requestBody: { values: [header, ...data] },
     });
+
+    const sheetId = await getSheetId(sheets, "สต็อก");
+    if (sheetId === null) return;
+
+    const totalRows = data.length + 1;
+    const requests = [];
+
+    // freeze row 1
+    requests.push({ updateSheetProperties: { properties: { sheetId, gridProperties: { frozenRowCount: 1 } }, fields: "gridProperties.frozenRowCount" } });
+
+    // header row: navy background, white bold text, center
+    requests.push({ repeatCell: {
+      range: { sheetId, startRowIndex: 0, endRowIndex: 1, startColumnIndex: 0, endColumnIndex: 8 },
+      cell: { userEnteredFormat: {
+        backgroundColor: rgb(27, 42, 107),
+        textFormat: { bold: true, foregroundColor: rgb(255,255,255), fontSize: 11 },
+        horizontalAlignment: "CENTER",
+      }},
+      fields: "userEnteredFormat(backgroundColor,textFormat,horizontalAlignment)",
+    }});
+
+    // alternating row colors by brand
+    let rowIdx = 1;
+    const brandColors = [rgb(240,245,255), rgb(255,252,240), rgb(240,255,245), rgb(255,240,245), rgb(245,240,255)];
+    BRANDS.forEach((brand, bi) => {
+      const brandRows = data.filter(r => r[0] === brand);
+      brandRows.forEach(() => {
+        requests.push({ repeatCell: {
+          range: { sheetId, startRowIndex: rowIdx, endRowIndex: rowIdx + 1, startColumnIndex: 0, endColumnIndex: 8 },
+          cell: { userEnteredFormat: { backgroundColor: brandColors[bi % brandColors.length] } },
+          fields: "userEnteredFormat.backgroundColor",
+        }});
+        rowIdx++;
+      });
+    });
+
+    // center-align numeric columns (B-H)
+    requests.push({ repeatCell: {
+      range: { sheetId, startRowIndex: 1, endRowIndex: totalRows, startColumnIndex: 1, endColumnIndex: 8 },
+      cell: { userEnteredFormat: { horizontalAlignment: "CENTER" } },
+      fields: "userEnteredFormat.horizontalAlignment",
+    }});
+
+    // bold "รวม" column (H)
+    requests.push({ repeatCell: {
+      range: { sheetId, startRowIndex: 1, endRowIndex: totalRows, startColumnIndex: 7, endColumnIndex: 8 },
+      cell: { userEnteredFormat: { textFormat: { bold: true }, backgroundColor: rgb(220,230,255) } },
+      fields: "userEnteredFormat(textFormat,backgroundColor)",
+    }});
+
+    // auto-resize columns
+    requests.push({ autoResizeDimensions: { dimensions: { sheetId, dimension: "COLUMNS", startIndex: 0, endIndex: 8 } } });
+
+    // border around all data
+    requests.push({ updateBorders: {
+      range: { sheetId, startRowIndex: 0, endRowIndex: totalRows, startColumnIndex: 0, endColumnIndex: 8 },
+      top: { style: "SOLID", width: 1 }, bottom: { style: "SOLID", width: 1 },
+      left: { style: "SOLID", width: 1 }, right: { style: "SOLID", width: 1 },
+      innerHorizontal: { style: "SOLID", width: 1 }, innerVertical: { style: "SOLID", width: 1 },
+    }});
+
+    await sheets.spreadsheets.batchUpdate({ spreadsheetId: SHEET_ID, requestBody: { requests } });
   } catch (e) {
     console.error("Sheets stock sync error:", e.message);
   }
