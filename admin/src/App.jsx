@@ -9,6 +9,7 @@ import Discounts from "./pages/Discounts.jsx";
 import Drivers from "./pages/Drivers.jsx";
 import Customers from "./pages/Customers.jsx";
 import Reports from "./pages/Reports.jsx";
+import Stock from "./pages/Stock.jsx";
 
 function PrivateRoute({ children }) {
   const token = localStorage.getItem("admin_token");
@@ -28,6 +29,7 @@ export default function App() {
           <Route path="drivers"   element={<Drivers />} />
           <Route path="customers" element={<Customers />} />
           <Route path="reports"   element={<Reports />} />
+          <Route path="stock"     element={<Stock />} />
         </Route>
       </Routes>
     </BrowserRouter>

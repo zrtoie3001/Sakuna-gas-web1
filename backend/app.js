@@ -48,6 +48,7 @@ app.use("/api/v1/discounts", require("./src/routes/discounts"));
 app.use("/api/v1/drivers",   require("./src/routes/drivers"));
 app.use("/api/v1/reports",   require("./src/routes/reports"));
 app.use("/api/v1/maps",      require("./src/routes/maps"));
+app.use("/api/v1/stock",     require("./src/routes/stock"));
 
 // ── Health ────────────────────────────────────────────────────────────────────
 app.get("/health", (_req, res) => res.json({ status: "ok", ts: new Date() }));

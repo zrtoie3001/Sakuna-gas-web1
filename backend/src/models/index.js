@@ -113,7 +113,7 @@ const Order = sequelize.define("Order", {
   deliveryLng:     { type: DataTypes.DECIMAL(10, 7) },
   distanceKm:      { type: DataTypes.DECIMAL(8, 2) },
   zone:            { type: DataTypes.STRING(10) },
-  paymentMethod:   { type: DataTypes.ENUM("cash", "qr"), defaultValue: "cash" },
+  paymentMethod:   { type: DataTypes.ENUM("cash", "qr", "cod"), defaultValue: "cash" },
   slipUrl:         { type: DataTypes.TEXT },
   note:            { type: DataTypes.TEXT },
   status: {
@@ -159,6 +159,51 @@ Order.belongsTo(User, { foreignKey: "driverId", as: "driver" });
 DiscountCode.hasMany(Order, { foreignKey: "discountCodeId" });
 Order.belongsTo(DiscountCode, { foreignKey: "discountCodeId", as: "discountCode" });
 
+// ── GasStock ──────────────────────────────────────────────────────────────────
+const GasStock = sequelize.define("GasStock", {
+  id:          { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+  brandName:   { type: DataTypes.STRING(100), allowNull: false },
+  weightKg:    { type: DataTypes.DECIMAL(6, 2), allowNull: false },
+  hasGas:      { type: DataTypes.INTEGER, defaultValue: 0 },   // ถังมีแก๊ส
+  newTank:     { type: DataTypes.INTEGER, defaultValue: 0 },   // ถังใหม่
+  emptyTank:   { type: DataTypes.INTEGER, defaultValue: 0 },   // ถังเปล่า
+  damagedTank: { type: DataTypes.INTEGER, defaultValue: 0 },   // ถังเสีย
+  heldTank:    { type: DataTypes.INTEGER, defaultValue: 0 },   // ค้างถัง
+}, { tableName: "gas_stocks", underscored: true });
+
+// ── GasRefill ─────────────────────────────────────────────────────────────────
+const GasRefill = sequelize.define("GasRefill", {
+  id:          { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+  brandName:   { type: DataTypes.STRING(100), allowNull: false },
+  weightKg:    { type: DataTypes.DECIMAL(6, 2), allowNull: false },
+  qty:         { type: DataTypes.INTEGER, allowNull: false },
+  costPerUnit: { type: DataTypes.DECIMAL(10, 2) },
+  totalCost:   { type: DataTypes.DECIMAL(10, 2) },
+  note:        { type: DataTypes.TEXT },
+}, { tableName: "gas_refills", underscored: true });
+
+// ── Equipment ─────────────────────────────────────────────────────────────────
+const Equipment = sequelize.define("Equipment", {
+  id:          { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+  name:        { type: DataTypes.STRING(200), allowNull: false },
+  price:       { type: DataTypes.DECIMAL(10, 2), defaultValue: 0 },
+  qty:         { type: DataTypes.INTEGER, defaultValue: 0 },
+  description: { type: DataTypes.TEXT },
+  isActive:    { type: DataTypes.BOOLEAN, defaultValue: true },
+}, { tableName: "equipments", underscored: true });
+
+// ── EquipmentSale ─────────────────────────────────────────────────────────────
+const EquipmentSale = sequelize.define("EquipmentSale", {
+  id:           { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+  equipmentId:  { type: DataTypes.UUID, allowNull: false },
+  qty:          { type: DataTypes.INTEGER, allowNull: false },
+  salePrice:    { type: DataTypes.DECIMAL(10, 2) },
+  note:         { type: DataTypes.TEXT },
+}, { tableName: "equipment_sales", underscored: true });
+
+Equipment.hasMany(EquipmentSale, { foreignKey: "equipmentId", as: "sales" });
+EquipmentSale.belongsTo(Equipment, { foreignKey: "equipmentId", as: "equipment" });
+
 module.exports = {
   sequelize,
   User,
@@ -171,4 +216,8 @@ module.exports = {
   DiscountCode,
   Order,
   OrderStatusLog,
+  GasStock,
+  GasRefill,
+  Equipment,
+  EquipmentSale,
 };

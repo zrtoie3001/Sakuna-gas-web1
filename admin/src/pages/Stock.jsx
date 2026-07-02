@@ -1,0 +1,355 @@
+import { useState, useEffect, useCallback } from "react";
+import api from "../api";
+
+const NAVY = "#1B2A6B";
+const ORANGE = "#E8873A";
+const WHITE = "#FFFFFF";
+const GRAY = "#6B7280";
+const LIGHT = "#F8F9FF";
+
+const BRANDS = ["ปตท", "PAP", "เวิลด์", "สยาม", "ยูนิค"];
+const WEIGHTS = [4, 7, 8, 11.5, 13.5, 15, 48];
+const FIELDS = [
+  { key: "hasGas",      label: "มีแก๊ส",    color: "#22C55E" },
+  { key: "newTank",     label: "ถังใหม่",   color: "#3B82F6" },
+  { key: "emptyTank",   label: "เปล่า",     color: "#F59E0B" },
+  { key: "damagedTank", label: "เสีย",      color: "#EF4444" },
+  { key: "heldTank",    label: "ค้างถัง",  color: "#8B5CF6" },
+];
+
+export default function Stock() {
+  const [tab, setTab] = useState("gas"); // gas | refill | equipment
+  const [stock, setStock] = useState([]);
+  const [refills, setRefills] = useState([]);
+  const [equipment, setEquipment] = useState([]);
+
+  // modals
+  const [editCell, setEditCell] = useState(null); // { brandName, weightKg, row }
+  const [showRefill, setShowRefill] = useState(false);
+  const [refillForm, setRefillForm] = useState({ brandName: BRANDS[0], weightKg: 15, qty: 1, costPerUnit: "", note: "" });
+  const [showEquipForm, setShowEquipForm] = useState(false);
+  const [equipForm, setEquipForm] = useState({ name: "", price: "", qty: "", description: "" });
+  const [editEquip, setEditEquip] = useState(null);
+  const [showSell, setShowSell] = useState(null);
+  const [sellForm, setSellForm] = useState({ qty: 1, salePrice: "", note: "" });
+
+  const fetchStock = useCallback(() => {
+    api.get("/api/v1/stock/gas").then(r => setStock(r.data)).catch(() => {});
+  }, []);
+  const fetchRefills = useCallback(() => {
+    api.get("/api/v1/stock/refills").then(r => setRefills(r.data)).catch(() => {});
+  }, []);
+  const fetchEquipment = useCallback(() => {
+    api.get("/api/v1/stock/equipment").then(r => setEquipment(r.data)).catch(() => {});
+  }, []);
+
+  useEffect(() => { fetchStock(); fetchRefills(); fetchEquipment(); }, [fetchStock, fetchRefills, fetchEquipment]);
+
+  function getCell(brand, weight) {
+    return stock.find(s => s.brandName === brand && Number(s.weightKg) === weight) || {
+      brandName: brand, weightKg: weight, hasGas: 0, newTank: 0, emptyTank: 0, damagedTank: 0, heldTank: 0
+    };
+  }
+
+  function totalRow(row) {
+    return FIELDS.reduce((s, f) => s + Number(row[f.key] || 0), 0);
+  }
+
+  async function saveEdit() {
+    await api.post("/api/v1/stock/gas", editCell);
+    setEditCell(null);
+    fetchStock();
+  }
+
+  async function adjust(brand, weight, field, delta) {
+    await api.post("/api/v1/stock/gas/adjust", { brandName: brand, weightKg: weight, field, delta });
+    fetchStock();
+  }
+
+  async function submitRefill() {
+    await api.post("/api/v1/stock/refills", refillForm);
+    setShowRefill(false);
+    setRefillForm({ brandName: BRANDS[0], weightKg: 15, qty: 1, costPerUnit: "", note: "" });
+    fetchStock(); fetchRefills();
+  }
+
+  async function submitEquip() {
+    if (editEquip) {
+      await api.put(`/api/v1/stock/equipment/${editEquip.id}`, equipForm);
+    } else {
+      await api.post("/api/v1/stock/equipment", equipForm);
+    }
+    setShowEquipForm(false); setEditEquip(null);
+    setEquipForm({ name: "", price: "", qty: "", description: "" });
+    fetchEquipment();
+  }
+
+  async function deleteEquip(id) {
+    if (!confirm("ลบรายการนี้?")) return;
+    await api.delete(`/api/v1/stock/equipment/${id}`);
+    fetchEquipment();
+  }
+
+  async function submitSell() {
+    await api.post(`/api/v1/stock/equipment/${showSell.id}/sell`, sellForm);
+    setShowSell(null); setSellForm({ qty: 1, salePrice: "", note: "" });
+    fetchEquipment();
+  }
+
+  const inp = { border: "1.5px solid #E5E7EB", borderRadius: 8, padding: "8px 12px", width: "100%", fontSize: 14, boxSizing: "border-box" };
+  const btn = (bg, color = WHITE) => ({ background: bg, color, border: "none", borderRadius: 8, padding: "8px 16px", fontWeight: 700, cursor: "pointer", fontSize: 13 });
+
+  // ── Totals per brand ──────────────────────────────────────────────────────────
+  function brandTotal(brand) {
+    const rows = WEIGHTS.map(w => getCell(brand, w));
+    return FIELDS.reduce((acc, f) => { acc[f.key] = rows.reduce((s, r) => s + Number(r[f.key] || 0), 0); return acc; }, {});
+  }
+  function grandTotal() {
+    return FIELDS.reduce((acc, f) => {
+      acc[f.key] = stock.reduce((s, r) => s + Number(r[f.key] || 0), 0);
+      return acc;
+    }, {});
+  }
+
+  return (
+    <div style={{ padding: 16, maxWidth: 1200, margin: "0 auto" }}>
+      <h2 style={{ color: NAVY, margin: "0 0 16px" }}>📦 สต็อกสินค้า</h2>
+
+      {/* Tabs */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+        {[["gas","⛽ สต็อกถัง"],["refill","🔄 บันทึกเติมแก๊ส"],["equipment","🔧 อุปกรณ์"]].map(([key, label]) => (
+          <button key={key} onClick={() => setTab(key)} style={{
+            ...btn(tab === key ? NAVY : "#E5E7EB", tab === key ? WHITE : NAVY),
+            padding: "8px 20px",
+          }}>{label}</button>
+        ))}
+      </div>
+
+      {/* ── GAS STOCK ── */}
+      {tab === "gas" && (
+        <div>
+          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
+            <button onClick={() => setShowRefill(true)} style={btn(ORANGE)}>+ บันทึกรับแก๊ส</button>
+          </div>
+
+          {/* Legend */}
+          <div style={{ display: "flex", gap: 12, marginBottom: 12, flexWrap: "wrap" }}>
+            {FIELDS.map(f => (
+              <span key={f.key} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12 }}>
+                <span style={{ width: 12, height: 12, borderRadius: 3, background: f.color, display: "inline-block" }} />
+                {f.label}
+              </span>
+            ))}
+          </div>
+
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 13 }}>
+              <thead>
+                <tr style={{ background: NAVY, color: WHITE }}>
+                  <th style={{ padding: "8px 12px", textAlign: "left" }}>ยี่ห้อ</th>
+                  <th style={{ padding: "8px 12px" }}>น้ำหนัก</th>
+                  {FIELDS.map(f => <th key={f.key} style={{ padding: "8px 8px", color: f.color }}>{f.label}</th>)}
+                  <th style={{ padding: "8px 8px" }}>รวม</th>
+                  <th style={{ padding: "8px 8px" }}>แก้ไข</th>
+                </tr>
+              </thead>
+              <tbody>
+                {BRANDS.map((brand, bi) => (
+                  <>
+                    {WEIGHTS.map((w, wi) => {
+                      const row = getCell(brand, w);
+                      const total = totalRow(row);
+                      return (
+                        <tr key={`${brand}-${w}`} style={{ background: (bi + wi) % 2 === 0 ? WHITE : LIGHT }}>
+                          {wi === 0 && <td rowSpan={WEIGHTS.length} style={{ padding: "8px 12px", fontWeight: 700, color: NAVY, verticalAlign: "middle", borderRight: "2px solid #E5E7EB" }}>{brand}</td>}
+                          <td style={{ padding: "6px 8px", textAlign: "center", color: GRAY }}>{w} kg</td>
+                          {FIELDS.map(f => (
+                            <td key={f.key} style={{ padding: "4px 8px", textAlign: "center" }}>
+                              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 4 }}>
+                                <button onClick={() => adjust(brand, w, f.key, -1)} style={{ width: 20, height: 20, borderRadius: 4, border: "none", background: "#EF4444", color: WHITE, cursor: "pointer", fontSize: 12, lineHeight: 1 }}>−</button>
+                                <span style={{ minWidth: 24, textAlign: "center", fontWeight: 600, color: Number(row[f.key]) > 0 ? f.color : GRAY }}>{row[f.key] || 0}</span>
+                                <button onClick={() => adjust(brand, w, f.key, 1)} style={{ width: 20, height: 20, borderRadius: 4, border: "none", background: "#22C55E", color: WHITE, cursor: "pointer", fontSize: 12, lineHeight: 1 }}>+</button>
+                              </div>
+                            </td>
+                          ))}
+                          <td style={{ padding: "6px 8px", textAlign: "center", fontWeight: 700 }}>{total}</td>
+                          <td style={{ padding: "4px 8px", textAlign: "center" }}>
+                            <button onClick={() => setEditCell({ ...row })} style={btn("#E5E7EB", NAVY)}>✏️</button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                    {/* brand subtotal */}
+                    <tr style={{ background: "#EEF2FF", borderTop: "2px solid " + NAVY }}>
+                      <td colSpan={2} style={{ padding: "6px 12px", fontWeight: 700, color: NAVY }}>รวม {brand}</td>
+                      {FIELDS.map(f => { const bt = brandTotal(brand); return <td key={f.key} style={{ padding: "6px 8px", textAlign: "center", fontWeight: 700, color: f.color }}>{bt[f.key]}</td>; })}
+                      <td style={{ padding: "6px 8px", textAlign: "center", fontWeight: 700 }}>{Object.values(brandTotal(brand)).reduce((a,b) => a+b, 0)}</td>
+                      <td />
+                    </tr>
+                  </>
+                ))}
+                {/* Grand total */}
+                <tr style={{ background: NAVY, color: WHITE }}>
+                  <td colSpan={2} style={{ padding: "8px 12px", fontWeight: 700 }}>รวมทั้งหมด</td>
+                  {FIELDS.map(f => { const gt = grandTotal(); return <td key={f.key} style={{ padding: "8px 8px", textAlign: "center", fontWeight: 700 }}>{gt[f.key]}</td>; })}
+                  <td style={{ padding: "8px 8px", textAlign: "center", fontWeight: 700 }}>{FIELDS.reduce((s,f) => s + (grandTotal()[f.key]||0), 0)}</td>
+                  <td />
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ── REFILL LOG ── */}
+      {tab === "refill" && (
+        <div>
+          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
+            <button onClick={() => setShowRefill(true)} style={btn(ORANGE)}>+ บันทึกเติมแก๊ส</button>
+          </div>
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 13 }}>
+              <thead>
+                <tr style={{ background: NAVY, color: WHITE }}>
+                  {["วันที่","ยี่ห้อ","น้ำหนัก","จำนวน","ราคา/ถัง","รวม","หมายเหตุ"].map(h => (
+                    <th key={h} style={{ padding: "8px 12px", textAlign: "left" }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {refills.map((r, i) => (
+                  <tr key={r.id} style={{ background: i % 2 === 0 ? WHITE : LIGHT }}>
+                    <td style={{ padding: "8px 12px" }}>{new Date(r.createdAt).toLocaleDateString("th-TH")}</td>
+                    <td style={{ padding: "8px 12px" }}>{r.brandName}</td>
+                    <td style={{ padding: "8px 12px" }}>{r.weightKg} kg</td>
+                    <td style={{ padding: "8px 12px" }}>{r.qty} ถัง</td>
+                    <td style={{ padding: "8px 12px" }}>฿{Number(r.costPerUnit||0).toLocaleString()}</td>
+                    <td style={{ padding: "8px 12px", fontWeight: 700 }}>฿{Number(r.totalCost||0).toLocaleString()}</td>
+                    <td style={{ padding: "8px 12px", color: GRAY }}>{r.note || "-"}</td>
+                  </tr>
+                ))}
+                {refills.length === 0 && (
+                  <tr><td colSpan={7} style={{ padding: 24, textAlign: "center", color: GRAY }}>ยังไม่มีบันทึก</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ── EQUIPMENT ── */}
+      {tab === "equipment" && (
+        <div>
+          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
+            <button onClick={() => { setEditEquip(null); setEquipForm({ name: "", price: "", qty: "", description: "" }); setShowEquipForm(true); }} style={btn(ORANGE)}>+ เพิ่มอุปกรณ์</button>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 12 }}>
+            {equipment.map(item => (
+              <div key={item.id} style={{ background: WHITE, borderRadius: 12, border: "1.5px solid #E5E7EB", padding: 16 }}>
+                <div style={{ fontWeight: 700, color: NAVY, marginBottom: 4 }}>{item.name}</div>
+                <div style={{ color: ORANGE, fontWeight: 700, fontSize: 18 }}>฿{Number(item.price).toLocaleString()}</div>
+                <div style={{ color: GRAY, fontSize: 12, margin: "4px 0" }}>{item.description}</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8 }}>
+                  <span style={{ fontWeight: 600, color: item.qty > 0 ? "#22C55E" : "#EF4444" }}>คงเหลือ: {item.qty}</span>
+                </div>
+                <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
+                  <button onClick={() => { setShowSell(item); setSellForm({ qty: 1, salePrice: item.price, note: "" }); }} style={{ ...btn("#22C55E"), flex: 1, fontSize: 12 }}>ขาย</button>
+                  <button onClick={() => { setEditEquip(item); setEquipForm({ name: item.name, price: item.price, qty: item.qty, description: item.description || "" }); setShowEquipForm(true); }} style={{ ...btn("#E5E7EB", NAVY), fontSize: 12 }}>✏️</button>
+                  <button onClick={() => deleteEquip(item.id)} style={{ ...btn("#EF4444"), fontSize: 12 }}>🗑</button>
+                </div>
+              </div>
+            ))}
+            {equipment.length === 0 && <p style={{ color: GRAY }}>ยังไม่มีอุปกรณ์</p>}
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal: Edit Stock Cell ── */}
+      {editCell && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100 }}>
+          <div style={{ background: WHITE, borderRadius: 16, padding: 24, width: 340 }}>
+            <h3 style={{ color: NAVY, margin: "0 0 16px" }}>แก้ไขสต็อก — {editCell.brandName} {editCell.weightKg} kg</h3>
+            {FIELDS.map(f => (
+              <div key={f.key} style={{ marginBottom: 12 }}>
+                <label style={{ fontSize: 13, color: GRAY, display: "block", marginBottom: 4 }}>{f.label}</label>
+                <input type="number" min="0" value={editCell[f.key] || 0} onChange={e => setEditCell(c => ({ ...c, [f.key]: Number(e.target.value) }))} style={inp} />
+              </div>
+            ))}
+            <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
+              <button onClick={saveEdit} style={{ ...btn(NAVY), flex: 1 }}>บันทึก</button>
+              <button onClick={() => setEditCell(null)} style={{ ...btn("#E5E7EB", NAVY), flex: 1 }}>ยกเลิก</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal: Refill ── */}
+      {showRefill && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100 }}>
+          <div style={{ background: WHITE, borderRadius: 16, padding: 24, width: 360 }}>
+            <h3 style={{ color: NAVY, margin: "0 0 16px" }}>🔄 บันทึกรับแก๊ส</h3>
+            {[["brandName","ยี่ห้อ"],["weightKg","น้ำหนัก (kg)"],["qty","จำนวน (ถัง)"],["costPerUnit","ราคาต่อถัง (฿)"],["note","หมายเหตุ"]].map(([key, label]) => (
+              <div key={key} style={{ marginBottom: 12 }}>
+                <label style={{ fontSize: 13, color: GRAY, display: "block", marginBottom: 4 }}>{label}</label>
+                {key === "brandName" ? (
+                  <select value={refillForm.brandName} onChange={e => setRefillForm(f => ({ ...f, brandName: e.target.value }))} style={inp}>
+                    {BRANDS.map(b => <option key={b}>{b}</option>)}
+                  </select>
+                ) : key === "weightKg" ? (
+                  <select value={refillForm.weightKg} onChange={e => setRefillForm(f => ({ ...f, weightKg: Number(e.target.value) }))} style={inp}>
+                    {WEIGHTS.map(w => <option key={w} value={w}>{w} kg</option>)}
+                  </select>
+                ) : (
+                  <input type={key === "note" ? "text" : "number"} min="0" value={refillForm[key]} onChange={e => setRefillForm(f => ({ ...f, [key]: e.target.value }))} style={inp} />
+                )}
+              </div>
+            ))}
+            <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
+              <button onClick={submitRefill} style={{ ...btn(NAVY), flex: 1 }}>บันทึก</button>
+              <button onClick={() => setShowRefill(false)} style={{ ...btn("#E5E7EB", NAVY), flex: 1 }}>ยกเลิก</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal: Add/Edit Equipment ── */}
+      {showEquipForm && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100 }}>
+          <div style={{ background: WHITE, borderRadius: 16, padding: 24, width: 360 }}>
+            <h3 style={{ color: NAVY, margin: "0 0 16px" }}>{editEquip ? "แก้ไข" : "เพิ่ม"}อุปกรณ์</h3>
+            {[["name","ชื่ออุปกรณ์"],["price","ราคา (฿)"],["qty","จำนวนคงเหลือ"],["description","คำอธิบาย"]].map(([key, label]) => (
+              <div key={key} style={{ marginBottom: 12 }}>
+                <label style={{ fontSize: 13, color: GRAY, display: "block", marginBottom: 4 }}>{label}</label>
+                <input type={["price","qty"].includes(key) ? "number" : "text"} value={equipForm[key]} onChange={e => setEquipForm(f => ({ ...f, [key]: e.target.value }))} style={inp} />
+              </div>
+            ))}
+            <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
+              <button onClick={submitEquip} style={{ ...btn(NAVY), flex: 1 }}>บันทึก</button>
+              <button onClick={() => { setShowEquipForm(false); setEditEquip(null); }} style={{ ...btn("#E5E7EB", NAVY), flex: 1 }}>ยกเลิก</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal: Sell Equipment ── */}
+      {showSell && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100 }}>
+          <div style={{ background: WHITE, borderRadius: 16, padding: 24, width: 340 }}>
+            <h3 style={{ color: NAVY, margin: "0 0 16px" }}>ขาย — {showSell.name}</h3>
+            <p style={{ color: GRAY, fontSize: 13 }}>คงเหลือ: {showSell.qty} ชิ้น</p>
+            {[["qty","จำนวน"],["salePrice","ราคาขาย (฿)"],["note","หมายเหตุ"]].map(([key, label]) => (
+              <div key={key} style={{ marginBottom: 12 }}>
+                <label style={{ fontSize: 13, color: GRAY, display: "block", marginBottom: 4 }}>{label}</label>
+                <input type={key === "note" ? "text" : "number"} min="0" value={sellForm[key]} onChange={e => setSellForm(f => ({ ...f, [key]: e.target.value }))} style={inp} />
+              </div>
+            ))}
+            <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
+              <button onClick={submitSell} style={{ ...btn("#22C55E"), flex: 1 }}>ยืนยันขาย</button>
+              <button onClick={() => setShowSell(null)} style={{ ...btn("#E5E7EB", NAVY), flex: 1 }}>ยกเลิก</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

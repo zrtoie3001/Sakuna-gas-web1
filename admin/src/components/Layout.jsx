@@ -15,6 +15,7 @@ const NAV = [
   { to: "/drivers",   icon: "🛵", label: "พนักงาน" },
   { to: "/customers", icon: "👥", label: "ลูกค้า" },
   { to: "/reports",   icon: "📈", label: "รายงาน" },
+  { to: "/stock",     icon: "📦", label: "สต็อก" },
 ];
 
 export default function Layout() {

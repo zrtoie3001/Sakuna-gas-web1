@@ -88,4 +88,26 @@ async function updateOrderStatus(order) {
   }
 }
 
-module.exports = { appendOrder, updateOrderStatus };
+async function syncStockToSheet() {
+  if (!SHEET_ID || !process.env.GOOGLE_SERVICE_ACCOUNT_JSON) return;
+  try {
+    const { GasStock } = require("../models");
+    const sheets = getClient();
+    const rows = await GasStock.findAll({ order: [["brandName", "ASC"], ["weightKg", "ASC"]] });
+    const header = ["ยี่ห้อ", "น้ำหนัก (kg)", "ถังมีแก๊ส", "ถังใหม่", "ถังเปล่า", "ถังเสีย", "ค้างถัง", "รวม"];
+    const data = rows.map(r => {
+      const total = Number(r.hasGas) + Number(r.newTank) + Number(r.emptyTank) + Number(r.damagedTank) + Number(r.heldTank);
+      return [r.brandName, Number(r.weightKg), r.hasGas, r.newTank, r.emptyTank, r.damagedTank, r.heldTank, total];
+    });
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: SHEET_ID,
+      range: "สต็อก!A1",
+      valueInputOption: "RAW",
+      requestBody: { values: [header, ...data] },
+    });
+  } catch (e) {
+    console.error("Sheets stock sync error:", e.message);
+  }
+}
+
+module.exports = { appendOrder, updateOrderStatus, syncStockToSheet };
