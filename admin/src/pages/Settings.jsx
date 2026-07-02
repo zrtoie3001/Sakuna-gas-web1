@@ -12,7 +12,12 @@ export default function Settings() {
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
-    api.get("/api/v1/settings/store").then(r => setSetting(r.data)).catch(() => {});
+    api.get("/api/v1/settings/store").then(r => setSetting(r.data)).catch(() => {
+      setSetting({ forceClose: false, forceOpen: false, warningMessage: "", warningStart: "18:00" });
+    });
+    // show default after 5s if API hasn't responded
+    const t = setTimeout(() => setSetting(s => s || { forceClose: false, forceOpen: false, warningMessage: "", warningStart: "18:00" }), 5000);
+    return () => clearTimeout(t);
   }, []);
 
   async function save(patch) {
@@ -24,7 +29,7 @@ export default function Settings() {
     setTimeout(() => setSaved(false), 2000);
   }
 
-  if (!setting) return <p style={{ color: GRAY, padding: 24 }}>กำลังโหลด...</p>;
+  if (!setting) return <p style={{ color: GRAY, padding: 24 }}>กำลังโหลด... (รอ backend ตื่นนอนสักครู่ 😅)</p>;
 
   const inp = { border: "1.5px solid #E5E7EB", borderRadius: 8, padding: "10px 14px", width: "100%", fontSize: 14, boxSizing: "border-box", fontFamily: "inherit" };
 
