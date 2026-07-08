@@ -363,32 +363,53 @@ export default function Orders() {
               ))}
             </div>
 
-            {walkinType === "gas" ? (
-              <>
-                <div style={{ marginBottom: 12 }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>ถังแก๊ส *</div>
-                  <select value={walkinForm.stockId || ""} onChange={e => setWalkinForm(f => ({ ...f, stockId: e.target.value }))}
-                    style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 14, boxSizing: "border-box" }}>
-                    <option value="">-- เลือกถัง --</option>
-                    {gasStocks.map(s => (
-                      <option key={s.id} value={s.id}>{s.brandName} {s.weightKg} กก. (มี {s.hasGas} ถัง)</option>
-                    ))}
-                  </select>
-                </div>
-                <div style={{ display: "flex", gap: 12, marginBottom: 12 }}>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>จำนวน (ถัง)</div>
-                    <input type="number" min="1" value={walkinForm.qty} onChange={e => setWalkinForm(f => ({ ...f, qty: e.target.value }))}
-                      style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 14, boxSizing: "border-box" }} />
+            {walkinType === "gas" ? (() => {
+              const brands = [...new Set(gasStocks.map(s => s.brandName))].sort();
+              const weights = [...new Set(gasStocks.filter(s => !walkinForm.gasBrand || s.brandName === walkinForm.gasBrand).map(s => Number(s.weightKg)))].sort((a,b)=>a-b);
+              const selectedStock = gasStocks.find(s => s.brandName === walkinForm.gasBrand && Number(s.weightKg) === Number(walkinForm.gasWeight));
+              return (
+                <>
+                  <div style={{ display: "flex", gap: 12, marginBottom: 12 }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>ยี่ห้อ *</div>
+                      <select value={walkinForm.gasBrand || ""} onChange={e => setWalkinForm(f => ({ ...f, gasBrand: e.target.value, gasWeight: "", stockId: "" }))}
+                        style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 14, boxSizing: "border-box" }}>
+                        <option value="">-- เลือกยี่ห้อ --</option>
+                        {brands.map(b => <option key={b} value={b}>{b}</option>)}
+                      </select>
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>น้ำหนัก *</div>
+                      <select value={walkinForm.gasWeight || ""} onChange={e => {
+                        const w = e.target.value;
+                        const s = gasStocks.find(x => x.brandName === walkinForm.gasBrand && Number(x.weightKg) === Number(w));
+                        setWalkinForm(f => ({ ...f, gasWeight: w, stockId: s?.id || "" }));
+                      }} style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 14, boxSizing: "border-box" }}>
+                        <option value="">-- เลือกขนาด --</option>
+                        {weights.map(w => <option key={w} value={w}>{w} กก.</option>)}
+                      </select>
+                    </div>
                   </div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>ราคา (บาท)</div>
-                    <input type="number" value={walkinForm.price} onChange={e => setWalkinForm(f => ({ ...f, price: e.target.value }))}
-                      style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 14, boxSizing: "border-box" }} />
+                  {selectedStock && (
+                    <div style={{ background: "#F0FDF4", borderRadius: 8, padding: "8px 12px", marginBottom: 12, fontSize: 13, color: "#166534" }}>
+                      มีในสต็อก: <strong>{selectedStock.hasGas} ถัง</strong>
+                    </div>
+                  )}
+                  <div style={{ display: "flex", gap: 12, marginBottom: 12 }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>จำนวน (ถัง)</div>
+                      <input type="number" min="1" value={walkinForm.qty} onChange={e => setWalkinForm(f => ({ ...f, qty: e.target.value }))}
+                        style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 14, boxSizing: "border-box" }} />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>ราคา (บาท)</div>
+                      <input type="number" value={walkinForm.price} onChange={e => setWalkinForm(f => ({ ...f, price: e.target.value }))}
+                        style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 14, boxSizing: "border-box" }} />
+                    </div>
                   </div>
-                </div>
-              </>
-            ) : (
+                </>
+              );
+            })() : (
               <>
                 <div style={{ marginBottom: 12 }}>
                   <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>สินค้า *</div>
