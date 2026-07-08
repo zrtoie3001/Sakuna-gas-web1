@@ -31,8 +31,10 @@ export default function Stock() {
   const [editCell, setEditCell] = useState(null); // { brandName, weightKg, row }
   const [showRefill, setShowRefill] = useState(false);
   const [refillForm, setRefillForm] = useState({ brandName: BRANDS[0], weightKg: 15, qty: 1, costPerUnit: "", note: "" });
+  const [equipCategory, setEquipCategory] = useState("equipment"); // equipment | stove
+  const [equipSearch, setEquipSearch] = useState("");
   const [showEquipForm, setShowEquipForm] = useState(false);
-  const [equipForm, setEquipForm] = useState({ name: "", price: "", qty: "", description: "" });
+  const [equipForm, setEquipForm] = useState({ name: "", price: "", qty: "", description: "", category: "equipment" });
   const [editEquip, setEditEquip] = useState(null);
   const [showSell, setShowSell] = useState(null);
   const [sellForm, setSellForm] = useState({ qty: 1, salePrice: "", note: "" });
@@ -87,10 +89,10 @@ export default function Stock() {
     if (editEquip) {
       await api.put(`/api/v1/stock/equipment/${editEquip.id}`, equipForm);
     } else {
-      await api.post("/api/v1/stock/equipment", equipForm);
+      await api.post("/api/v1/stock/equipment", { ...equipForm, category: equipCategory });
     }
     setShowEquipForm(false); setEditEquip(null);
-    setEquipForm({ name: "", price: "", qty: "", description: "" });
+    setEquipForm({ name: "", price: "", qty: "", description: "", category: "equipment" });
     fetchEquipment();
   }
 
@@ -270,26 +272,51 @@ export default function Stock() {
       {/* ── EQUIPMENT ── */}
       {tab === "equipment" && (
         <div>
-          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
-            <button onClick={() => { setEditEquip(null); setEquipForm({ name: "", price: "", qty: "", description: "" }); setShowEquipForm(true); }} style={btn(ORANGE)}>+ เพิ่มอุปกรณ์</button>
+          {/* Sub-category + search + add button */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
+            <div style={{ display: "flex", gap: 4 }}>
+              {[["equipment","🔧 อะไหล่/อุปกรณ์"],["stove","🍳 เตา"]].map(([k, label]) => (
+                <button key={k} onClick={() => setEquipCategory(k)} style={{
+                  ...btn(equipCategory === k ? NAVY : "#E5E7EB", equipCategory === k ? WHITE : NAVY),
+                  padding: "8px 16px",
+                }}>{label}</button>
+              ))}
+            </div>
+            <input
+              placeholder="🔍 ค้นหาสินค้า..."
+              value={equipSearch}
+              onChange={e => setEquipSearch(e.target.value)}
+              style={{ padding: "8px 14px", borderRadius: 10, border: "1.5px solid #E5E7EB", fontSize: 13, flex: 1, minWidth: 160 }}
+            />
+            <button onClick={() => {
+              setEditEquip(null);
+              setEquipForm({ name: "", price: "", qty: "", description: "", category: equipCategory });
+              setShowEquipForm(true);
+            }} style={btn(ORANGE)}>+ เพิ่ม{equipCategory === "stove" ? "เตา" : "อุปกรณ์"}</button>
           </div>
+
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 12 }}>
-            {equipment.map(item => (
-              <div key={item.id} style={{ background: WHITE, borderRadius: 12, border: "1.5px solid #E5E7EB", padding: 16 }}>
-                <div style={{ fontWeight: 700, color: NAVY, marginBottom: 4 }}>{item.name}</div>
-                <div style={{ color: ORANGE, fontWeight: 700, fontSize: 18 }}>฿{Number(item.price).toLocaleString()}</div>
-                <div style={{ color: GRAY, fontSize: 12, margin: "4px 0" }}>{item.description}</div>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8 }}>
-                  <span style={{ fontWeight: 600, color: item.qty > 0 ? "#22C55E" : "#EF4444" }}>คงเหลือ: {item.qty}</span>
+            {equipment
+              .filter(item => item.category === equipCategory || (!item.category && equipCategory === "equipment"))
+              .filter(item => !equipSearch || item.name.toLowerCase().includes(equipSearch.toLowerCase()) || (item.description || "").toLowerCase().includes(equipSearch.toLowerCase()))
+              .map(item => (
+                <div key={item.id} style={{ background: WHITE, borderRadius: 12, border: "1.5px solid #E5E7EB", padding: 16 }}>
+                  <div style={{ fontWeight: 700, color: NAVY, marginBottom: 4 }}>{item.name}</div>
+                  <div style={{ color: ORANGE, fontWeight: 700, fontSize: 18 }}>฿{Number(item.price).toLocaleString()}</div>
+                  <div style={{ color: GRAY, fontSize: 12, margin: "4px 0" }}>{item.description}</div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8 }}>
+                    <span style={{ fontWeight: 600, color: item.qty > 0 ? "#22C55E" : "#EF4444" }}>คงเหลือ: {item.qty}</span>
+                  </div>
+                  <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
+                    <button onClick={() => { setShowSell(item); setSellForm({ qty: 1, salePrice: item.price, note: "" }); }} style={{ ...btn("#22C55E"), flex: 1, fontSize: 12 }}>ขาย</button>
+                    <button onClick={() => { setEditEquip(item); setEquipForm({ name: item.name, price: item.price, qty: item.qty, description: item.description || "", category: item.category || "equipment" }); setShowEquipForm(true); }} style={{ ...btn("#E5E7EB", NAVY), fontSize: 12 }}>✏️</button>
+                    <button onClick={() => deleteEquip(item.id)} style={{ ...btn("#EF4444"), fontSize: 12 }}>🗑</button>
+                  </div>
                 </div>
-                <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
-                  <button onClick={() => { setShowSell(item); setSellForm({ qty: 1, salePrice: item.price, note: "" }); }} style={{ ...btn("#22C55E"), flex: 1, fontSize: 12 }}>ขาย</button>
-                  <button onClick={() => { setEditEquip(item); setEquipForm({ name: item.name, price: item.price, qty: item.qty, description: item.description || "" }); setShowEquipForm(true); }} style={{ ...btn("#E5E7EB", NAVY), fontSize: 12 }}>✏️</button>
-                  <button onClick={() => deleteEquip(item.id)} style={{ ...btn("#EF4444"), fontSize: 12 }}>🗑</button>
-                </div>
-              </div>
-            ))}
-            {equipment.length === 0 && <p style={{ color: GRAY }}>ยังไม่มีอุปกรณ์</p>}
+              ))}
+            {equipment.filter(item => item.category === equipCategory || (!item.category && equipCategory === "equipment")).length === 0 && (
+              <p style={{ color: GRAY }}>ยังไม่มี{equipCategory === "stove" ? "เตา" : "อุปกรณ์"}</p>
+            )}
           </div>
         </div>
       )}
@@ -385,8 +412,17 @@ export default function Stock() {
       {showEquipForm && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100 }}>
           <div style={{ background: WHITE, borderRadius: 16, padding: 24, width: 360 }}>
-            <h3 style={{ color: NAVY, margin: "0 0 16px" }}>{editEquip ? "แก้ไข" : "เพิ่ม"}อุปกรณ์</h3>
-            {[["name","ชื่ออุปกรณ์"],["price","ราคา (฿)"],["qty","จำนวนคงเหลือ"],["description","คำอธิบาย"]].map(([key, label]) => (
+            <h3 style={{ color: NAVY, margin: "0 0 16px" }}>{editEquip ? "แก้ไข" : "เพิ่ม"}{equipForm.category === "stove" ? "เตา" : "อุปกรณ์/อะไหล่"}</h3>
+            {/* Category picker */}
+            <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
+              {[["equipment","🔧 อะไหล่/อุปกรณ์"],["stove","🍳 เตา"]].map(([k, label]) => (
+                <button key={k} onClick={() => setEquipForm(f => ({ ...f, category: k }))} style={{
+                  ...btn(equipForm.category === k ? NAVY : "#E5E7EB", equipForm.category === k ? WHITE : NAVY),
+                  flex: 1, fontSize: 12, padding: "7px 4px",
+                }}>{label}</button>
+              ))}
+            </div>
+            {[["name","ชื่อสินค้า"],["price","ราคา (฿)"],["qty","จำนวนคงเหลือ"],["description","คำอธิบาย"]].map(([key, label]) => (
               <div key={key} style={{ marginBottom: 12 }}>
                 <label style={{ fontSize: 13, color: GRAY, display: "block", marginBottom: 4 }}>{label}</label>
                 <input type={["price","qty"].includes(key) ? "number" : "text"} value={equipForm[key]} onChange={e => setEquipForm(f => ({ ...f, [key]: e.target.value }))} style={inp} />
