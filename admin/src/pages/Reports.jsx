@@ -12,6 +12,8 @@ export default function Reports() {
   const [topProducts, setTopProducts] = useState([]);
   const [date, setDate]   = useState(now.toISOString().split("T")[0]);
   const [dayOrders, setDayOrders] = useState([]);
+  const [driverStats, setDriverStats] = useState([]);
+  const [driverDate, setDriverDate]   = useState(now.toISOString().split("T")[0]);
 
   useEffect(() => {
     api.get(`/api/v1/reports/monthly?year=${year}&month=${month}`).then(r => {
@@ -23,6 +25,10 @@ export default function Reports() {
   useEffect(() => {
     api.get(`/api/v1/reports/daily?date=${date}`).then(r => setDayOrders(r.data.orders || [])).catch(() => {});
   }, [date]);
+
+  useEffect(() => {
+    api.get(`/api/v1/reports/driver-stats?date=${driverDate}`).then(r => setDriverStats(r.data.drivers || [])).catch(() => {});
+  }, [driverDate]);
 
   function exportCSV() {
     const rows = [["เลขออเดอร์", "ลูกค้า", "สินค้า", "จำนวน", "ยอดรวม", "สถานะ", "วันที่"]];
@@ -77,6 +83,34 @@ export default function Reports() {
           ))}
         </div>
       )}
+
+      {/* Driver Stats */}
+      <div style={{ background: WHITE, borderRadius: 14, padding: 20, boxShadow: "0 2px 12px rgba(0,0,0,.06)", marginBottom: 16 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16, flexWrap: "wrap" }}>
+          <h2 style={{ fontSize: 15, fontWeight: 800, color: NAVY }}>🛵 สรุปยอดส่งแต่ละ Rider</h2>
+          <input type="date" value={driverDate} onChange={e => setDriverDate(e.target.value)}
+            style={{ padding: "6px 10px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 13 }} />
+        </div>
+        {driverStats.length > 0 ? (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 12 }}>
+            {driverStats.map((d, i) => (
+              <div key={i} style={{ background: "#F8FAFC", borderRadius: 12, padding: 16, border: "2px solid #E5E7EB" }}>
+                <p style={{ fontSize: 14, fontWeight: 800, color: NAVY, marginBottom: 8 }}>🛵 {d.name}</p>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                  <span style={{ fontSize: 12, color: GRAY }}>ออเดอร์</span>
+                  <span style={{ fontSize: 14, fontWeight: 700, color: NAVY }}>{d.orders} รายการ</span>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between" }}>
+                  <span style={{ fontSize: 12, color: GRAY }}>ถังที่ส่ง</span>
+                  <span style={{ fontSize: 18, fontWeight: 900, color: "#F47B20" }}>{d.tanks} ถัง</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p style={{ color: GRAY, textAlign: "center", padding: 16 }}>ยังไม่มีข้อมูลการส่งวันนี้</p>
+        )}
+      </div>
 
       {/* Daily export */}
       <div style={{ background: WHITE, borderRadius: 14, padding: 20, boxShadow: "0 2px 12px rgba(0,0,0,.06)" }}>

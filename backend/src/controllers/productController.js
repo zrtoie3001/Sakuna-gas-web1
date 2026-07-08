@@ -59,4 +59,18 @@ async function updateZone(req, res) {
   res.json(zone);
 }
 
-module.exports = { getBrands, getProducts, createBrand, updateBrand, createProduct, updateProduct, getZones, updateZone };
+async function deleteBrand(req, res) {
+  const brand = await Brand.findByPk(req.params.id);
+  if (!brand) return res.status(404).json({ error: "Not found" });
+  await brand.update({ isActive: false });
+  res.json({ ok: true });
+}
+
+async function deleteProduct(req, res) {
+  const product = await Product.findByPk(req.params.id);
+  if (!product) return res.status(404).json({ error: "Not found" });
+  await product.update({ isActive: false });
+  res.json({ ok: true });
+}
+
+module.exports = { getBrands, getProducts, createBrand, updateBrand, createProduct, updateProduct, getZones, updateZone, deleteBrand, deleteProduct };

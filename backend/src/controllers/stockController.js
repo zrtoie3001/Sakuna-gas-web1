@@ -86,8 +86,10 @@ async function addRefill(req, res) {
 
 // ── Equipment ─────────────────────────────────────────────────────────────────
 
-async function getEquipment(_req, res) {
-  const rows = await Equipment.findAll({ where: { isActive: true }, order: [["name", "ASC"]] });
+async function getEquipment(req, res) {
+  const where = { isActive: true };
+  if (req.query.category) where.category = req.query.category;
+  const rows = await Equipment.findAll({ where, order: [["name", "ASC"]] });
   res.json(rows);
 }
 

@@ -212,6 +212,7 @@ const Equipment = sequelize.define("Equipment", {
   qty:         { type: DataTypes.INTEGER, defaultValue: 0 },
   description: { type: DataTypes.TEXT },
   isActive:    { type: DataTypes.BOOLEAN, defaultValue: true },
+  category:    { type: DataTypes.STRING(20), defaultValue: "equipment" }, // equipment | stove
 }, { tableName: "equipments", underscored: true });
 
 // ── EquipmentSale ─────────────────────────────────────────────────────────────

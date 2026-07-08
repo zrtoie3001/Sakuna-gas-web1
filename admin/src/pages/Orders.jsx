@@ -32,6 +32,13 @@ export default function Orders() {
   const [creating, setCreating]     = useState(false);
   const [brands, setBrands]         = useState([]);
   const [products, setProducts]     = useState([]);
+  const [search, setSearch]         = useState("");
+  const [showWalkin, setShowWalkin] = useState(false);
+  const [walkinType, setWalkinType] = useState("gas"); // gas | equipment
+  const [walkinForm, setWalkinForm] = useState({ brandName: "", productId: "", qty: 1, price: "", paymentMethod: "cash", note: "" });
+  const [walkinSaving, setWalkinSaving] = useState(false);
+  const [gasStocks, setGasStocks]   = useState([]);
+  const [equipList, setEquipList]   = useState([]);
 
   const fetch = useCallback(async () => {
     const params = new URLSearchParams({ page, limit: 20 });
@@ -51,6 +58,8 @@ export default function Orders() {
   useEffect(() => {
     api.get("/api/v1/products/brands").then(r => setBrands(Array.isArray(r.data) ? r.data : r.data.brands || [])).catch(() => {});
     api.get("/api/v1/products?limit=100").then(r => setProducts(Array.isArray(r.data) ? r.data : r.data.products || [])).catch(() => {});
+    api.get("/api/v1/stock/gas").then(r => setGasStocks(r.data)).catch(() => {});
+    api.get("/api/v1/stock/equipment").then(r => setEquipList(r.data)).catch(() => {});
   }, []);
 
   async function createOrder() {
@@ -62,6 +71,32 @@ export default function Orders() {
       setShowCreate(false); setCreateForm(EMPTY_ORDER); fetch();
     } catch (e) { alert(e.response?.data?.error || "เกิดข้อผิดพลาด"); }
     finally { setCreating(false); }
+  }
+
+  async function saveWalkin() {
+    setWalkinSaving(true);
+    try {
+      if (walkinType === "gas") {
+        const stock = gasStocks.find(s => s.id === walkinForm.stockId);
+        if (!stock) return alert("กรุณาเลือกสินค้า");
+        await api.post("/api/v1/stock/gas/adjust", {
+          brandName: stock.brandName, weightKg: stock.weightKg,
+          field: "hasGas", delta: -Number(walkinForm.qty || 1),
+        });
+      } else {
+        const item = equipList.find(e => e.id === walkinForm.equipId);
+        if (!item) return alert("กรุณาเลือกสินค้า");
+        await api.post(`/api/v1/stock/equipment/${item.id}/sell`, {
+          qty: Number(walkinForm.qty || 1),
+          salePrice: Number(walkinForm.price || item.price),
+          note: walkinForm.note,
+        });
+      }
+      setShowWalkin(false);
+      setWalkinForm({ brandName: "", productId: "", qty: 1, price: "", paymentMethod: "cash", note: "" });
+      alert("✅ บันทึกการขายหน้าร้านเรียบร้อย");
+    } catch (e) { alert(e.response?.data?.error || "เกิดข้อผิดพลาด"); }
+    finally { setWalkinSaving(false); }
   }
 
   function printReceipt(o) {
@@ -176,11 +211,16 @@ export default function Orders() {
     <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
       {/* Left: List */}
       <div style={{ flex: "1 1 500px" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10, flexWrap: "wrap" }}>
           <h1 style={{ fontSize: 20, fontWeight: 900, color: NAVY }}>📦 ออเดอร์</h1>
-          <button onClick={() => setShowCreate(true)} style={{ marginLeft: "auto", padding: "7px 14px", borderRadius: 8, background: ORANGE, color: WHITE, border: "none", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>+ เพิ่มออเดอร์</button>
           <span style={{ fontSize: 13, color: GRAY }}>{total} รายการ</span>
+          <div style={{ marginLeft: "auto", display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button onClick={() => setShowWalkin(true)} style={{ padding: "7px 14px", borderRadius: 8, background: "#10B981", color: WHITE, border: "none", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>🏪 ขายหน้าร้าน</button>
+            <button onClick={() => setShowCreate(true)} style={{ padding: "7px 14px", borderRadius: 8, background: ORANGE, color: WHITE, border: "none", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>+ เพิ่มออเดอร์</button>
+          </div>
         </div>
+        <input placeholder="🔍 ค้นหาออเดอร์, ลูกค้า, เบอร์..." value={search} onChange={e => setSearch(e.target.value)}
+          style={{ width: "100%", padding: "8px 14px", borderRadius: 10, border: "2px solid #E5E7EB", fontSize: 13, marginBottom: 10, boxSizing: "border-box" }} />
 
         {/* Filters */}
         <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
@@ -194,7 +234,7 @@ export default function Orders() {
 
         {/* Table */}
         <div style={{ background: WHITE, borderRadius: 14, overflow: "hidden", boxShadow: "0 2px 12px rgba(0,0,0,.06)" }}>
-          {orders.map(o => {
+          {orders.filter(o => !search || [o.orderNumber, o.customerName, o.customerPhone, o.product?.name].some(v => String(v||"").toLowerCase().includes(search.toLowerCase()))).map(o => {
             const s = st(o.status);
             return (
               <div key={o.id} onClick={() => setSelected(o)} style={{
@@ -300,6 +340,101 @@ export default function Orders() {
                 </button>
               ))}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Walk-in sale modal */}
+      {showWalkin && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", zIndex: 400, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+          <div style={{ background: WHITE, borderRadius: 20, padding: 24, width: "100%", maxWidth: 420, margin: "auto", maxHeight: "90vh", overflowY: "auto" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
+              <h2 style={{ fontSize: 16, fontWeight: 800, color: NAVY }}>🏪 ขายหน้าร้าน</h2>
+              <button onClick={() => setShowWalkin(false)} style={{ background: "none", border: "none", fontSize: 20, color: GRAY, cursor: "pointer" }}>✕</button>
+            </div>
+
+            {/* Type toggle */}
+            <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+              {[["gas","⛽ ถังแก๊ส"],["equipment","🔧 อุปกรณ์/เตา"]].map(([k, label]) => (
+                <button key={k} onClick={() => setWalkinType(k)} style={{
+                  flex: 1, padding: "8px", borderRadius: 8, border: "none", fontSize: 13, fontWeight: 700, cursor: "pointer",
+                  background: walkinType === k ? NAVY : "#F3F4F6", color: walkinType === k ? WHITE : GRAY,
+                }}>{label}</button>
+              ))}
+            </div>
+
+            {walkinType === "gas" ? (
+              <>
+                <div style={{ marginBottom: 12 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>ถังแก๊ส *</div>
+                  <select value={walkinForm.stockId || ""} onChange={e => setWalkinForm(f => ({ ...f, stockId: e.target.value }))}
+                    style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 14, boxSizing: "border-box" }}>
+                    <option value="">-- เลือกถัง --</option>
+                    {gasStocks.map(s => (
+                      <option key={s.id} value={s.id}>{s.brandName} {s.weightKg} กก. (มี {s.hasGas} ถัง)</option>
+                    ))}
+                  </select>
+                </div>
+                <div style={{ display: "flex", gap: 12, marginBottom: 12 }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>จำนวน (ถัง)</div>
+                    <input type="number" min="1" value={walkinForm.qty} onChange={e => setWalkinForm(f => ({ ...f, qty: e.target.value }))}
+                      style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 14, boxSizing: "border-box" }} />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>ราคา (บาท)</div>
+                    <input type="number" value={walkinForm.price} onChange={e => setWalkinForm(f => ({ ...f, price: e.target.value }))}
+                      style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 14, boxSizing: "border-box" }} />
+                  </div>
+                </div>
+              </>
+            ) : (
+              <>
+                <div style={{ marginBottom: 12 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>สินค้า *</div>
+                  <select value={walkinForm.equipId || ""} onChange={e => {
+                    const item = equipList.find(x => x.id === e.target.value);
+                    setWalkinForm(f => ({ ...f, equipId: e.target.value, price: item?.price || "" }));
+                  }} style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 14, boxSizing: "border-box" }}>
+                    <option value="">-- เลือกสินค้า --</option>
+                    {equipList.map(e => (
+                      <option key={e.id} value={e.id}>{e.name} — ฿{Number(e.price).toLocaleString()} (มี {e.qty} ชิ้น)</option>
+                    ))}
+                  </select>
+                </div>
+                <div style={{ display: "flex", gap: 12, marginBottom: 12 }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>จำนวน</div>
+                    <input type="number" min="1" value={walkinForm.qty} onChange={e => setWalkinForm(f => ({ ...f, qty: e.target.value }))}
+                      style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 14, boxSizing: "border-box" }} />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>ราคา (บาท)</div>
+                    <input type="number" value={walkinForm.price} onChange={e => setWalkinForm(f => ({ ...f, price: e.target.value }))}
+                      style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 14, boxSizing: "border-box" }} />
+                  </div>
+                </div>
+              </>
+            )}
+
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>ช่องทางชำระเงิน</div>
+              <select value={walkinForm.paymentMethod} onChange={e => setWalkinForm(f => ({ ...f, paymentMethod: e.target.value }))}
+                style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 14, boxSizing: "border-box" }}>
+                <option value="cash">เงินสด</option>
+                <option value="qr">โอน</option>
+              </select>
+            </div>
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>หมายเหตุ</div>
+              <input value={walkinForm.note} onChange={e => setWalkinForm(f => ({ ...f, note: e.target.value }))}
+                style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 14, boxSizing: "border-box" }} />
+            </div>
+            <button onClick={saveWalkin} disabled={walkinSaving} style={{
+              width: "100%", padding: 13, borderRadius: 12, border: "none",
+              background: "#10B981", color: WHITE, fontWeight: 800, fontSize: 15, cursor: "pointer",
+              opacity: walkinSaving ? 0.6 : 1,
+            }}>{walkinSaving ? "กำลังบันทึก..." : "✅ บันทึกการขาย"}</button>
           </div>
         </div>
       )}

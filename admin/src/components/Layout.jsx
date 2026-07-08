@@ -1,5 +1,7 @@
-import { Outlet, NavLink, useNavigate } from "react-router-dom";
-import { useState } from "react";
+import { Outlet, NavLink, useNavigate, useLocation } from "react-router-dom";
+import { useState, createContext, useContext } from "react";
+
+export const SearchContext = createContext({ q: "", setQ: () => {} });
 import api from "../utils/api.js";
 
 const NAVY   = "#1A2B6B";
@@ -21,10 +23,12 @@ const NAV = [
 
 export default function Layout() {
   const navigate  = useNavigate();
+  const location  = useLocation();
   const user      = JSON.parse(localStorage.getItem("admin_user") || "{}");
   const [sideOpen, setSideOpen] = useState(false);
   const [pwModal, setPwModal]   = useState(false);
   const [pwForm, setPwForm]     = useState({ current: "", next: "", confirm: "" });
+  const [globalQ, setGlobalQ]   = useState("");
 
   async function changeMyPassword() {
     if (pwForm.next.length < 6) return alert("รหัสผ่านใหม่ต้องมีอย่างน้อย 6 ตัว");
@@ -131,14 +135,22 @@ export default function Layout() {
           <span style={{ fontSize: 16, fontWeight: 800, color: NAVY }}>
             🔥 สกุณา<span style={{ color: ORANGE }}>แก๊ส</span>
           </span>
-          <span style={{ marginLeft: "auto", fontSize: 12, color: "#6B7280" }}>
+          <input
+            placeholder="🔍 ค้นหา..."
+            value={globalQ}
+            onChange={e => setGlobalQ(e.target.value)}
+            style={{ flex: 1, maxWidth: 220, padding: "7px 12px", borderRadius: 10, border: "2px solid #E5E7EB", fontSize: 13, outline: "none" }}
+          />
+          <span style={{ marginLeft: "auto", fontSize: 12, color: "#6B7280", whiteSpace: "nowrap" }}>
             Admin: {user.name}
           </span>
         </div>
 
         {/* Content */}
         <div style={{ flex: 1, padding: "20px", overflowY: "auto" }}>
-          <Outlet />
+          <SearchContext.Provider value={{ q: globalQ, setQ: setGlobalQ }}>
+            <Outlet />
+          </SearchContext.Provider>
         </div>
       </div>
 

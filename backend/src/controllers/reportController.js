@@ -1,5 +1,5 @@
 const { Op, fn, col, literal } = require("sequelize");
-const { Order, Product, Brand, Customer, sequelize } = require("../models");
+const { Order, Product, Brand, Customer, User, sequelize } = require("../models");
 
 async function dailyReport(req, res) {
   const { date = new Date().toISOString().split("T")[0] } = req.query;
@@ -133,4 +133,28 @@ async function dashboardStats(req, res) {
   });
 }
 
-module.exports = { dailyReport, monthlyReport, dashboardStats };
+async function driverStats(req, res) {
+  const { date = new Date().toISOString().split("T")[0] } = req.query;
+  const start = new Date(date); start.setHours(0, 0, 0, 0);
+  const end   = new Date(date); end.setHours(23, 59, 59, 999);
+
+  const rows = await Order.findAll({
+    where: { createdAt: { [Op.between]: [start, end] }, status: "delivered", driverId: { [Op.ne]: null } },
+    attributes: ["driverId", [fn("COUNT", col("Order.id")), "orders"], [fn("SUM", col("qty")), "tanks"]],
+    include: [{ model: User, as: "driver", attributes: ["name"] }],
+    group: ["driverId", "driver.id"],
+    order: [[literal('"tanks"'), "DESC"]],
+    raw: false,
+  });
+
+  res.json({
+    date,
+    drivers: rows.map(r => ({
+      name: r.driver?.name || "-",
+      orders: parseInt(r.dataValues.orders || 0),
+      tanks: parseInt(r.dataValues.tanks || 0),
+    })),
+  });
+}
+
+module.exports = { dailyReport, monthlyReport, dashboardStats, driverStats };
