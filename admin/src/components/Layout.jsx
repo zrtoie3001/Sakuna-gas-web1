@@ -1,8 +1,27 @@
 import { Outlet, NavLink, useNavigate, useLocation } from "react-router-dom";
-import { useState, createContext, useContext } from "react";
+import { useState, createContext, useRef, useEffect } from "react";
 
 export const SearchContext = createContext({ q: "", setQ: () => {} });
 import api from "../utils/api.js";
+
+function playBeep(type = "new") {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const sequences = type === "new"
+      ? [{ f: 880, t: 0, d: 0.15 }, { f: 1100, t: 0.18, d: 0.15 }, { f: 1320, t: 0.36, d: 0.2 }]
+      : [{ f: 660, t: 0, d: 0.15 }, { f: 880, t: 0.18, d: 0.25 }];
+    sequences.forEach(({ f, t, d }) => {
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.connect(g); g.connect(ctx.destination);
+      o.frequency.value = f; o.type = "sine";
+      g.gain.setValueAtTime(0.4, ctx.currentTime + t);
+      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + t + d);
+      o.start(ctx.currentTime + t);
+      o.stop(ctx.currentTime + t + d + 0.05);
+    });
+  } catch {}
+}
 
 const NAVY   = "#1A2B6B";
 const NAVY2  = "#0F1D52";
@@ -29,6 +48,31 @@ export default function Layout() {
   const [pwModal, setPwModal]   = useState(false);
   const [pwForm, setPwForm]     = useState({ current: "", next: "", confirm: "" });
   const [globalQ, setGlobalQ]   = useState("");
+  const knownOrders = useRef(null);
+
+  useEffect(() => {
+    async function checkOrders() {
+      try {
+        const r = await api.get("/api/v1/orders?limit=50");
+        const orders = r.data.orders || [];
+        if (knownOrders.current === null) {
+          knownOrders.current = new Map(orders.map(o => [o.id, o.status]));
+          return;
+        }
+        orders.forEach(o => {
+          if (!knownOrders.current.has(o.id)) {
+            playBeep("new");
+          } else if (knownOrders.current.get(o.id) !== o.status) {
+            if (["out_for_delivery", "delivered"].includes(o.status)) playBeep("update");
+          }
+          knownOrders.current.set(o.id, o.status);
+        });
+      } catch {}
+    }
+    const id = setInterval(checkOrders, 15000);
+    checkOrders();
+    return () => clearInterval(id);
+  }, []);
 
   async function changeMyPassword() {
     if (pwForm.next.length < 6) return alert("รหัสผ่านใหม่ต้องมีอย่างน้อย 6 ตัว");
