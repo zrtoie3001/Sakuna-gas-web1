@@ -71,6 +71,28 @@ const PORT = process.env.PORT || 3001;
     await sequelize.authenticate();
     logger.info("Database connected");
     await sequelize.sync({ alter: process.env.NODE_ENV === "development" });
+
+    // ── Manual migrations (idempotent) ─────────────────────────────────────────
+    await sequelize.query(`
+      ALTER TABLE store_settings ADD COLUMN IF NOT EXISTS force_open BOOLEAN NOT NULL DEFAULT false;
+    `).catch(() => {});
+    await sequelize.query(`
+      ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
+    `).catch(() => {});
+    await sequelize.query(`
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'enum_users_role') THEN
+          CREATE TYPE enum_users_role AS ENUM ('admin','driver','both');
+        ELSE
+          BEGIN
+            ALTER TYPE enum_users_role ADD VALUE IF NOT EXISTS 'both';
+          EXCEPTION WHEN duplicate_object THEN NULL;
+          END;
+        END IF;
+      END $$;
+    `).catch(() => {});
+    logger.info("Migrations done");
+
     app.listen(PORT, () => logger.info(`API running on port ${PORT}`));
   } catch (err) {
     logger.error("Startup failed", err);
