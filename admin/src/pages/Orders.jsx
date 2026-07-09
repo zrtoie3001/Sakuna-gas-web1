@@ -63,8 +63,8 @@ export default function Orders() {
   }, []);
 
   async function createOrder() {
-    if (!createForm.customerName || !createForm.customerPhone || !createForm.brandId || !createForm.productId || !createForm.deliveryAddress)
-      return alert("กรุณากรอกข้อมูลให้ครบถ้วน");
+    if (!createForm.deliveryAddress || !createForm.brandId || !createForm.productId)
+      return alert("กรุณากรอกที่อยู่จัดส่ง ยี่ห้อ และน้ำหนัก");
     setCreating(true);
     try {
       await api.post("/api/v1/orders", { ...createForm, qty: Number(createForm.qty) || 1 });
@@ -469,8 +469,8 @@ export default function Orders() {
               <button onClick={() => setShowCreate(false)} style={{ background: "none", border: "none", fontSize: 20, color: GRAY, cursor: "pointer" }}>✕</button>
             </div>
             {[
-              ["ชื่อลูกค้า *", "customerName", "text"],
-              ["เบอร์โทร *", "customerPhone", "tel"],
+              ["ชื่อลูกค้า", "customerName", "text"],
+              ["เบอร์โทร", "customerPhone", "tel"],
               ["ที่อยู่จัดส่ง *", "deliveryAddress", "text"],
               ["หมายเหตุ", "note", "text"],
             ].map(([label, key, type]) => (
