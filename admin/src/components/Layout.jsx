@@ -4,9 +4,22 @@ import { useState, createContext, useRef, useEffect } from "react";
 export const SearchContext = createContext({ q: "", setQ: () => {} });
 import api from "../utils/api.js";
 
+let _audioCtx = null;
+
+function getAudioCtx() {
+  if (!_audioCtx) _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (_audioCtx.state === "suspended") _audioCtx.resume();
+  return _audioCtx;
+}
+
+// Call once on any user click to unlock audio
+function unlockAudio() {
+  try { getAudioCtx(); } catch {}
+}
+
 function playBeep(type = "new") {
   try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const ctx = getAudioCtx();
     const sequences = type === "new"
       ? [{ f: 880, t: 0, d: 0.15 }, { f: 1100, t: 0.18, d: 0.15 }, { f: 1320, t: 0.36, d: 0.2 }]
       : [{ f: 660, t: 0, d: 0.15 }, { f: 880, t: 0.18, d: 0.25 }];
@@ -146,7 +159,7 @@ export default function Layout() {
   );
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh" }}>
+    <div style={{ display: "flex", minHeight: "100vh" }} onClick={unlockAudio}>
       {/* Desktop sidebar */}
       <div style={{ display: "none" }} className="desktop-sidebar">
         <Sidebar />

@@ -19,6 +19,31 @@ const STATUSES = [
 
 const EMPTY_ORDER = { customerName: "", customerPhone: "", brandId: "", productId: "", qty: 1, paymentMethod: "cash", deliveryAddress: "", note: "" };
 
+function ExtraItemPicker({ equipList, onAdd }) {
+  const [id, setId] = useState("");
+  const [qty, setQty] = useState(1);
+  const [price, setPrice] = useState("");
+  const item = equipList.find(e => e.id === id);
+  return (
+    <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "flex-end" }}>
+      <select value={id} onChange={e => { const it = equipList.find(x => x.id === e.target.value); setId(e.target.value); setPrice(it?.price || ""); }}
+        style={{ flex: "1 1 120px", padding: "7px 10px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 12 }}>
+        <option value="">-- เลือกสินค้า --</option>
+        {equipList.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+      </select>
+      <input type="number" min="1" value={qty} onChange={e => setQty(Number(e.target.value))} placeholder="จำนวน"
+        style={{ width: 54, padding: "7px 8px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 12 }} />
+      <input type="number" value={price} onChange={e => setPrice(e.target.value)} placeholder="ราคา"
+        style={{ width: 72, padding: "7px 8px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 12 }} />
+      <button onClick={() => {
+        if (!item || !price) return;
+        onAdd({ id: item.id, name: item.name, qty, price: Number(price) });
+        setId(""); setQty(1); setPrice("");
+      }} style={{ padding: "7px 12px", borderRadius: 8, border: "none", background: "#10B981", color: "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer" }}>+ เพิ่ม</button>
+    </div>
+  );
+}
+
 export default function Orders() {
   const [orders, setOrders]     = useState([]);
   const [total, setTotal]       = useState(0);
@@ -35,10 +60,12 @@ export default function Orders() {
   const [search, setSearch]         = useState("");
   const [showWalkin, setShowWalkin] = useState(false);
   const [walkinType, setWalkinType] = useState("gas"); // gas | equipment
-  const [walkinForm, setWalkinForm] = useState({ brandName: "", productId: "", qty: 1, price: "", paymentMethod: "cash", note: "" });
+  const [walkinForm, setWalkinForm] = useState({ customerName: "", customerPhone: "", brandName: "", productId: "", qty: 1, price: "", paymentMethod: "cash", note: "", gasBrand: "", gasWeight: "", stockId: "", equipId: "" });
   const [walkinSaving, setWalkinSaving] = useState(false);
+  const [walkinResult, setWalkinResult] = useState(null); // order returned after save
   const [gasStocks, setGasStocks]   = useState([]);
   const [equipList, setEquipList]   = useState([]);
+  const [extraItems, setExtraItems] = useState({}); // { [orderId]: [{id, name, qty, price}] }
 
   const fetch = useCallback(async () => {
     const params = new URLSearchParams({ page, limit: 20 });
@@ -76,30 +103,44 @@ export default function Orders() {
   async function saveWalkin() {
     setWalkinSaving(true);
     try {
+      let payload;
       if (walkinType === "gas") {
         const stock = gasStocks.find(s => s.id === walkinForm.stockId);
         if (!stock) return alert("กรุณาเลือกสินค้า");
-        await api.post("/api/v1/stock/gas/adjust", {
-          brandName: stock.brandName, weightKg: stock.weightKg,
-          field: "hasGas", delta: -Number(walkinForm.qty || 1),
-        });
+        if (!walkinForm.price) return alert("กรุณาใส่ราคา");
+        payload = {
+          type: "gas",
+          customerName: walkinForm.customerName,
+          customerPhone: walkinForm.customerPhone,
+          paymentMethod: walkinForm.paymentMethod,
+          note: walkinForm.note,
+          brandName: stock.brandName,
+          weightKg: stock.weightKg,
+          qty: Number(walkinForm.qty || 1),
+          price: Number(walkinForm.price),
+        };
       } else {
         const item = equipList.find(e => e.id === walkinForm.equipId);
         if (!item) return alert("กรุณาเลือกสินค้า");
-        await api.post(`/api/v1/stock/equipment/${item.id}/sell`, {
-          qty: Number(walkinForm.qty || 1),
-          salePrice: Number(walkinForm.price || item.price),
+        payload = {
+          type: "equipment",
+          customerName: walkinForm.customerName,
+          customerPhone: walkinForm.customerPhone,
+          paymentMethod: walkinForm.paymentMethod,
           note: walkinForm.note,
-        });
+          items: [{ id: item.id, name: item.name, qty: Number(walkinForm.qty || 1), price: Number(walkinForm.price || item.price) }],
+        };
       }
+      const { data: order } = await api.post("/api/v1/orders/walkin", payload);
+      setWalkinResult({ order, walkinType, walkinForm: { ...walkinForm } });
       setShowWalkin(false);
-      setWalkinForm({ brandName: "", productId: "", qty: 1, price: "", paymentMethod: "cash", note: "" });
-      alert("✅ บันทึกการขายหน้าร้านเรียบร้อย");
+      setWalkinForm({ customerName: "", customerPhone: "", brandName: "", productId: "", qty: 1, price: "", paymentMethod: "cash", note: "", gasBrand: "", gasWeight: "", stockId: "", equipId: "" });
+      fetch();
     } catch (e) { alert(e.response?.data?.error || "เกิดข้อผิดพลาด"); }
     finally { setWalkinSaving(false); }
   }
 
-  function printReceipt(o) {
+  function printReceipt(o, extras = []) {
     const d = new Date(o.createdAt);
     const dateStr = d.toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" });
     const timeStr = d.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
@@ -107,8 +148,71 @@ export default function Orders() {
     const subtotal  = Number(o.total) + discount;
     const unitPrice = o.qty > 0 ? Math.round(subtotal / o.qty) : 0;
     const payLabel  = o.paymentMethod === "cash" ? "เงินสด" : o.paymentMethod === "qr" ? "QR โอน" : "เก็บปลายทาง";
+    let itemsHtml = `<tr><td>${(o.brand?.name || "") + " " + (o.product?.name || "")}</td><td style="text-align:center;">${o.qty}</td><td style="text-align:right;">${unitPrice.toLocaleString()}</td><td style="text-align:right;">${subtotal.toLocaleString()}</td></tr>`;
+    let total = Number(o.total);
+    for (const ex of extras) {
+      const lineTotal = Number(ex.price) * Number(ex.qty);
+      itemsHtml += `<tr><td>${ex.name}</td><td style="text-align:center;">${ex.qty}</td><td style="text-align:right;">${Number(ex.price).toLocaleString()}</td><td style="text-align:right;">${lineTotal.toLocaleString()}</td></tr>`;
+      total += lineTotal;
+    }
+    if (discount > 0) {
+      itemsHtml += `<tr><td colspan="3" style="font-size:11px; color:#555;">ส่วนลด${o.discountCode ? ` (${o.discountCode})` : ""}</td><td style="text-align:right; color:#059669;">-${discount.toLocaleString()}</td></tr>`;
+    }
+    openReceiptWindow(o, itemsHtml, total, dateStr, timeStr, payLabel);
+  }
+
+  function printWalkinReceipt(order, wType, wForm) {
+    const d = new Date(order.createdAt);
+    const dateStr = d.toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" });
+    const timeStr = d.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
+    const payLabel = order.paymentMethod === "cash" ? "เงินสด" : "QR โอน";
+    let itemsHtml = "";
+    let total = 0;
+    if (wType === "gas") {
+      const qty = Number(wForm.qty || 1);
+      const price = Number(wForm.price || 0);
+      const lineTotal = qty * price;
+      total = lineTotal;
+      const stock = gasStocks.find(s => s.id === wForm.stockId);
+      const name = stock ? `${stock.brandName} ${stock.weightKg} กก.` : "ถังแก๊ส";
+      itemsHtml = `<tr><td>${name}</td><td style="text-align:center;">${qty}</td><td style="text-align:right;">${price.toLocaleString()}</td><td style="text-align:right;">${lineTotal.toLocaleString()}</td></tr>`;
+    } else {
+      const item = equipList.find(e => e.id === wForm.equipId);
+      const qty = Number(wForm.qty || 1);
+      const price = Number(wForm.price || item?.price || 0);
+      const lineTotal = qty * price;
+      total = lineTotal;
+      itemsHtml = `<tr><td>${item?.name || "สินค้า"}</td><td style="text-align:center;">${qty}</td><td style="text-align:right;">${price.toLocaleString()}</td><td style="text-align:right;">${lineTotal.toLocaleString()}</td></tr>`;
+    }
+    openReceiptWindow(order, itemsHtml, total, dateStr, timeStr, payLabel);
+  }
+
+  function printReceiptWithExtras(order, extras) {
+    const d = new Date(order.createdAt);
+    const dateStr = d.toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" });
+    const timeStr = d.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
+    const payLabel = order.paymentMethod === "cash" ? "เงินสด" : order.paymentMethod === "qr" ? "QR โอน" : "เก็บปลายทาง";
+    const discount = Number(order.discountAmount || 0);
+    const subtotal = Number(order.total) + discount;
+    const unitPrice = order.qty > 0 ? Math.round(subtotal / order.qty) : 0;
+    let total = Number(order.total);
+    let itemsHtml = `<tr><td>${(order.brand?.name || "") + " " + (order.product?.name || "")}</td><td style="text-align:center;">${order.qty}</td><td style="text-align:right;">${unitPrice.toLocaleString()}</td><td style="text-align:right;">${subtotal.toLocaleString()}</td></tr>`;
+    for (const ex of extras) {
+      const lineTotal = Number(ex.price) * Number(ex.qty);
+      total += lineTotal;
+      itemsHtml += `<tr><td>${ex.name}</td><td style="text-align:center;">${ex.qty}</td><td style="text-align:right;">${Number(ex.price).toLocaleString()}</td><td style="text-align:right;">${lineTotal.toLocaleString()}</td></tr>`;
+    }
+    if (discount > 0) {
+      itemsHtml += `<tr><td colspan="3" style="font-size:11px; color:#555;">ส่วนลด${order.discountCode ? ` (${order.discountCode})` : ""}</td><td style="text-align:right; color:#059669;">-${discount.toLocaleString()}</td></tr>`;
+      total -= discount; // already included in order.total but adding extras so recalc
+      total = Number(order.total) + extras.reduce((s, e) => s + Number(e.price) * Number(e.qty), 0);
+    }
+    openReceiptWindow(order, itemsHtml, total, dateStr, timeStr, payLabel);
+  }
+
+  function openReceiptWindow(order, itemsHtml, total, dateStr, timeStr, payLabel) {
     const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
-<title>ใบเสร็จ ${o.orderNumber}</title>
+<title>ใบเสร็จ ${order.orderNumber}</title>
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;700;800&display=swap" rel="stylesheet">
 <style>
   * { margin:0; padding:0; box-sizing:border-box; }
@@ -123,79 +227,56 @@ export default function Orders() {
   td, th { padding: 3px 2px; font-size: 13px; }
   @media print { body { margin:0; } @page { margin:0; size:80mm auto; } }
 </style></head><body>
-
 <div class="center bold" style="font-size:30px; font-weight:900; letter-spacing:2px; margin-bottom:4px;">🔥 สกุณาแก๊ส</div>
 <div class="center" style="font-size:11px; color:#333; margin-bottom:2px;">โทร 097-121-3054 | 092-631-4331 | 02-970-9385</div>
 <div class="center" style="font-size:11px; color:#333; margin-bottom:6px;">39 ซอยพหลโยธิน 48 แขวงท่าแร้ง เขตบางเขน กทม. 10220</div>
 <div class="solid"></div>
-
 <table style="margin-bottom:8px;">
   <tr>
-    <td style="width:55%; font-weight:700;">ลูกค้า: ${o.customerName || "ลูกค้าทั่วไป"}</td>
+    <td style="width:55%; font-weight:700;">ลูกค้า: ${order.customerName || "ลูกค้าทั่วไป"}</td>
     <td style="width:45%; text-align:right; font-size:11px;">วันที่ ${dateStr}</td>
   </tr>
   <tr>
-    <td style="font-size:11px; padding-top:2px;">เลขออเดอร์: <b>${o.orderNumber}</b></td>
+    <td style="font-size:11px; padding-top:2px;">เลขออเดอร์: <b>${order.orderNumber}</b></td>
     <td style="text-align:right; font-size:11px; padding-top:2px;">เวลา ${timeStr} น.</td>
   </tr>
-  <tr><td colspan="2" style="padding-top:3px; font-size:11px;">📞 ${o.customerPhone || "-"} &nbsp;|&nbsp; 💳 ${payLabel}</td></tr>
-  <tr><td colspan="2" style="word-break:break-word; font-size:11px; padding-top:2px;">📍 ${o.deliveryAddress || "-"}</td></tr>
+  <tr><td colspan="2" style="padding-top:3px; font-size:11px;">📞 ${order.customerPhone || "-"} &nbsp;|&nbsp; 💳 ${payLabel}</td></tr>
+  <tr><td colspan="2" style="word-break:break-word; font-size:11px; padding-top:2px;">📍 ${order.deliveryAddress || "-"}</td></tr>
 </table>
 <div class="dash"></div>
-
 <table>
   <thead>
     <tr style="border-bottom:1px solid #000;">
       <th style="text-align:left; width:40%;">รายการ</th>
       <th style="text-align:center; width:15%;">จำนวน</th>
-      <th style="text-align:right; width:22%;">ราคา/ ถัง</th>
+      <th style="text-align:right; width:22%;">ราคา/ชิ้น</th>
       <th style="text-align:right; width:23%;">รวม</th>
     </tr>
   </thead>
   <tbody>
     <tr style="height:8px;"></tr>
-    <tr>
-      <td>${(o.brand?.name || "") + " " + (o.product?.name || "")}</td>
-      <td style="text-align:center;">${o.qty}</td>
-      <td style="text-align:right;">${unitPrice.toLocaleString()}</td>
-      <td style="text-align:right;">${subtotal.toLocaleString()}</td>
-    </tr>
+    ${itemsHtml}
     <tr style="height:16px;"></tr>
   </tbody>
 </table>
 <div class="solid"></div>
-
 <table style="margin-bottom:4px;">
   <tr>
-    <td>ยอดรวม</td>
-    <td style="text-align:right;">${subtotal.toLocaleString()}</td>
-    <td style="width:28px; padding-left:4px;">บาท</td>
-  </tr>
-  <tr>
-    <td>ส่วนลด${o.discountCode ? ` (${o.discountCode})` : ""}</td>
-    <td style="text-align:right;">${discount > 0 ? discount.toLocaleString() : "0"}</td>
-    <td style="padding-left:4px;">บาท</td>
-  </tr>
-  <tr>
     <td class="bold">รวมทั้งสิ้น</td>
-    <td style="text-align:right;" class="bold">${Number(o.total).toLocaleString()}</td>
+    <td style="text-align:right;" class="bold">${total.toLocaleString()}</td>
     <td style="padding-left:4px;" class="bold">บาท</td>
   </tr>
 </table>
 <div class="double"></div>
 <div class="dash" style="margin-top:6px;"></div>
-
 <div class="center" style="font-size:12px; margin:6px 0 4px;">สแกนโอนเงิน PromptPay</div>
 <div class="center"><img src="${qrBase64}" style="width:48mm; height:48mm; object-fit:contain;" /></div>
 <div class="center" style="font-size:12px; margin-top:3px;">สกุณา</div>
 <div class="dash" style="margin-top:8px;"></div>
-
 <div class="center" style="font-size:12px; margin-top:6px;">ขอบคุณที่ใช้บริการค่ะ</div>
 <div class="center" style="font-size:11px; font-weight:700; margin-top:3px;">สแกนโอนเงิน PromptPay</div>
 <div class="center" style="font-size:11px; margin-top:2px;">นาง รุจิรา ดวงเพ็ชรแสง (KBank)</div>
-<div class="divider-dash" style="margin-top:6px;"></div>
 <div class="center" style="font-size:12px; margin-top:4px;">ขอบคุณที่ใช้บริการค่ะ</div>
-
 <script>window.onload=()=>{ window.print(); window.onafterprint=()=>window.close(); }</script>
 </body></html>`;
     const w = window.open("", "_blank", "width=420,height=700");
@@ -283,10 +364,14 @@ export default function Orders() {
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
             <h2 style={{ fontSize: 16, fontWeight: 900, color: NAVY }}>{selected.orderNumber}</h2>
             <div style={{ display: "flex", gap: 8 }}>
-              <button onClick={() => printReceipt(selected)} style={{
+              <button onClick={() => {
+                const ex = extraItems[selected.id] || [];
+                if (ex.length) printReceiptWithExtras(selected, ex);
+                else printReceipt(selected);
+              }} style={{
                 padding: "6px 12px", borderRadius: 8, border: `2px solid ${NAVY}`,
                 background: WHITE, color: NAVY, fontSize: 12, fontWeight: 700, cursor: "pointer",
-              }}>🖨 ปริ้น</button>
+              }}>🖨 ปริ้น{(extraItems[selected.id]?.length) ? ` (+${extraItems[selected.id].length})` : ""}</button>
               <button onClick={() => setSelected(null)} style={{ background: "none", border: "none", fontSize: 20, color: GRAY }}>✕</button>
             </div>
           </div>
@@ -347,6 +432,25 @@ export default function Orders() {
               ))}
             </div>
           </div>
+
+          {/* Extra items for bill */}
+          <div style={{ marginTop: 14, borderTop: "1px solid #E5E7EB", paddingTop: 12 }}>
+            <p style={{ fontSize: 12, fontWeight: 700, color: NAVY, marginBottom: 8 }}>🛒 เพิ่มรายการในบิล</p>
+            {(extraItems[selected.id] || []).map((ex, i) => (
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6, fontSize: 12 }}>
+                <span style={{ flex: 1, color: NAVY }}>{ex.name} ×{ex.qty} = ฿{(ex.price * ex.qty).toLocaleString()}</span>
+                <button onClick={() => setExtraItems(prev => {
+                  const arr = [...(prev[selected.id] || [])];
+                  arr.splice(i, 1);
+                  return { ...prev, [selected.id]: arr };
+                })} style={{ background: "none", border: "none", color: "#EF4444", fontSize: 16, cursor: "pointer" }}>✕</button>
+              </div>
+            ))}
+            <ExtraItemPicker equipList={equipList} onAdd={item => setExtraItems(prev => ({
+              ...prev,
+              [selected.id]: [...(prev[selected.id] || []), item],
+            }))} />
+          </div>
         </div>
       )}
 
@@ -357,6 +461,20 @@ export default function Orders() {
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
               <h2 style={{ fontSize: 16, fontWeight: 800, color: NAVY }}>🏪 ขายหน้าร้าน</h2>
               <button onClick={() => setShowWalkin(false)} style={{ background: "none", border: "none", fontSize: 20, color: GRAY, cursor: "pointer" }}>✕</button>
+            </div>
+
+            {/* Customer info */}
+            <div style={{ display: "flex", gap: 12, marginBottom: 12 }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>ชื่อลูกค้า</div>
+                <input value={walkinForm.customerName} onChange={e => setWalkinForm(f => ({ ...f, customerName: e.target.value }))} placeholder="ไม่ระบุได้"
+                  style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 14, boxSizing: "border-box" }} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>เบอร์โทร</div>
+                <input value={walkinForm.customerPhone} onChange={e => setWalkinForm(f => ({ ...f, customerPhone: e.target.value }))} placeholder="ไม่ระบุได้" type="tel"
+                  style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 14, boxSizing: "border-box" }} />
+              </div>
             </div>
 
             {/* Type toggle */}
@@ -462,6 +580,22 @@ export default function Orders() {
               background: "#10B981", color: WHITE, fontWeight: 800, fontSize: 15, cursor: "pointer",
               opacity: walkinSaving ? 0.6 : 1,
             }}>{walkinSaving ? "กำลังบันทึก..." : "✅ บันทึกการขาย"}</button>
+          </div>
+        </div>
+      )}
+
+      {/* Walk-in result modal */}
+      {walkinResult && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", zIndex: 400, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+          <div style={{ background: WHITE, borderRadius: 20, padding: 28, width: "100%", maxWidth: 360, textAlign: "center" }}>
+            <div style={{ fontSize: 48, marginBottom: 8 }}>✅</div>
+            <h2 style={{ fontSize: 16, fontWeight: 800, color: NAVY, marginBottom: 6 }}>บันทึกการขายสำเร็จ</h2>
+            <p style={{ fontSize: 13, color: GRAY, marginBottom: 4 }}>เลขออเดอร์: <strong style={{ color: NAVY }}>{walkinResult.order.orderNumber}</strong></p>
+            <p style={{ fontSize: 13, color: GRAY, marginBottom: 20 }}>ยอดรวม: <strong style={{ color: NAVY }}>฿{Number(walkinResult.order.total).toLocaleString()}</strong></p>
+            <div style={{ display: "flex", gap: 10 }}>
+              <button onClick={() => setWalkinResult(null)} style={{ flex: 1, padding: 12, borderRadius: 10, border: "2px solid #E5E7EB", background: WHITE, color: GRAY, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>ปิด</button>
+              <button onClick={() => { printWalkinReceipt(walkinResult.order, walkinResult.walkinType, walkinResult.walkinForm); setWalkinResult(null); }} style={{ flex: 1, padding: 12, borderRadius: 10, border: "none", background: NAVY, color: WHITE, fontWeight: 800, fontSize: 14, cursor: "pointer" }}>🖨 ปริ้นใบเสร็จ</button>
+            </div>
           </div>
         </div>
       )}

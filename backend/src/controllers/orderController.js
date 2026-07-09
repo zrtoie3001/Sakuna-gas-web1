@@ -223,4 +223,60 @@ async function acceptOrder(req, res) {
   res.json(order);
 }
 
-module.exports = { createOrder, getOrderById, listOrders, updateStatus, acceptOrder };
+// ── Walk-in sale: create order record ────────────────────────────────────────
+async function createWalkinOrder(req, res) {
+  try {
+    const { type, customerName, customerPhone, paymentMethod, note,
+            brandName, weightKg, qty, price, items } = req.body;
+
+    const { GasStock, Equipment, EquipmentSale } = require("../models");
+    const q = Number(qty) || 1;
+    let total = 0;
+    let walkinNote = note || "";
+
+    if (type === "gas") {
+      if (!brandName || !weightKg) return res.status(400).json({ error: "กรุณาเลือกยี่ห้อและน้ำหนัก" });
+      const stock = await GasStock.findOne({ where: { brandName, weightKg: Number(weightKg) } });
+      if (!stock) return res.status(400).json({ error: "ไม่พบสินค้าในสต็อก" });
+      if (stock.hasGas < q) return res.status(400).json({ error: `สต็อกไม่พอ (มีแค่ ${stock.hasGas} ถัง)` });
+      total = Number(price) * q;
+      await stock.update({ hasGas: stock.hasGas - q });
+      walkinNote = `__walkin:${JSON.stringify({ type: "gas", brandName, weightKg, qty: q, unitPrice: Number(price) })}` + (note ? `\n${note}` : "");
+    } else {
+      if (!items || !items.length) return res.status(400).json({ error: "กรุณาเลือกสินค้า" });
+      for (const it of items) {
+        const eq = await Equipment.findByPk(it.id);
+        if (!eq) return res.status(400).json({ error: `ไม่พบสินค้า: ${it.name}` });
+        if (eq.qty < it.qty) return res.status(400).json({ error: `สต็อก ${it.name} ไม่พอ` });
+        const itQty = Number(it.qty);
+        const itPrice = Number(it.price);
+        await eq.update({ qty: eq.qty - itQty });
+        await EquipmentSale.create({ equipmentId: eq.id, qty: itQty, salePrice: itPrice, note: note || null });
+        total += itPrice * itQty;
+      }
+      walkinNote = `__walkin:${JSON.stringify({ type: "equipment", items })}` + (note ? `\n${note}` : "");
+    }
+
+    const order = await Order.create({
+      orderNumber: generateOrderNumber(),
+      customerName: customerName || "ลูกค้าหน้าร้าน",
+      customerPhone: customerPhone || null,
+      deliveryAddress: "หน้าร้าน",
+      paymentMethod: paymentMethod || "cash",
+      qty: q,
+      unitPrice: type === "gas" ? Number(price) : total,
+      subtotal: total,
+      deliveryFee: 0,
+      discountAmount: 0,
+      total,
+      note: walkinNote,
+      status: "delivered",
+    });
+
+    res.status(201).json(order);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+}
+
+module.exports = { createOrder, getOrderById, listOrders, updateStatus, acceptOrder, createWalkinOrder };

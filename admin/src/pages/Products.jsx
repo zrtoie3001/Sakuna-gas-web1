@@ -245,7 +245,30 @@ export default function Products() {
       {(modal === "brand_new" || modal === "brand_edit") && (
         <Modal title={modal === "brand_new" ? "เพิ่มยี่ห้อ" : "แก้ไขยี่ห้อ"} onClose={() => { setModal(null); setForm({}); }}>
           <F label="ชื่อยี่ห้อ *" k="name" />
-          <F label="URL โลโก้" k="logoUrl" />
+
+          {/* Logo upload */}
+          <div style={{ marginBottom: 12 }}>
+            <label style={{ fontSize: 11, color: GRAY, display: "block", marginBottom: 6, fontWeight: 700 }}>รูปโลโก้</label>
+            <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+              {form.logoUrl && (
+                <img src={form.logoUrl} alt="logo" style={{ width: 56, height: 56, objectFit: "contain", borderRadius: 8, border: "2px solid #E5E7EB" }} />
+              )}
+              <label style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "14px 10px", borderRadius: 8, border: "2px dashed #CBD5E1", cursor: "pointer", fontSize: 13, color: GRAY, gap: 4 }}>
+                📷 {form.logoUrl ? "เปลี่ยนรูป" : "เลือกรูป"}
+                <input type="file" accept="image/*" style={{ display: "none" }} onChange={e => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  const reader = new FileReader();
+                  reader.onload = ev => setForm(f => ({ ...f, logoUrl: ev.target.result }));
+                  reader.readAsDataURL(file);
+                }} />
+              </label>
+              {form.logoUrl && (
+                <button onClick={() => setForm(f => ({ ...f, logoUrl: "" }))} style={{ padding: "6px 10px", borderRadius: 8, border: "none", background: "#FEE2E2", color: "#991B1B", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>ลบรูป</button>
+              )}
+            </div>
+          </div>
+
           <F label="สีหลัก (hex)" k="color" />
           <F label="สีพื้นหลัง (hex)" k="bgColor" />
           <button onClick={saveBrand} style={{ ...btn(NAVY, WHITE), width: "100%", padding: 12 }}>บันทึก</button>

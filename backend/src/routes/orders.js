@@ -1,7 +1,7 @@
 const router = require("express").Router();
 const multer = require("multer");
 const path = require("path");
-const { createOrder, getOrderById, listOrders, updateStatus, acceptOrder } = require("../controllers/orderController");
+const { createOrder, getOrderById, listOrders, updateStatus, acceptOrder, createWalkinOrder } = require("../controllers/orderController");
 const { notifyAdminPaymentConfirmed, sendPaymentReceivedToCustomer } = require("../services/lineService");
 const { Order, Brand, Product, Customer } = require("../models");
 const { requireAuth, requireRole } = require("../middleware/auth");
@@ -14,6 +14,9 @@ const upload = multer({
     cb(ok ? null : new Error("Image only"), ok);
   },
 });
+
+// Walk-in sale (admin)
+router.post("/walkin", requireAuth, createWalkinOrder);
 
 // Customer (no auth — identified by lineUserId in body)
 router.post("/", createOrder);
