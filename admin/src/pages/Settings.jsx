@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import api from "../utils/api.js";
 
 const NAVY = "#1B2A6B";
@@ -6,10 +6,36 @@ const ORANGE = "#E8873A";
 const WHITE = "#FFFFFF";
 const GRAY = "#6B7280";
 
+function playTestBeep(type) {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const sequences = type === "new"
+      ? [
+          { f: 1047, t: 0,    d: 0.12, wave: "square", vol: 0.3 },
+          { f: 1047, t: 0.18, d: 0.12, wave: "square", vol: 0.3 },
+          { f: 1047, t: 0.36, d: 0.12, wave: "square", vol: 0.3 },
+          { f: 1397, t: 0.54, d: 0.3,  wave: "square", vol: 0.35 },
+        ]
+      : [
+          { f: 659,  t: 0,    d: 0.15, wave: "sine", vol: 0.3 },
+          { f: 880,  t: 0.2,  d: 0.25, wave: "sine", vol: 0.3 },
+        ];
+    sequences.forEach(({ f, t, d, wave, vol }) => {
+      const o = ctx.createOscillator(); const g = ctx.createGain();
+      o.connect(g); g.connect(ctx.destination);
+      o.frequency.value = f; o.type = wave;
+      g.gain.setValueAtTime(vol, ctx.currentTime + t);
+      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + t + d);
+      o.start(ctx.currentTime + t); o.stop(ctx.currentTime + t + d + 0.05);
+    });
+  } catch {}
+}
+
 export default function Settings() {
   const [setting, setSetting] = useState(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [soundOn, setSoundOn] = useState(localStorage.getItem("admin_sound") !== "off");
 
   useEffect(() => {
     api.get("/api/v1/settings/store").then(r => setSetting(r.data)).catch(() => {
@@ -122,6 +148,35 @@ export default function Settings() {
         >
           {saved ? "✅ บันทึกแล้ว" : saving ? "กำลังบันทึก..." : "บันทึก"}
         </button>
+      </div>
+
+      {/* เสียงแจ้งเตือน */}
+      <div style={{ background: WHITE, borderRadius: 16, padding: 24, boxShadow: "0 2px 12px rgba(0,0,0,.06)", marginBottom: 20 }}>
+        <h3 style={{ color: NAVY, margin: "0 0 8px" }}>🔔 เสียงแจ้งเตือน</h3>
+        <p style={{ color: GRAY, fontSize: 13, margin: "0 0 16px" }}>
+          เปิด/ปิดเสียงเมื่อมีออเดอร์ใหม่หรือสถานะเปลี่ยน (บันทึกในเครื่องนี้)
+        </p>
+        <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 20 }}>
+          <div onClick={() => { const next = !soundOn; setSoundOn(next); localStorage.setItem("admin_sound", next ? "on" : "off"); }}
+            style={{ width: 56, height: 28, borderRadius: 14, cursor: "pointer", position: "relative", background: soundOn ? "#22C55E" : "#E5E7EB", transition: "background 0.2s" }}>
+            <div style={{ position: "absolute", top: 3, left: soundOn ? 31 : 3, width: 22, height: 22, borderRadius: "50%", background: WHITE, transition: "left 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,.3)" }} />
+          </div>
+          <span style={{ fontWeight: 700, fontSize: 15, color: soundOn ? "#22C55E" : GRAY }}>
+            {soundOn ? "🔊 เปิดเสียง" : "🔇 ปิดเสียง"}
+          </span>
+        </div>
+
+        <p style={{ color: GRAY, fontSize: 12, margin: "0 0 10px", fontWeight: 700 }}>ทดสอบเสียง:</p>
+        <div style={{ display: "flex", gap: 10 }}>
+          <button onClick={() => playTestBeep("new")}
+            style={{ flex: 1, padding: "10px", borderRadius: 10, border: `2px solid ${NAVY}`, background: WHITE, color: NAVY, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
+            🛒 ออเดอร์ใหม่
+          </button>
+          <button onClick={() => playTestBeep("update")}
+            style={{ flex: 1, padding: "10px", borderRadius: 10, border: "2px solid #22C55E", background: WHITE, color: "#15803D", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
+            ✅ ส่งสำเร็จ/รับงาน
+          </button>
+        </div>
       </div>
 
       {/* Preview */}

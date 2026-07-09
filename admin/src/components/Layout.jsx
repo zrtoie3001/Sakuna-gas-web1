@@ -16,18 +16,33 @@ function unlockAudio() {
   try { getAudioCtx(); } catch {}
 }
 
+function isSoundEnabled() {
+  return localStorage.getItem("admin_sound") !== "off";
+}
+
 function playBeep(type = "new") {
+  if (!isSoundEnabled()) return;
   try {
     const ctx = getAudioCtx();
+    // "new" = ออเดอร์ใหม่: เสียงกริ่งดัง 3 ครั้ง (square wave, louder)
+    // "update" = ส่งสำเร็จ/รับงาน: เสียงสั้น 2 โน้ต (sine, นุ่มกว่า)
     const sequences = type === "new"
-      ? [{ f: 880, t: 0, d: 0.15 }, { f: 1100, t: 0.18, d: 0.15 }, { f: 1320, t: 0.36, d: 0.2 }]
-      : [{ f: 660, t: 0, d: 0.15 }, { f: 880, t: 0.18, d: 0.25 }];
-    sequences.forEach(({ f, t, d }) => {
+      ? [
+          { f: 1047, t: 0,    d: 0.12, wave: "square", vol: 0.3 },
+          { f: 1047, t: 0.18, d: 0.12, wave: "square", vol: 0.3 },
+          { f: 1047, t: 0.36, d: 0.12, wave: "square", vol: 0.3 },
+          { f: 1397, t: 0.54, d: 0.3,  wave: "square", vol: 0.35 },
+        ]
+      : [
+          { f: 659,  t: 0,    d: 0.15, wave: "sine", vol: 0.3 },
+          { f: 880,  t: 0.2,  d: 0.25, wave: "sine", vol: 0.3 },
+        ];
+    sequences.forEach(({ f, t, d, wave, vol }) => {
       const o = ctx.createOscillator();
       const g = ctx.createGain();
       o.connect(g); g.connect(ctx.destination);
-      o.frequency.value = f; o.type = "sine";
-      g.gain.setValueAtTime(0.4, ctx.currentTime + t);
+      o.frequency.value = f; o.type = wave;
+      g.gain.setValueAtTime(vol, ctx.currentTime + t);
       g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + t + d);
       o.start(ctx.currentTime + t);
       o.stop(ctx.currentTime + t + d + 0.05);
