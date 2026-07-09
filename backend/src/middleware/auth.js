@@ -19,9 +19,11 @@ async function requireAuth(req, res, next) {
 
 function requireRole(...roles) {
   return (req, res, next) => {
-    if (!roles.includes(req.user?.role)) {
-      return res.status(403).json({ error: "Forbidden" });
-    }
+    const userRole = req.user?.role;
+    // "both" means admin+driver, so has access to either role's routes
+    const hasAccess = roles.includes(userRole) ||
+      (userRole === "both" && (roles.includes("admin") || roles.includes("driver")));
+    if (!hasAccess) return res.status(403).json({ error: "Forbidden" });
     next();
   };
 }

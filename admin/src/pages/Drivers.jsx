@@ -2,7 +2,10 @@ import { useState, useEffect } from "react";
 import api from "../utils/api.js";
 
 const NAVY = "#1A2B6B"; const ORANGE = "#F47B20"; const WHITE = "#FFFFFF"; const GRAY = "#6B7280";
-const EMPTY = { name: "", email: "", phone: "", password: "" };
+const EMPTY = { name: "", email: "", phone: "", password: "", role: "driver" };
+
+const ROLE_LABELS = { admin: "Admin เท่านั้น", driver: "พนักงานส่ง", both: "Admin + ส่งของ" };
+const ROLE_COLORS = { admin: { bg: "#EEF2FF", color: "#1A2B6B" }, driver: { bg: "#D1FAE5", color: "#065F46" }, both: { bg: "#FEF3C7", color: "#92400E" } };
 
 export default function Drivers() {
   const [drivers, setDrivers]   = useState([]);
@@ -18,7 +21,7 @@ export default function Drivers() {
   function openCreate() { setEditId(null); setForm(EMPTY); setModal(true); }
   function openEdit(d) {
     setEditId(d.id);
-    setForm({ name: d.name, email: d.email, phone: d.phone, password: "" });
+    setForm({ name: d.name, email: d.email, phone: d.phone, password: "", role: d.role || "driver" });
     setModal(true);
   }
 
@@ -80,9 +83,9 @@ export default function Drivers() {
               </p>
             )}
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-              {d.role === "admin" && (
-                <span style={{ fontSize: 11, padding: "3px 8px", borderRadius: 6, fontWeight: 700, background: "#EEF2FF", color: NAVY }}>Admin</span>
-              )}
+              <span style={{ fontSize: 11, padding: "3px 8px", borderRadius: 6, fontWeight: 700, background: ROLE_COLORS[d.role]?.bg || "#F3F4F6", color: ROLE_COLORS[d.role]?.color || GRAY }}>
+                {ROLE_LABELS[d.role] || d.role}
+              </span>
               <span style={{ fontSize: 11, padding: "3px 8px", borderRadius: 6, fontWeight: 700, background: d.isActive ? "#D1FAE5" : "#FEE2E2", color: d.isActive ? "#065F46" : "#991B1B" }}>
                 {d.isActive ? "ทำงาน" : "หยุดพัก"}
               </span>
@@ -118,6 +121,20 @@ export default function Drivers() {
             {F("Email *", "email", "email")}
             {F("เบอร์โทร *", "phone", "tel")}
             {F("รหัสผ่าน" + (editId ? " (ว่าง = ไม่เปลี่ยน)" : " *"), "password", "password", editId ? "ปล่อยว่างถ้าไม่ต้องการเปลี่ยน" : "")}
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ fontSize: 11, color: GRAY, display: "block", marginBottom: 6, fontWeight: 700 }}>ตำแหน่ง / สิทธิ์การเข้าถึง</label>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                {Object.entries(ROLE_LABELS).map(([val, label]) => (
+                  <button key={val} onClick={() => setForm(f => ({ ...f, role: val }))}
+                    style={{ padding: "7px 12px", borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: "pointer",
+                      border: `2px solid ${form.role === val ? NAVY : "#E5E7EB"}`,
+                      background: form.role === val ? NAVY : WHITE,
+                      color: form.role === val ? WHITE : "#374151" }}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
             <button onClick={save} style={{ width: "100%", padding: 12, borderRadius: 10, border: "none", background: NAVY, color: WHITE, fontWeight: 800, fontSize: 14, cursor: "pointer" }}>
               {editId ? "บันทึก" : "เพิ่มพนักงาน"}
             </button>

@@ -8,7 +8,7 @@ const User = sequelize.define("User", {
   email:        { type: DataTypes.STRING(150), unique: true },
   phone:        { type: DataTypes.STRING(20) },
   passwordHash: { type: DataTypes.STRING(255), allowNull: false },
-  role:         { type: DataTypes.ENUM("admin", "driver"), defaultValue: "driver" },
+  role:         { type: DataTypes.ENUM("admin", "driver", "both"), defaultValue: "driver" },
   isActive:     { type: DataTypes.BOOLEAN, defaultValue: true },
   lastLocation: { type: DataTypes.JSONB },
 }, { tableName: "users", underscored: true });

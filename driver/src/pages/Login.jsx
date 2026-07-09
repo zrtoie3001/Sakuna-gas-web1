@@ -15,7 +15,7 @@ export default function Login() {
     e.preventDefault(); setLoad(true); setError("");
     try {
       const { data } = await api.post("/api/v1/auth/login", { email, password: pass });
-      if (data.user.role !== "driver") { setError("บัญชีนี้ไม่ใช่พนักงานส่ง"); return; }
+      if (data.user.role !== "driver" && data.user.role !== "both") { setError("บัญชีนี้ไม่ใช่พนักงานส่ง"); return; }
       localStorage.setItem("driver_token", data.token);
       localStorage.setItem("driver_user", JSON.stringify(data.user));
       navigate("/");
