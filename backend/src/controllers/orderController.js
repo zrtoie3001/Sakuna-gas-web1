@@ -27,21 +27,20 @@ async function createOrder(req, res) { try {
   const brand = await Brand.findByPk(brandId);
   if (!brand || !brand.isActive) return res.status(400).json({ error: "Brand not found" });
 
-  // Distance & zone
-  const { distanceKm, durationMins } = await getDeliveryInfo(deliveryLat, deliveryLng);
-
-  // Determine zone
-  const zones = await DeliveryZone.findAll({ where: { isActive: true }, order: [["maxKm", "ASC"]] });
-  let zone = null;
-  let deliveryFee = 0;
-  for (const z of zones) {
-    if (distanceKm <= z.maxKm) {
-      zone = z;
-      deliveryFee = 0; // ไม่คิดค่าส่งตอนนี้
-      break;
+  // Distance & zone (skip when admin creates order without coordinates)
+  let distanceKm = 0, zone = null, deliveryFee = 0;
+  if (deliveryLat && deliveryLng) {
+    const info = await getDeliveryInfo(deliveryLat, deliveryLng);
+    distanceKm = info.distanceKm;
+    const zones = await DeliveryZone.findAll({ where: { isActive: true }, order: [["maxKm", "ASC"]] });
+    for (const z of zones) {
+      if (distanceKm <= z.maxKm) { zone = z; break; }
     }
+    if (!zone) return res.status(400).json({ error: "ที่อยู่อยู่นอกพื้นที่จัดส่ง" });
+  } else {
+    // Admin-created order: use first zone as default
+    zone = (await DeliveryZone.findOne({ where: { isActive: true }, order: [["maxKm", "ASC"]] })) || { name: "admin" };
   }
-  if (!zone) return res.status(400).json({ error: "ที่อยู่อยู่นอกพื้นที่จัดส่ง" });
 
   // Price
   let unitPrice = Number(product.homePrice);
@@ -72,32 +71,42 @@ async function createOrder(req, res) { try {
 
   const total = subtotal + deliveryFee - discountAmount;
 
-  // Upsert customer
-  let customer = await Customer.findOne({ where: { lineUserId } });
-  if (!customer) {
-    customer = await Customer.create({ lineUserId, name: customerName, phone: customerPhone });
-  } else {
-    await customer.update({ name: customerName, phone: customerPhone, totalOrders: customer.totalOrders + 1 });
+  // Upsert customer (lineUserId may be absent for admin-created orders)
+  let customer = null;
+  if (lineUserId) {
+    customer = await Customer.findOne({ where: { lineUserId } });
+    if (!customer) {
+      customer = await Customer.create({ lineUserId, name: customerName, phone: customerPhone });
+    } else {
+      await customer.update({ name: customerName, phone: customerPhone, totalOrders: customer.totalOrders + 1 });
+    }
+  } else if (customerPhone) {
+    customer = await Customer.findOne({ where: { phone: customerPhone } });
+    if (!customer) {
+      customer = await Customer.create({ name: customerName || "ลูกค้าทั่วไป", phone: customerPhone });
+    }
   }
 
-  // Save address
-  const existingAddr = await DeliveryAddress.findOne({
-    where: { customerId: customer.id, address: deliveryAddress },
-  });
-  if (!existingAddr) {
-    await DeliveryAddress.create({
-      customerId: customer.id,
-      address: deliveryAddress,
-      lat: deliveryLat,
-      lng: deliveryLng,
+  // Save address (only if customer record exists)
+  if (customer && deliveryAddress) {
+    const existingAddr = await DeliveryAddress.findOne({
+      where: { customerId: customer.id, address: deliveryAddress },
     });
+    if (!existingAddr) {
+      await DeliveryAddress.create({
+        customerId: customer.id,
+        address: deliveryAddress,
+        lat: deliveryLat,
+        lng: deliveryLng,
+      });
+    }
   }
 
   const offHours = !isOpen();
 
   const order = await Order.create({
     orderNumber: generateOrderNumber(),
-    customerId: customer.id,
+    customerId: customer?.id || null,
     brandId,
     productId,
     qty,
