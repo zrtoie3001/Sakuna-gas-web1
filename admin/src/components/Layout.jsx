@@ -12,7 +12,6 @@ function getAudioCtx() {
   return _audioCtx;
 }
 
-// Call once on any user click to unlock audio
 function unlockAudio() {
   try { getAudioCtx(); } catch {}
 }
@@ -34,6 +33,21 @@ function playBeep(type = "new") {
       o.stop(ctx.currentTime + t + d + 0.05);
     });
   } catch {}
+}
+
+function requestNotifPermission() {
+  if ("Notification" in window && Notification.permission === "default") {
+    Notification.requestPermission();
+  }
+}
+
+function showNotif(title, body) {
+  // OS notification — works even when tab is in background
+  if ("Notification" in window && Notification.permission === "granted") {
+    try {
+      new Notification(title, { body, icon: "/images/Logo Sanuka.png", tag: "order-alert", renotify: true });
+    } catch {}
+  }
 }
 
 const NAVY   = "#1A2B6B";
@@ -62,8 +76,15 @@ export default function Layout() {
   const [pwForm, setPwForm]     = useState({ current: "", next: "", confirm: "" });
   const [globalQ, setGlobalQ]   = useState("");
   const knownOrders = useRef(null);
+  const [notifDenied, setNotifDenied] = useState(
+    "Notification" in window && Notification.permission === "default"
+  );
 
   useEffect(() => {
+    if ("Notification" in window && Notification.permission === "default") {
+      Notification.requestPermission().then(p => { if (p === "granted") setNotifDenied(false); });
+    }
+
     async function checkOrders() {
       try {
         const r = await api.get("/api/v1/orders?limit=50");
@@ -75,8 +96,15 @@ export default function Layout() {
         orders.forEach(o => {
           if (!knownOrders.current.has(o.id)) {
             playBeep("new");
+            showNotif("🔥 ออเดอร์ใหม่!", `${o.customerName || "ลูกค้า"} · ${o.product?.name || ""} ฿${Number(o.total).toLocaleString()}`);
           } else if (knownOrders.current.get(o.id) !== o.status) {
-            if (["out_for_delivery", "delivered"].includes(o.status)) playBeep("update");
+            if (o.status === "delivered") {
+              playBeep("update");
+              showNotif("✅ ส่งสำเร็จ", `${o.orderNumber} · ${o.customerName || ""}`);
+            } else if (o.status === "out_for_delivery") {
+              playBeep("update");
+              showNotif("🛵 กำลังส่ง", `${o.orderNumber} · ${o.driver?.name || ""}`);
+            }
           }
           knownOrders.current.set(o.id, o.status);
         });
@@ -202,6 +230,18 @@ export default function Layout() {
             Admin: {user.name}
           </span>
         </div>
+
+        {/* Notification permission banner */}
+        {notifDenied && (
+          <div style={{ background: "#FEF3C7", borderBottom: "1px solid #FCD34D", padding: "8px 20px", display: "flex", alignItems: "center", gap: 10, fontSize: 13 }}>
+            <span>🔔 เปิดการแจ้งเตือนเพื่อรับแจ้งเตือนออเดอร์แม้ไม่ได้อยู่หน้าเว็บ</span>
+            <button onClick={() => Notification.requestPermission().then(p => { if (p === "granted") setNotifDenied(false); })}
+              style={{ padding: "4px 12px", borderRadius: 6, border: "none", background: "#F59E0B", color: "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer" }}>
+              อนุญาต
+            </button>
+            <button onClick={() => setNotifDenied(false)} style={{ marginLeft: "auto", background: "none", border: "none", fontSize: 16, color: "#92400E", cursor: "pointer" }}>✕</button>
+          </div>
+        )}
 
         {/* Content */}
         <div style={{ flex: 1, padding: "20px", overflowY: "auto" }}>
