@@ -26,12 +26,16 @@ async function createDriver(req, res) {
 }
 
 async function updateDriver(req, res) {
-  const driver = await User.findByPk(req.params.id);
-  if (!driver) return res.status(404).json({ error: "Not found" });
-  const { password, ...data } = req.body;
-  if (password) data.passwordHash = await bcrypt.hash(password, 12);
-  await driver.update(data);
-  res.json({ id: driver.id, name: driver.name, isActive: driver.isActive });
+  try {
+    const driver = await User.findByPk(req.params.id);
+    if (!driver) return res.status(404).json({ error: "Not found" });
+    const { password, ...data } = req.body;
+    if (password) data.passwordHash = await bcrypt.hash(password, 12);
+    await driver.update(data);
+    res.json({ id: driver.id, name: driver.name, isActive: driver.isActive, role: driver.role });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
 }
 
 async function getMyOrders(req, res) {
