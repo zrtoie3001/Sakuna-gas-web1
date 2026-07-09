@@ -100,10 +100,13 @@ export default function Orders() {
   }
 
   function printReceipt(o) {
-    const dateStr   = new Date(o.createdAt).toLocaleDateString("th-TH", { dateStyle: "short" });
+    const d = new Date(o.createdAt);
+    const dateStr = d.toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" });
+    const timeStr = d.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
     const discount  = Number(o.discountAmount || 0);
     const subtotal  = Number(o.total) + discount;
     const unitPrice = o.qty > 0 ? Math.round(subtotal / o.qty) : 0;
+    const payLabel  = o.paymentMethod === "cash" ? "เงินสด" : o.paymentMethod === "qr" ? "QR โอน" : "เก็บปลายทาง";
     const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
 <title>ใบเสร็จ ${o.orderNumber}</title>
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;700;800&display=swap" rel="stylesheet">
@@ -121,19 +124,22 @@ export default function Orders() {
   @media print { body { margin:0; } @page { margin:0; size:80mm auto; } }
 </style></head><body>
 
-<div class="center bold" style="font-size:28px; font-weight:800; letter-spacing:1px; margin-bottom:6px;">สกุณาแก๊ส</div>
-<div class="center" style="font-size:12px; margin-bottom:2px;">39 ซอยพหลโยธิน 48 แขวงท่าแร้ง เขตบางเขน กทม. 10220</div>
-<div class="center" style="font-size:12px; margin-bottom:6px;">097-121-3054, 092-631-4331, 02-970-9385</div>
+<div class="center bold" style="font-size:30px; font-weight:900; letter-spacing:2px; margin-bottom:4px;">🔥 สกุณาแก๊ส</div>
+<div class="center" style="font-size:11px; color:#333; margin-bottom:2px;">โทร 097-121-3054 | 092-631-4331 | 02-970-9385</div>
+<div class="center" style="font-size:11px; color:#333; margin-bottom:6px;">39 ซอยพหลโยธิน 48 แขวงท่าแร้ง เขตบางเขน กทม. 10220</div>
 <div class="solid"></div>
 
 <table style="margin-bottom:8px;">
   <tr>
-    <td style="width:50%;">ลูกค้า ${o.customerName || ""}</td>
-    <td style="width:50%; text-align:right;">วันที่ ${dateStr}</td>
+    <td style="width:55%; font-weight:700;">ลูกค้า: ${o.customerName || "ลูกค้าทั่วไป"}</td>
+    <td style="width:45%; text-align:right; font-size:11px;">วันที่ ${dateStr}</td>
   </tr>
-  <tr><td colspan="2">เลขออเดอร์: ${o.orderNumber}</td></tr>
-  <tr><td colspan="2">เบอร์โทร ${o.customerPhone || "-"}</td></tr>
-  <tr><td colspan="2" style="word-break:break-word;">ที่อยู่ ${o.deliveryAddress || "-"}</td></tr>
+  <tr>
+    <td style="font-size:11px; padding-top:2px;">เลขออเดอร์: <b>${o.orderNumber}</b></td>
+    <td style="text-align:right; font-size:11px; padding-top:2px;">เวลา ${timeStr} น.</td>
+  </tr>
+  <tr><td colspan="2" style="padding-top:3px; font-size:11px;">📞 ${o.customerPhone || "-"} &nbsp;|&nbsp; 💳 ${payLabel}</td></tr>
+  <tr><td colspan="2" style="word-break:break-word; font-size:11px; padding-top:2px;">📍 ${o.deliveryAddress || "-"}</td></tr>
 </table>
 <div class="dash"></div>
 
