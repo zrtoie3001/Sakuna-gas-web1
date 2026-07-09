@@ -216,15 +216,15 @@ export default function Orders() {
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;700;800&display=swap" rel="stylesheet">
 <style>
   * { margin:0; padding:0; box-sizing:border-box; }
-  body { font-family: 'Sarabun', 'TH Sarabun New', sans-serif; width: 80mm; padding: 10px 10px 16px; font-size: 13px; color: #000; }
+  body { font-family: 'Sarabun', 'TH Sarabun New', sans-serif; width: 80mm; padding: 10px 10px 16px; font-size: 14px; font-weight: 700; color: #000; }
   .center { text-align: center; }
   .right  { text-align: right; }
-  .bold   { font-weight: 700; }
+  .bold   { font-weight: 900; }
   .solid  { border-top: 1.5px solid #000; margin: 8px 0; }
   .dash   { border-top: 1px dashed #000; margin: 8px 0; }
   .double { border-top: 3px double #000; margin-top: 2px; }
   table { width: 100%; border-collapse: collapse; }
-  td, th { padding: 3px 2px; font-size: 13px; }
+  td, th { padding: 3px 2px; font-size: 13px; font-weight: 700; }
   @media print { body { margin:0; } @page { margin:0; size:80mm auto; } }
 </style></head><body>
 <div class="center bold" style="font-size:30px; font-weight:900; letter-spacing:2px; margin-bottom:4px;">🔥 สกุณาแก๊ส</div>
