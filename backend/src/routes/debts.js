@@ -22,7 +22,12 @@ router.get("/", async (req, res) => {
 
 router.post("/", async (req, res) => {
   try {
-    const debt = await Debt.create(req.body);
+    const body = { ...req.body };
+    if (body.amount === "" || body.amount === null) body.amount = 0;
+    if (body.tankQty === "" || body.tankQty === null) body.tankQty = 0;
+    body.amount  = Number(body.amount)  || 0;
+    body.tankQty = Number(body.tankQty) || 0;
+    const debt = await Debt.create(body);
     res.status(201).json(debt);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
