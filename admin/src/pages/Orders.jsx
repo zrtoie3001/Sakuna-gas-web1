@@ -17,7 +17,7 @@ const STATUSES = [
   { key: "cancelled",         label: "ยกเลิก",         bg: "#FEE2E2", color: "#991B1B" },
 ];
 
-const EMPTY_ORDER = { customerName: "", customerPhone: "", brandId: "", productId: "", qty: 1, paymentMethod: "cash", deliveryAddress: "", note: "" };
+const EMPTY_ORDER = { customerName: "", customerPhone: "", brandId: "", productId: "", qty: 1, paymentMethod: "cash", deliveryAddress: "", note: "", orderType: "gas" };
 
 function ExtraItemPicker({ equipList, onAdd }) {
   const [id, setId] = useState("");
@@ -90,11 +90,31 @@ export default function Orders() {
   }, []);
 
   async function createOrder() {
-    if (!createForm.deliveryAddress || !createForm.brandId || !createForm.productId)
-      return alert("กรุณากรอกที่อยู่จัดส่ง ยี่ห้อ และน้ำหนัก");
     setCreating(true);
     try {
-      await api.post("/api/v1/orders", { ...createForm, qty: Number(createForm.qty) || 1 });
+      if (createForm.orderType === "new_tank") {
+        const stock = gasStocks.find(s => s.id === createForm.newTankStockId);
+        if (!stock) return alert("กรุณาเลือกยี่ห้อและน้ำหนัก");
+        if (!createForm.newTankPrice) return alert("กรุณาใส่ราคา");
+        if (!createForm.deliveryAddress) return alert("กรุณากรอกที่อยู่จัดส่ง");
+        await api.post("/api/v1/orders/walkin", {
+          type: "new_tank",
+          customerName: createForm.customerName,
+          customerPhone: createForm.customerPhone,
+          paymentMethod: createForm.paymentMethod,
+          note: createForm.note,
+          brandName: stock.brandName,
+          weightKg: stock.weightKg,
+          qty: Number(createForm.qty || 1),
+          price: Number(createForm.newTankPrice),
+          deliveryAddress: createForm.deliveryAddress,
+          orderStatus: "pending",
+        });
+      } else {
+        if (!createForm.deliveryAddress || !createForm.brandId || !createForm.productId)
+          return alert("กรุณากรอกที่อยู่จัดส่ง ยี่ห้อ และน้ำหนัก");
+        await api.post("/api/v1/orders", { ...createForm, qty: Number(createForm.qty) || 1 });
+      }
       setShowCreate(false); setCreateForm(EMPTY_ORDER); fetch();
     } catch (e) { alert(e.response?.data?.error || "เกิดข้อผิดพลาด"); }
     finally { setCreating(false); }
@@ -620,6 +640,17 @@ export default function Orders() {
               <h2 style={{ fontSize: 16, fontWeight: 800, color: NAVY }}>📞 เพิ่มออเดอร์ (ลูกค้าโทรสั่ง)</h2>
               <button onClick={() => setShowCreate(false)} style={{ background: "none", border: "none", fontSize: 20, color: GRAY, cursor: "pointer" }}>✕</button>
             </div>
+
+            {/* Type toggle */}
+            <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+              {[["gas","⛽ ถังแก๊ส"],["new_tank","🆕 ถังใหม่"]].map(([k, label]) => (
+                <button key={k} onClick={() => setCreateForm(f => ({ ...f, orderType: k }))} style={{
+                  flex: 1, padding: "8px", borderRadius: 8, border: "none", fontSize: 13, fontWeight: 700, cursor: "pointer",
+                  background: createForm.orderType === k ? NAVY : "#F3F4F6", color: createForm.orderType === k ? WHITE : GRAY,
+                }}>{label}</button>
+              ))}
+            </div>
+
             {[
               ["ชื่อลูกค้า", "customerName", "text"],
               ["เบอร์โทร", "customerPhone", "tel"],
@@ -632,26 +663,69 @@ export default function Orders() {
                   style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 14, boxSizing: "border-box" }} />
               </div>
             ))}
-            <div style={{ display: "flex", gap: 12, marginBottom: 12 }}>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>ยี่ห้อ *</div>
-                <select value={createForm.brandId} onChange={e => setCreateForm(f => ({ ...f, brandId: e.target.value, productId: "" }))}
-                  style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 14, boxSizing: "border-box" }}>
-                  <option value="">-- เลือก --</option>
-                  {brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-                </select>
+
+            {createForm.orderType === "gas" ? (
+              <div style={{ display: "flex", gap: 12, marginBottom: 12 }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>ยี่ห้อ *</div>
+                  <select value={createForm.brandId} onChange={e => setCreateForm(f => ({ ...f, brandId: e.target.value, productId: "" }))}
+                    style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 14, boxSizing: "border-box" }}>
+                    <option value="">-- เลือก --</option>
+                    {brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                  </select>
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>น้ำหนัก *</div>
+                  <select value={createForm.productId} onChange={e => setCreateForm(f => ({ ...f, productId: e.target.value }))}
+                    style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 14, boxSizing: "border-box" }}>
+                    <option value="">-- เลือก --</option>
+                    {products.map(p => (
+                      <option key={p.id} value={p.id}>{p.name} — ฿{Number(p.price).toLocaleString()}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>น้ำหนัก *</div>
-                <select value={createForm.productId} onChange={e => setCreateForm(f => ({ ...f, productId: e.target.value }))}
-                  style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 14, boxSizing: "border-box" }}>
-                  <option value="">-- เลือก --</option>
-                  {products.map(p => (
-                    <option key={p.id} value={p.id}>{p.name} — ฿{Number(p.price).toLocaleString()}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
+            ) : (() => {
+              const ntBrands = [...new Set(gasStocks.map(s => s.brandName))].sort();
+              const ntWeights = [...new Set(gasStocks.filter(s => !createForm.ntBrand || s.brandName === createForm.ntBrand).map(s => Number(s.weightKg)))].sort((a,b)=>a-b);
+              const ntStock = gasStocks.find(s => s.brandName === createForm.ntBrand && Number(s.weightKg) === Number(createForm.ntWeight));
+              return (
+                <>
+                  <div style={{ display: "flex", gap: 12, marginBottom: 12 }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>ยี่ห้อ *</div>
+                      <select value={createForm.ntBrand || ""} onChange={e => setCreateForm(f => ({ ...f, ntBrand: e.target.value, ntWeight: "", newTankStockId: "" }))}
+                        style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 14, boxSizing: "border-box" }}>
+                        <option value="">-- เลือก --</option>
+                        {ntBrands.map(b => <option key={b} value={b}>{b}</option>)}
+                      </select>
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>น้ำหนัก *</div>
+                      <select value={createForm.ntWeight || ""} onChange={e => {
+                        const w = e.target.value;
+                        const s = gasStocks.find(x => x.brandName === createForm.ntBrand && Number(x.weightKg) === Number(w));
+                        setCreateForm(f => ({ ...f, ntWeight: w, newTankStockId: s?.id || "" }));
+                      }} style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 14, boxSizing: "border-box" }}>
+                        <option value="">-- เลือก --</option>
+                        {ntWeights.map(w => <option key={w} value={w}>{w} กก.</option>)}
+                      </select>
+                    </div>
+                  </div>
+                  {ntStock && (
+                    <div style={{ background: "#F0FDF4", borderRadius: 8, padding: "8px 12px", marginBottom: 12, fontSize: 13, color: "#166534" }}>
+                      ถังใหม่ในสต็อก: <strong>{ntStock.newTank} ถัง</strong>
+                    </div>
+                  )}
+                  <div style={{ marginBottom: 12 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>ราคา (บาท) *</div>
+                    <input type="number" value={createForm.newTankPrice || ""} onChange={e => setCreateForm(f => ({ ...f, newTankPrice: e.target.value }))}
+                      style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 14, boxSizing: "border-box" }} />
+                  </div>
+                </>
+              );
+            })()}
+
             <div style={{ display: "flex", gap: 12, marginBottom: 16 }}>
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>จำนวน (ถัง)</div>

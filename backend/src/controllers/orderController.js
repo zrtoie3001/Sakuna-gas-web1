@@ -227,7 +227,8 @@ async function acceptOrder(req, res) {
 async function createWalkinOrder(req, res) {
   try {
     const { type, customerName, customerPhone, paymentMethod, note,
-            brandName, weightKg, qty, price, items } = req.body;
+            brandName, weightKg, qty, price, items,
+            deliveryAddress: customAddress, orderStatus } = req.body;
 
     const { GasStock, Equipment, EquipmentSale } = require("../models");
     const q = Number(qty) || 1;
@@ -269,7 +270,7 @@ async function createWalkinOrder(req, res) {
       orderNumber: generateOrderNumber(),
       customerName: customerName || "ลูกค้าหน้าร้าน",
       customerPhone: customerPhone || null,
-      deliveryAddress: "หน้าร้าน",
+      deliveryAddress: customAddress || "หน้าร้าน",
       paymentMethod: paymentMethod || "cash",
       qty: q,
       unitPrice: (type === "gas" || type === "new_tank") ? Number(price) : total,
@@ -278,7 +279,7 @@ async function createWalkinOrder(req, res) {
       discountAmount: 0,
       total,
       note: walkinNote,
-      status: "delivered",
+      status: orderStatus || "delivered",
     });
 
     res.status(201).json(order);
