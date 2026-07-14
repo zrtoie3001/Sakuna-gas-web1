@@ -18,41 +18,7 @@ const upload = multer({
 // Walk-in sale (admin)
 router.post("/walkin", requireAuth, createWalkinOrder);
 
-// Customer (no auth — identified by lineUserId in body)
-router.post("/", createOrder);
-router.get("/:id", getOrderById);
-
-// Upload slip (customer)
-router.post("/:id/slip", upload.single("slip"), async (req, res) => {
-  const { Order } = require("../models");
-  const order = await Order.findByPk(req.params.id);
-  if (!order) return res.status(404).json({ error: "Not found" });
-  await order.update({ slipUrl: `/uploads/${req.file.filename}` });
-  res.json({ slipUrl: order.slipUrl });
-});
-
-// Customer confirms QR payment — notify admin via LINE
-router.post("/:id/payment-confirmed", async (req, res) => {
-  try {
-    const order = await Order.findByPk(req.params.id, {
-      include: [
-        { model: Brand, as: "brand" },
-        { model: Product, as: "product" },
-        { model: Customer, as: "customer" },
-      ],
-    });
-    if (!order) return res.status(404).json({ error: "Not found" });
-    // Notify admin
-    notifyAdminPaymentConfirmed(order).catch(() => {});
-    // Send confirmation back to customer's LINE chat
-    if (order.customer?.lineUserId) {
-      sendPaymentReceivedToCustomer(order.customer.lineUserId, order).catch(() => {});
-    }
-    res.json({ ok: true });
-  } catch (e) { res.status(500).json({ error: e.message }); }
-});
-
-// Customer name suggestions from order history (for autocomplete)
+// Customer name suggestions — MUST be before /:id
 router.get("/customer-suggestions", requireAuth, async (req, res) => {
   try {
     const { q = "" } = req.query;
@@ -64,34 +30,62 @@ router.get("/customer-suggestions", requireAuth, async (req, res) => {
         { customerPhone: { [Op.iLike]: `%${q}%` } },
       ],
     } : {};
-    // Distinct customer_name + customer_phone combos from orders
     const rows = await Order.findAll({
-      attributes: [
-        [sequelize.fn("DISTINCT", sequelize.col("customer_name")), "customerName"],
-        "customerPhone", "deliveryAddress",
-      ],
+      attributes: ["customerName", "customerPhone", "deliveryAddress"],
       where: { ...where, customerName: { [Op.ne]: null } },
       order: [["createdAt", "DESC"]],
-      limit: 50,
+      limit: 100,
       raw: true,
     });
-    // Deduplicate by name
+    // Deduplicate by name (case-insensitive)
     const seen = new Set();
     const result = [];
     for (const r of rows) {
-      const key = (r.customerName || "").toLowerCase();
-      if (!seen.has(key)) { seen.add(key); result.push(r); }
+      const key = (r.customerName || "").trim().toLowerCase();
+      if (key && !seen.has(key)) { seen.add(key); result.push(r); }
       if (result.length >= 10) break;
     }
     res.json(result);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// Staff
+// Staff list
 router.get("/", requireAuth, listOrders);
+
+// Customer (no auth)
+router.post("/", createOrder);
+router.get("/:id", getOrderById);
+
+// Upload slip (customer)
+router.post("/:id/slip", upload.single("slip"), async (req, res) => {
+  const order = await Order.findByPk(req.params.id);
+  if (!order) return res.status(404).json({ error: "Not found" });
+  await order.update({ slipUrl: `/uploads/${req.file.filename}` });
+  res.json({ slipUrl: order.slipUrl });
+});
+
+// Customer confirms QR payment
+router.post("/:id/payment-confirmed", async (req, res) => {
+  try {
+    const order = await Order.findByPk(req.params.id, {
+      include: [
+        { model: Brand, as: "brand" },
+        { model: Product, as: "product" },
+        { model: Customer, as: "customer" },
+      ],
+    });
+    if (!order) return res.status(404).json({ error: "Not found" });
+    notifyAdminPaymentConfirmed(order).catch(() => {});
+    if (order.customer?.lineUserId) {
+      sendPaymentReceivedToCustomer(order.customer.lineUserId, order).catch(() => {});
+    }
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Staff actions
 router.put("/:id/status", requireAuth, updateStatus);
 router.put("/:id/payment", requireAuth, async (req, res) => {
-  const { Order } = require("../models");
   const { paymentMethod } = req.body;
   if (!["cash","qr","cod"].includes(paymentMethod)) return res.status(400).json({ error: "Invalid payment method" });
   const order = await Order.findByPk(req.params.id);

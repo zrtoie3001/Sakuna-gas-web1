@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import api from "../utils/api.js";
 import qrBase64 from "../assets/qrBase64.js";
 
@@ -22,36 +22,38 @@ const EMPTY_ORDER = { customerName: "", customerPhone: "", brandId: "", productI
 function CustomerAutocomplete({ value, onChange, onSelect, placeholder }) {
   const [open, setOpen] = useState(false);
   const [suggestions, setSuggestions] = useState([]);
-  const timerRef = useState(null);
+  const timer = useRef(null);
 
   function search(q) {
-    if (!q) { setSuggestions([]); return; }
-    clearTimeout(timerRef[0]);
-    timerRef[0] = setTimeout(async () => {
+    clearTimeout(timer.current);
+    if (!q || q.length < 1) { setSuggestions([]); return; }
+    timer.current = setTimeout(async () => {
       try {
-        const r = await import("../utils/api.js").then(m => m.default.get(`/api/v1/orders/customer-suggestions?q=${encodeURIComponent(q)}`));
+        const { default: api } = await import("../utils/api.js");
+        const r = await api.get(`/api/v1/orders/customer-suggestions?q=${encodeURIComponent(q)}`);
         setSuggestions(r.data || []);
+        setOpen(true);
       } catch {}
-    }, 200);
+    }, 250);
   }
 
   return (
     <div style={{ position: "relative" }}>
       <input
         value={value}
-        onChange={e => { onChange(e.target.value); search(e.target.value); setOpen(true); }}
-        onFocus={() => { if (value) { search(value); setOpen(true); } }}
-        onBlur={() => setTimeout(() => setOpen(false), 180)}
+        onChange={e => { onChange(e.target.value); search(e.target.value); }}
+        onBlur={() => setTimeout(() => setOpen(false), 200)}
         placeholder={placeholder || "ไม่ระบุได้"}
         style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 14, boxSizing: "border-box" }}
       />
       {open && suggestions.length > 0 && (
-        <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: "#fff", border: "2px solid #E5E7EB", borderRadius: 8, zIndex: 1000, maxHeight: 200, overflowY: "auto", boxShadow: "0 4px 12px rgba(0,0,0,.15)" }}>
+        <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: "#fff", border: "2px solid #E5E7EB", borderRadius: 8, zIndex: 9999, maxHeight: 220, overflowY: "auto", boxShadow: "0 4px 16px rgba(0,0,0,.18)" }}>
           {suggestions.map((c, i) => (
             <div key={i} onMouseDown={() => { onSelect(c); setOpen(false); setSuggestions([]); }}
-              style={{ padding: "8px 12px", fontSize: 13, cursor: "pointer", borderBottom: "1px solid #F3F4F6" }}>
-              <strong>{c.customerName || c.name}</strong>
-              {(c.customerPhone || c.phone) && <span style={{ color: "#6B7280", marginLeft: 6 }}>· {c.customerPhone || c.phone}</span>}
+              style={{ padding: "10px 14px", fontSize: 14, cursor: "pointer", borderBottom: "1px solid #F3F4F6", background: "#fff" }}>
+              <strong style={{ color: "#1A2B6B" }}>{c.customerName}</strong>
+              {c.customerPhone && <span style={{ color: "#6B7280", marginLeft: 8 }}>· {c.customerPhone}</span>}
+              {c.deliveryAddress && <div style={{ fontSize: 11, color: "#9CA3AF", marginTop: 2 }}>📍 {c.deliveryAddress}</div>}
             </div>
           ))}
         </div>
