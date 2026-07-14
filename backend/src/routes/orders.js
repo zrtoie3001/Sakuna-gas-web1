@@ -64,6 +64,14 @@ router.put("/:id/payment", requireAuth, async (req, res) => {
   await order.update({ paymentMethod });
   res.json({ ok: true });
 });
+router.patch("/:id/paid", requireAuth, async (req, res) => {
+  try {
+    const order = await Order.findByPk(req.params.id);
+    if (!order) return res.status(404).json({ error: "Not found" });
+    await order.update({ isPaid: !order.isPaid });
+    res.json({ isPaid: order.isPaid });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
 router.post("/:id/accept", requireAuth, requireRole("driver", "admin"), acceptOrder);
 
 module.exports = router;

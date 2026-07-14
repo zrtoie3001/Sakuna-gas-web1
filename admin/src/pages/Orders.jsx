@@ -101,6 +101,7 @@ export default function Orders() {
   const [equipList, setEquipList]   = useState([]);
   const [extraItems, setExtraItems] = useState({}); // { [orderId]: [{id, name, qty, price}] }
   const [customers, setCustomers] = useState([]);
+  const [createCustAddrs, setCreateCustAddrs] = useState([]); // addresses of selected customer in create modal
 
   const fetch = useCallback(async () => {
     const params = new URLSearchParams({ page, limit: 20 });
@@ -361,6 +362,12 @@ export default function Orders() {
     if (selected?.id === orderId) setSelected(s => ({ ...s, status }));
   }
 
+  async function togglePaid(orderId) {
+    const { data } = await api.patch(`/api/v1/orders/${orderId}/paid`);
+    setOrders(prev => prev.map(o => o.id === orderId ? { ...o, isPaid: data.isPaid } : o));
+    if (selected?.id === orderId) setSelected(s => ({ ...s, isPaid: data.isPaid }));
+  }
+
   const st = (key) => STATUSES.find(s => s.key === key) || STATUSES[0];
 
   return (
@@ -400,9 +407,14 @@ export default function Orders() {
                 transition: "background .1s",
               }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 3 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 3, flexWrap: "wrap" }}>
                     <span style={{ fontSize: 13, fontWeight: 800, color: ORANGE }}>{o.orderNumber}</span>
                     <span style={{ fontSize: 11, background: s.bg, color: s.color, padding: "2px 6px", borderRadius: 6, fontWeight: 700 }}>{s.label}</span>
+                    <span onClick={e => { e.stopPropagation(); togglePaid(o.id); }} style={{
+                      fontSize: 11, padding: "2px 7px", borderRadius: 6, fontWeight: 700, cursor: "pointer",
+                      background: o.isPaid ? "#D1FAE5" : "#FEE2E2",
+                      color: o.isPaid ? "#065F46" : "#991B1B",
+                    }}>{o.isPaid ? "✅ จ่ายแล้ว" : "⏳ ยังไม่จ่าย"}</span>
                   </div>
                   <p style={{ fontSize: 12, color: NAVY }}>{o.customerName} · {o.customerPhone}</p>
                   <p style={{ fontSize: 12, color: GRAY }}>{o.product?.name} ×{o.qty} · ฿{Number(o.total).toLocaleString()}</p>
@@ -448,7 +460,12 @@ export default function Orders() {
         <div style={{ flex: "0 0 320px", background: WHITE, borderRadius: 14, padding: 20, boxShadow: "0 2px 12px rgba(0,0,0,.06)", alignSelf: "flex-start", position: "sticky", top: 80 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
             <h2 style={{ fontSize: 16, fontWeight: 900, color: NAVY }}>{selected.orderNumber}</h2>
-            <div style={{ display: "flex", gap: 8 }}>
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <button onClick={() => togglePaid(selected.id)} style={{
+                padding: "6px 10px", borderRadius: 8, border: "none", fontSize: 12, fontWeight: 700, cursor: "pointer",
+                background: selected.isPaid ? "#D1FAE5" : "#FEE2E2",
+                color: selected.isPaid ? "#065F46" : "#991B1B",
+              }}>{selected.isPaid ? "✅ จ่ายแล้ว" : "⏳ ยังไม่จ่าย"}</button>
               <button onClick={() => {
                 const ex = extraItems[selected.id] || [];
                 if (ex.length) printReceiptWithExtras(selected, ex);
@@ -726,21 +743,38 @@ export default function Orders() {
               <CustomerAutocomplete
                 value={createForm.customerName}
                 onChange={v => setCreateForm(f => ({ ...f, customerName: v }))}
-                onSelect={c => setCreateForm(f => ({ ...f, customerName: c.name || "", customerPhone: c.phone || "", deliveryAddress: f.deliveryAddress || c.lastAddress || "" }))}
+                onSelect={c => {
+                  setCreateCustAddrs(c.addresses || []);
+                  setCreateForm(f => ({ ...f, customerName: c.name || "", customerPhone: c.phone || "" }));
+                }}
                 customers={customers}
               />
             </div>
-            {[
-              ["เบอร์โทร", "customerPhone", "tel"],
-              ["ที่อยู่จัดส่ง *", "deliveryAddress", "text"],
-              ["หมายเหตุ", "note", "text"],
-            ].map(([label, key, type]) => (
-              <div key={key} style={{ marginBottom: 12 }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>{label}</div>
-                <input type={type} value={createForm[key]} onChange={e => setCreateForm(f => ({ ...f, [key]: e.target.value }))}
-                  style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 14, boxSizing: "border-box" }} />
-              </div>
-            ))}
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>เบอร์โทร</div>
+              <input type="tel" value={createForm.customerPhone} onChange={e => setCreateForm(f => ({ ...f, customerPhone: e.target.value }))}
+                style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 14, boxSizing: "border-box" }} />
+            </div>
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>ที่อยู่จัดส่ง *</div>
+              <input type="text" value={createForm.deliveryAddress} onChange={e => setCreateForm(f => ({ ...f, deliveryAddress: e.target.value }))}
+                style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 14, boxSizing: "border-box" }} />
+              {createCustAddrs.length > 0 && (
+                <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 4 }}>
+                  {createCustAddrs.map((a, i) => (
+                    <button key={i} onClick={() => setCreateForm(f => ({ ...f, deliveryAddress: a.address }))}
+                      style={{ padding: "6px 10px", borderRadius: 8, border: "2px solid #E5E7EB", background: "#F9FAFB", textAlign: "left", fontSize: 12, color: NAVY, cursor: "pointer" }}>
+                      📍 {a.address}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>หมายเหตุ</div>
+              <input type="text" value={createForm.note} onChange={e => setCreateForm(f => ({ ...f, note: e.target.value }))}
+                style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 14, boxSizing: "border-box" }} />
+            </div>
 
             {createForm.orderType === "gas" ? (
               <div style={{ display: "flex", gap: 12, marginBottom: 12 }}>

@@ -101,6 +101,7 @@ const PORT = process.env.PORT || 3001;
         updated_at TIMESTAMPTZ DEFAULT NOW()
       );
     `).catch(() => {});
+    await sequelize.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS is_paid BOOLEAN NOT NULL DEFAULT false;`).catch(() => {});
     logger.info("Migrations done");
 
     app.listen(PORT, () => logger.info(`API running on port ${PORT}`));
