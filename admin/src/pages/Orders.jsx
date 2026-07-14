@@ -379,7 +379,23 @@ export default function Orders() {
       </div>
 
       {/* Right: Detail */}
-      {selected && (
+      {selected && (() => {
+        // parse walkin note for display
+        let walkinData = null;
+        if (selected.note?.startsWith("__walkin:")) {
+          try { walkinData = JSON.parse(selected.note.replace(/^__walkin:/, "").split("\n")[0]); } catch {}
+        }
+        const displayBrand = selected.brand?.name || (walkinData?.brandName ?? "-");
+        const displayProduct = selected.product?.name
+          ? `${selected.product.name} ×${selected.qty}`
+          : walkinData
+            ? walkinData.type === "new_tank"
+              ? `🆕 ถังใหม่ ${walkinData.brandName} ${walkinData.weightKg}กก. ×${walkinData.qty}`
+              : walkinData.type === "gas"
+                ? `⛽ ${walkinData.brandName} ${walkinData.weightKg}กก. ×${walkinData.qty}`
+                : `อุปกรณ์ ×${selected.qty}`
+            : `${selected.product?.name || "-"} ×${selected.qty}`;
+        return (
         <div style={{ flex: "0 0 320px", background: WHITE, borderRadius: 14, padding: 20, boxShadow: "0 2px 12px rgba(0,0,0,.06)", alignSelf: "flex-start", position: "sticky", top: 80 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
             <h2 style={{ fontSize: 16, fontWeight: 900, color: NAVY }}>{selected.orderNumber}</h2>
@@ -397,8 +413,8 @@ export default function Orders() {
           </div>
 
           {[
-            ["🏷 ยี่ห้อ",   selected.brand?.name],
-            ["🛢 สินค้า",   `${selected.product?.name} ×${selected.qty}`],
+            ["🏷 ยี่ห้อ",   displayBrand],
+            ["🛢 สินค้า",   displayProduct],
             ["👤 ลูกค้า",   selected.customerName],
             ["📞 โทร",      selected.customerPhone],
             ["📍 ที่อยู่",  selected.deliveryAddress],
@@ -482,7 +498,8 @@ export default function Orders() {
             }))} />
           </div>
         </div>
-      )}
+        );
+      })()}
 
       {/* Walk-in sale modal */}
       {showWalkin && (
