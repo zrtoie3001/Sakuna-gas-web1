@@ -227,6 +227,23 @@ const EquipmentSale = sequelize.define("EquipmentSale", {
 Equipment.hasMany(EquipmentSale, { foreignKey: "equipmentId", as: "sales" });
 EquipmentSale.belongsTo(Equipment, { foreignKey: "equipmentId", as: "equipment" });
 
+// ── Debt (ค้างเงิน / ค้างถัง) ─────────────────────────────────────────────────
+const Debt = sequelize.define("Debt", {
+  id:             { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+  customerName:   { type: DataTypes.STRING(100), allowNull: false },
+  customerPhone:  { type: DataTypes.STRING(20) },
+  type:           { type: DataTypes.ENUM("money", "tank", "both"), allowNull: false },
+  amount:         { type: DataTypes.DECIMAL(10, 2), defaultValue: 0 },
+  tankQty:        { type: DataTypes.INTEGER, defaultValue: 0 },
+  tankDesc:       { type: DataTypes.STRING(100) },
+  note:           { type: DataTypes.TEXT },
+  isPaid:         { type: DataTypes.BOOLEAN, defaultValue: false },
+  paidAt:         { type: DataTypes.DATE },
+  tankReturned:   { type: DataTypes.BOOLEAN, defaultValue: false },
+  tankReturnedAt: { type: DataTypes.DATE },
+  orderId:        { type: DataTypes.UUID },
+}, { tableName: "debts", underscored: true });
+
 module.exports = {
   sequelize,
   User,
@@ -245,4 +262,5 @@ module.exports = {
   GasRefill,
   Equipment,
   EquipmentSale,
+  Debt,
 };

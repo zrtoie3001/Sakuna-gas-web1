@@ -59,7 +59,7 @@ export default function Orders() {
   const [products, setProducts]     = useState([]);
   const [search, setSearch]         = useState("");
   const [showWalkin, setShowWalkin] = useState(false);
-  const [walkinType, setWalkinType] = useState("gas"); // gas | equipment
+  const [walkinType, setWalkinType] = useState("gas"); // gas | new_tank | equipment
   const [walkinForm, setWalkinForm] = useState({ customerName: "", customerPhone: "", brandName: "", productId: "", qty: 1, price: "", paymentMethod: "cash", note: "", gasBrand: "", gasWeight: "", stockId: "", equipId: "" });
   const [walkinSaving, setWalkinSaving] = useState(false);
   const [walkinResult, setWalkinResult] = useState(null); // order returned after save
@@ -104,12 +104,12 @@ export default function Orders() {
     setWalkinSaving(true);
     try {
       let payload;
-      if (walkinType === "gas") {
+      if (walkinType === "gas" || walkinType === "new_tank") {
         const stock = gasStocks.find(s => s.id === walkinForm.stockId);
         if (!stock) return alert("กรุณาเลือกสินค้า");
         if (!walkinForm.price) return alert("กรุณาใส่ราคา");
         payload = {
-          type: "gas",
+          type: walkinType,
           customerName: walkinForm.customerName,
           customerPhone: walkinForm.customerPhone,
           paymentMethod: walkinForm.paymentMethod,
@@ -399,6 +399,16 @@ export default function Orders() {
             </div>
           )}
 
+          {selected.slipUrl && (
+            <div style={{ marginTop: 10 }}>
+              <p style={{ fontSize: 12, fontWeight: 700, color: NAVY, marginBottom: 6 }}>🧾 สลิปโอนเงิน</p>
+              <a href={`${import.meta.env.VITE_API_URL || ""}${selected.slipUrl}`} target="_blank" rel="noreferrer">
+                <img src={`${import.meta.env.VITE_API_URL || ""}${selected.slipUrl}`} alt="slip"
+                  style={{ width: "100%", maxWidth: 260, borderRadius: 10, border: "2px solid #E5E7EB", cursor: "pointer" }} />
+              </a>
+            </div>
+          )}
+
           <div style={{ marginTop: 14, marginBottom: 14 }}>
             <p style={{ fontSize: 12, fontWeight: 700, color: NAVY, marginBottom: 8 }}>เปลี่ยนวิธีชำระ</p>
             <div style={{ display: "flex", gap: 6 }}>
@@ -479,18 +489,20 @@ export default function Orders() {
 
             {/* Type toggle */}
             <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-              {[["gas","⛽ ถังแก๊ส"],["equipment","🔧 อุปกรณ์/เตา"]].map(([k, label]) => (
+              {[["gas","⛽ ถังแก๊ส"],["new_tank","🆕 ขายถังใหม่"],["equipment","🔧 อุปกรณ์/เตา"]].map(([k, label]) => (
                 <button key={k} onClick={() => setWalkinType(k)} style={{
-                  flex: 1, padding: "8px", borderRadius: 8, border: "none", fontSize: 13, fontWeight: 700, cursor: "pointer",
+                  flex: 1, padding: "8px", borderRadius: 8, border: "none", fontSize: 12, fontWeight: 700, cursor: "pointer",
                   background: walkinType === k ? NAVY : "#F3F4F6", color: walkinType === k ? WHITE : GRAY,
                 }}>{label}</button>
               ))}
             </div>
 
-            {walkinType === "gas" ? (() => {
+            {(walkinType === "gas" || walkinType === "new_tank") ? (() => {
               const brands = [...new Set(gasStocks.map(s => s.brandName))].sort();
               const weights = [...new Set(gasStocks.filter(s => !walkinForm.gasBrand || s.brandName === walkinForm.gasBrand).map(s => Number(s.weightKg)))].sort((a,b)=>a-b);
               const selectedStock = gasStocks.find(s => s.brandName === walkinForm.gasBrand && Number(s.weightKg) === Number(walkinForm.gasWeight));
+              const stockQty = walkinType === "new_tank" ? selectedStock?.newTank : selectedStock?.hasGas;
+              const stockLabel = walkinType === "new_tank" ? "ถังใหม่" : "ถังมีแก๊ส";
               return (
                 <>
                   <div style={{ display: "flex", gap: 12, marginBottom: 12 }}>
@@ -516,7 +528,7 @@ export default function Orders() {
                   </div>
                   {selectedStock && (
                     <div style={{ background: "#F0FDF4", borderRadius: 8, padding: "8px 12px", marginBottom: 12, fontSize: 13, color: "#166534" }}>
-                      มีในสต็อก: <strong>{selectedStock.hasGas} ถัง</strong>
+                      {stockLabel}: <strong>{stockQty ?? 0} ถัง</strong>
                     </div>
                   )}
                   <div style={{ display: "flex", gap: 12, marginBottom: 12 }}>

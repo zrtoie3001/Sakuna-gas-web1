@@ -50,6 +50,7 @@ app.use("/api/v1/reports",   require("./src/routes/reports"));
 app.use("/api/v1/maps",      require("./src/routes/maps"));
 app.use("/api/v1/stock",     require("./src/routes/stock"));
 app.use("/api/v1/settings",  require("./src/routes/settings"));
+app.use("/api/v1/debts",     require("./src/routes/debts"));
 
 // ── Health ────────────────────────────────────────────────────────────────────
 app.get("/health", (_req, res) => res.json({ status: "ok", ts: new Date() }));
@@ -73,23 +74,32 @@ const PORT = process.env.PORT || 3001;
     await sequelize.sync({ alter: process.env.NODE_ENV === "development" });
 
     // ── Manual migrations (idempotent) ─────────────────────────────────────────
-    await sequelize.query(`
-      ALTER TABLE store_settings ADD COLUMN IF NOT EXISTS force_open BOOLEAN NOT NULL DEFAULT false;
-    `).catch(() => {});
-    await sequelize.query(`
-      ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
-    `).catch(() => {});
+    await sequelize.query(`ALTER TABLE store_settings ADD COLUMN IF NOT EXISTS force_open BOOLEAN NOT NULL DEFAULT false;`).catch(() => {});
+    await sequelize.query(`ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;`).catch(() => {});
     await sequelize.query(`
       DO $$ BEGIN
-        IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'enum_users_role') THEN
-          CREATE TYPE enum_users_role AS ENUM ('admin','driver','both');
-        ELSE
-          BEGIN
-            ALTER TYPE enum_users_role ADD VALUE IF NOT EXISTS 'both';
-          EXCEPTION WHEN duplicate_object THEN NULL;
-          END;
-        END IF;
+        BEGIN ALTER TYPE enum_users_role ADD VALUE IF NOT EXISTS 'both';
+        EXCEPTION WHEN duplicate_object THEN NULL; END;
       END $$;
+    `).catch(() => {});
+    await sequelize.query(`
+      CREATE TABLE IF NOT EXISTS debts (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        customer_name VARCHAR(100) NOT NULL,
+        customer_phone VARCHAR(20),
+        type VARCHAR(10) NOT NULL DEFAULT 'money',
+        amount NUMERIC(10,2) DEFAULT 0,
+        tank_qty INTEGER DEFAULT 0,
+        tank_desc VARCHAR(100),
+        note TEXT,
+        is_paid BOOLEAN DEFAULT false,
+        paid_at TIMESTAMPTZ,
+        tank_returned BOOLEAN DEFAULT false,
+        tank_returned_at TIMESTAMPTZ,
+        order_id UUID,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      );
     `).catch(() => {});
     logger.info("Migrations done");
 

@@ -242,6 +242,14 @@ async function createWalkinOrder(req, res) {
       total = Number(price) * q;
       await stock.update({ hasGas: stock.hasGas - q });
       walkinNote = `__walkin:${JSON.stringify({ type: "gas", brandName, weightKg, qty: q, unitPrice: Number(price) })}` + (note ? `\n${note}` : "");
+    } else if (type === "new_tank") {
+      if (!brandName || !weightKg) return res.status(400).json({ error: "กรุณาเลือกยี่ห้อและน้ำหนัก" });
+      const stock = await GasStock.findOne({ where: { brandName, weightKg: Number(weightKg) } });
+      if (!stock) return res.status(400).json({ error: "ไม่พบสินค้าในสต็อก" });
+      if (stock.newTank < q) return res.status(400).json({ error: `ถังใหม่ไม่พอ (มีแค่ ${stock.newTank} ถัง)` });
+      total = Number(price) * q;
+      await stock.update({ newTank: stock.newTank - q });
+      walkinNote = `__walkin:${JSON.stringify({ type: "new_tank", brandName, weightKg, qty: q, unitPrice: Number(price) })}` + (note ? `\n${note}` : "");
     } else {
       if (!items || !items.length) return res.status(400).json({ error: "กรุณาเลือกสินค้า" });
       for (const it of items) {
@@ -264,7 +272,7 @@ async function createWalkinOrder(req, res) {
       deliveryAddress: "หน้าร้าน",
       paymentMethod: paymentMethod || "cash",
       qty: q,
-      unitPrice: type === "gas" ? Number(price) : total,
+      unitPrice: (type === "gas" || type === "new_tank") ? Number(price) : total,
       subtotal: total,
       deliveryFee: 0,
       discountAmount: 0,
