@@ -19,6 +19,40 @@ const STATUSES = [
 
 const EMPTY_ORDER = { customerName: "", customerPhone: "", brandId: "", productId: "", qty: 1, paymentMethod: "cash", deliveryAddress: "", note: "", orderType: "gas" };
 
+function CustomerAutocomplete({ value, onChange, onSelect, customers, placeholder }) {
+  const [open, setOpen] = useState(false);
+  const filtered = value.length >= 1
+    ? customers.filter(c =>
+        c.name?.toLowerCase().includes(value.toLowerCase()) ||
+        (c.phone || "").includes(value)
+      ).slice(0, 8)
+    : [];
+  return (
+    <div style={{ position: "relative" }}>
+      <input
+        value={value}
+        onChange={e => { onChange(e.target.value); setOpen(true); }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setTimeout(() => setOpen(false), 180)}
+        placeholder={placeholder || "ไม่ระบุได้"}
+        style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 14, boxSizing: "border-box" }}
+      />
+      {open && filtered.length > 0 && (
+        <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: "#fff", border: "2px solid #E5E7EB", borderRadius: 8, zIndex: 1000, maxHeight: 200, overflowY: "auto", boxShadow: "0 4px 12px rgba(0,0,0,.15)" }}>
+          {filtered.map(c => (
+            <div key={c.id} onMouseDown={() => { onSelect(c); setOpen(false); }}
+              style={{ padding: "8px 12px", fontSize: 13, cursor: "pointer", borderBottom: "1px solid #F3F4F6" }}>
+              <strong>{c.name}</strong>
+              {c.phone && <span style={{ color: "#6B7280", marginLeft: 6 }}>· {c.phone}</span>}
+              {c.totalOrders > 0 && <span style={{ color: "#10B981", fontSize: 11, marginLeft: 6 }}>({c.totalOrders} ออเดอร์)</span>}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ExtraItemPicker({ equipList, onAdd }) {
   const [id, setId] = useState("");
   const [qty, setQty] = useState(1);
@@ -66,6 +100,7 @@ export default function Orders() {
   const [gasStocks, setGasStocks]   = useState([]);
   const [equipList, setEquipList]   = useState([]);
   const [extraItems, setExtraItems] = useState({}); // { [orderId]: [{id, name, qty, price}] }
+  const [customers, setCustomers] = useState([]);
 
   const fetch = useCallback(async () => {
     const params = new URLSearchParams({ page, limit: 20 });
@@ -87,6 +122,7 @@ export default function Orders() {
     api.get("/api/v1/products?limit=100").then(r => setProducts(Array.isArray(r.data) ? r.data : r.data.products || [])).catch(() => {});
     api.get("/api/v1/stock/gas").then(r => setGasStocks(r.data)).catch(() => {});
     api.get("/api/v1/stock/equipment").then(r => setEquipList(r.data)).catch(() => {});
+    api.get("/api/v1/customers?limit=300").then(r => setCustomers(Array.isArray(r.data) ? r.data : r.data.customers || [])).catch(() => {});
   }, []);
 
   async function createOrder() {
@@ -166,9 +202,21 @@ export default function Orders() {
     const timeStr = d.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
     const discount  = Number(o.discountAmount || 0);
     const subtotal  = Number(o.total) + discount;
-    const unitPrice = o.qty > 0 ? Math.round(subtotal / o.qty) : 0;
     const payLabel  = o.paymentMethod === "cash" ? "เงินสด" : o.paymentMethod === "qr" ? "QR โอน" : "เก็บปลายทาง";
-    let itemsHtml = `<tr><td>${(o.brand?.name || "") + " " + (o.product?.name || "")}</td><td style="text-align:center;">${o.qty}</td><td style="text-align:right;">${unitPrice.toLocaleString()}</td><td style="text-align:right;">${subtotal.toLocaleString()}</td></tr>`;
+    // Parse walkin note for product label
+    let walkinData = null;
+    if (o.note?.startsWith("__walkin:")) {
+      try { walkinData = JSON.parse(o.note.replace(/^__walkin:/, "").split("\n")[0]); } catch {}
+    }
+    let productLabel = ((o.brand?.name || "") + " " + (o.product?.name || "")).trim();
+    if (!productLabel && walkinData) {
+      if (walkinData.type === "new_tank") productLabel = `🆕 ถังใหม่ ${walkinData.brandName} ${walkinData.weightKg}กก.`;
+      else if (walkinData.type === "gas") productLabel = `${walkinData.brandName} ${walkinData.weightKg}กก.`;
+      else if (walkinData.type === "equipment") productLabel = (walkinData.items || []).map(i => i.name).join(", ") || "อุปกรณ์";
+    }
+    const displayQty = walkinData?.qty ?? o.qty ?? 1;
+    const unitPrice = walkinData?.unitPrice ?? (displayQty > 0 ? Math.round(subtotal / displayQty) : 0);
+    let itemsHtml = `<tr><td>${productLabel || "-"}</td><td style="text-align:center;">${displayQty}</td><td style="text-align:right;">${Number(unitPrice).toLocaleString()}</td><td style="text-align:right;">${subtotal.toLocaleString()}</td></tr>`;
     let total = Number(o.total);
     for (const ex of extras) {
       const lineTotal = Number(ex.price) * Number(ex.qty);
@@ -188,13 +236,14 @@ export default function Orders() {
     const payLabel = order.paymentMethod === "cash" ? "เงินสด" : "QR โอน";
     let itemsHtml = "";
     let total = 0;
-    if (wType === "gas") {
+    if (wType === "gas" || wType === "new_tank") {
       const qty = Number(wForm.qty || 1);
       const price = Number(wForm.price || 0);
       const lineTotal = qty * price;
       total = lineTotal;
       const stock = gasStocks.find(s => s.id === wForm.stockId);
-      const name = stock ? `${stock.brandName} ${stock.weightKg} กก.` : "ถังแก๊ส";
+      const prefix = wType === "new_tank" ? "🆕 ถังใหม่ " : "";
+      const name = stock ? `${prefix}${stock.brandName} ${stock.weightKg} กก.` : (wType === "new_tank" ? "🆕 ถังใหม่" : "ถังแก๊ส");
       itemsHtml = `<tr><td>${name}</td><td style="text-align:center;">${qty}</td><td style="text-align:right;">${price.toLocaleString()}</td><td style="text-align:right;">${lineTotal.toLocaleString()}</td></tr>`;
     } else {
       const item = equipList.find(e => e.id === wForm.equipId);
@@ -514,8 +563,12 @@ export default function Orders() {
             <div style={{ display: "flex", gap: 12, marginBottom: 12 }}>
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>ชื่อลูกค้า</div>
-                <input value={walkinForm.customerName} onChange={e => setWalkinForm(f => ({ ...f, customerName: e.target.value }))} placeholder="ไม่ระบุได้"
-                  style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 14, boxSizing: "border-box" }} />
+                <CustomerAutocomplete
+                  value={walkinForm.customerName}
+                  onChange={v => setWalkinForm(f => ({ ...f, customerName: v }))}
+                  onSelect={c => setWalkinForm(f => ({ ...f, customerName: c.name || "", customerPhone: c.phone || "" }))}
+                  customers={customers}
+                />
               </div>
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>เบอร์โทร</div>
@@ -668,8 +721,16 @@ export default function Orders() {
               ))}
             </div>
 
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>ชื่อลูกค้า</div>
+              <CustomerAutocomplete
+                value={createForm.customerName}
+                onChange={v => setCreateForm(f => ({ ...f, customerName: v }))}
+                onSelect={c => setCreateForm(f => ({ ...f, customerName: c.name || "", customerPhone: c.phone || "", deliveryAddress: f.deliveryAddress || c.lastAddress || "" }))}
+                customers={customers}
+              />
+            </div>
             {[
-              ["ชื่อลูกค้า", "customerName", "text"],
               ["เบอร์โทร", "customerPhone", "tel"],
               ["ที่อยู่จัดส่ง *", "deliveryAddress", "text"],
               ["หมายเหตุ", "note", "text"],
