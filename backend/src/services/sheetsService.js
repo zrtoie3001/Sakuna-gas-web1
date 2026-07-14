@@ -95,16 +95,16 @@ async function appendStockLog(log) {
   try {
     const sheets = getClient();
     // ensure header
-    const res = await sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID, range: "ประวัติสต็อก!A1:A1" });
+    const res = await sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID, range: "'ประวัติสต็อก'!A1:A1" });
     if (!res.data.values?.[0]) {
       await sheets.spreadsheets.values.update({
-        spreadsheetId: SHEET_ID, range: "ประวัติสต็อก!A1", valueInputOption: "RAW",
+        spreadsheetId: SHEET_ID, range: "'ประวัติสต็อก'!A1", valueInputOption: "RAW",
         requestBody: { values: [["วันที่", "เวลา", "ยี่ห้อ", "น้ำหนัก (kg)", "ประเภทถัง", "ก่อน", "หลัง", "เปลี่ยน", "การกระทำ", "หมายเหตุ"]] },
       });
     }
     const now = new Date();
     await sheets.spreadsheets.values.append({
-      spreadsheetId: SHEET_ID, range: "ประวัติสต็อก!A:J",
+      spreadsheetId: SHEET_ID, range: "'ประวัติสต็อก'!A:J",
       valueInputOption: "RAW", insertDataOption: "INSERT_ROWS",
       requestBody: { values: [[
         now.toLocaleDateString("th-TH", { dateStyle: "short" }),
@@ -145,7 +145,7 @@ async function syncStockToSheet() {
 
     // write data
     await sheets.spreadsheets.values.update({
-      spreadsheetId: SHEET_ID, range: "สต็อก!A1",
+      spreadsheetId: SHEET_ID, range: "'สต็อก'!A1",
       valueInputOption: "RAW",
       requestBody: { values: [header, ...data] },
     });
