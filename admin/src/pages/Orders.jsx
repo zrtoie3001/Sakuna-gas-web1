@@ -19,32 +19,39 @@ const STATUSES = [
 
 const EMPTY_ORDER = { customerName: "", customerPhone: "", brandId: "", productId: "", qty: 1, paymentMethod: "cash", deliveryAddress: "", note: "", orderType: "gas" };
 
-function CustomerAutocomplete({ value, onChange, onSelect, customers, placeholder }) {
+function CustomerAutocomplete({ value, onChange, onSelect, placeholder }) {
   const [open, setOpen] = useState(false);
-  const filtered = value.length >= 1
-    ? customers.filter(c =>
-        c.name?.toLowerCase().includes(value.toLowerCase()) ||
-        (c.phone || "").includes(value)
-      ).slice(0, 8)
-    : [];
+  const [suggestions, setSuggestions] = useState([]);
+  const timerRef = useState(null);
+
+  function search(q) {
+    if (!q) { setSuggestions([]); return; }
+    clearTimeout(timerRef[0]);
+    timerRef[0] = setTimeout(async () => {
+      try {
+        const r = await import("../utils/api.js").then(m => m.default.get(`/api/v1/orders/customer-suggestions?q=${encodeURIComponent(q)}`));
+        setSuggestions(r.data || []);
+      } catch {}
+    }, 200);
+  }
+
   return (
     <div style={{ position: "relative" }}>
       <input
         value={value}
-        onChange={e => { onChange(e.target.value); setOpen(true); }}
-        onFocus={() => setOpen(true)}
+        onChange={e => { onChange(e.target.value); search(e.target.value); setOpen(true); }}
+        onFocus={() => { if (value) { search(value); setOpen(true); } }}
         onBlur={() => setTimeout(() => setOpen(false), 180)}
         placeholder={placeholder || "ไม่ระบุได้"}
         style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 14, boxSizing: "border-box" }}
       />
-      {open && filtered.length > 0 && (
+      {open && suggestions.length > 0 && (
         <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: "#fff", border: "2px solid #E5E7EB", borderRadius: 8, zIndex: 1000, maxHeight: 200, overflowY: "auto", boxShadow: "0 4px 12px rgba(0,0,0,.15)" }}>
-          {filtered.map(c => (
-            <div key={c.id} onMouseDown={() => { onSelect(c); setOpen(false); }}
+          {suggestions.map((c, i) => (
+            <div key={i} onMouseDown={() => { onSelect(c); setOpen(false); setSuggestions([]); }}
               style={{ padding: "8px 12px", fontSize: 13, cursor: "pointer", borderBottom: "1px solid #F3F4F6" }}>
-              <strong>{c.name}</strong>
-              {c.phone && <span style={{ color: "#6B7280", marginLeft: 6 }}>· {c.phone}</span>}
-              {c.totalOrders > 0 && <span style={{ color: "#10B981", fontSize: 11, marginLeft: 6 }}>({c.totalOrders} ออเดอร์)</span>}
+              <strong>{c.customerName || c.name}</strong>
+              {(c.customerPhone || c.phone) && <span style={{ color: "#6B7280", marginLeft: 6 }}>· {c.customerPhone || c.phone}</span>}
             </div>
           ))}
         </div>
@@ -100,7 +107,6 @@ export default function Orders() {
   const [gasStocks, setGasStocks]   = useState([]);
   const [equipList, setEquipList]   = useState([]);
   const [extraItems, setExtraItems] = useState({}); // { [orderId]: [{id, name, qty, price}] }
-  const [customers, setCustomers] = useState([]);
   const [createCustAddrs, setCreateCustAddrs] = useState([]); // addresses of selected customer in create modal
 
   const fetch = useCallback(async () => {
@@ -123,7 +129,6 @@ export default function Orders() {
     api.get("/api/v1/products?limit=100").then(r => setProducts(Array.isArray(r.data) ? r.data : r.data.products || [])).catch(() => {});
     api.get("/api/v1/stock/gas").then(r => setGasStocks(r.data)).catch(() => {});
     api.get("/api/v1/stock/equipment").then(r => setEquipList(r.data)).catch(() => {});
-    api.get("/api/v1/customers?limit=300").then(r => setCustomers(Array.isArray(r.data) ? r.data : r.data.customers || [])).catch(() => {});
   }, []);
 
   async function createOrder() {
@@ -583,8 +588,7 @@ export default function Orders() {
                 <CustomerAutocomplete
                   value={walkinForm.customerName}
                   onChange={v => setWalkinForm(f => ({ ...f, customerName: v }))}
-                  onSelect={c => setWalkinForm(f => ({ ...f, customerName: c.name || "", customerPhone: c.phone || "" }))}
-                  customers={customers}
+                  onSelect={c => setWalkinForm(f => ({ ...f, customerName: c.customerName || c.name || "", customerPhone: c.customerPhone || c.phone || "" }))}
                 />
               </div>
               <div style={{ flex: 1 }}>
@@ -745,9 +749,13 @@ export default function Orders() {
                 onChange={v => setCreateForm(f => ({ ...f, customerName: v }))}
                 onSelect={c => {
                   setCreateCustAddrs(c.addresses || []);
-                  setCreateForm(f => ({ ...f, customerName: c.name || "", customerPhone: c.phone || "" }));
+                  setCreateForm(f => ({
+                    ...f,
+                    customerName: c.customerName || c.name || "",
+                    customerPhone: c.customerPhone || c.phone || "",
+                    deliveryAddress: f.deliveryAddress || c.deliveryAddress || "",
+                  }));
                 }}
-                customers={customers}
               />
             </div>
             <div style={{ marginBottom: 12 }}>

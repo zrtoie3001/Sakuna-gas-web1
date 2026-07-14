@@ -52,6 +52,41 @@ router.post("/:id/payment-confirmed", async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// Customer name suggestions from order history (for autocomplete)
+router.get("/customer-suggestions", requireAuth, async (req, res) => {
+  try {
+    const { q = "" } = req.query;
+    const { sequelize } = require("../config/database");
+    const { Op } = require("sequelize");
+    const where = q ? {
+      [Op.or]: [
+        { customerName: { [Op.iLike]: `%${q}%` } },
+        { customerPhone: { [Op.iLike]: `%${q}%` } },
+      ],
+    } : {};
+    // Distinct customer_name + customer_phone combos from orders
+    const rows = await Order.findAll({
+      attributes: [
+        [sequelize.fn("DISTINCT", sequelize.col("customer_name")), "customerName"],
+        "customerPhone", "deliveryAddress",
+      ],
+      where: { ...where, customerName: { [Op.ne]: null } },
+      order: [["createdAt", "DESC"]],
+      limit: 50,
+      raw: true,
+    });
+    // Deduplicate by name
+    const seen = new Set();
+    const result = [];
+    for (const r of rows) {
+      const key = (r.customerName || "").toLowerCase();
+      if (!seen.has(key)) { seen.add(key); result.push(r); }
+      if (result.length >= 10) break;
+    }
+    res.json(result);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // Staff
 router.get("/", requireAuth, listOrders);
 router.put("/:id/status", requireAuth, updateStatus);
