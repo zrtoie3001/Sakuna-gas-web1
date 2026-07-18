@@ -10,7 +10,7 @@ const API = import.meta.env.VITE_API_URL || "";
 const NAVY = "#1A2B6B", NAVY2 = "#0F1D52", ORANGE = "#F47B20", ORANGE2 = "#E55C00";
 const WHITE = "#FFFFFF", LGRAY = "#F4F6FB", GRAY = "#6B7280";
 
-const STEPS = ["เลือกสินค้า", "ข้อมูล", "ที่อยู่", "ยืนยัน"];
+const STEPS = ["ที่อยู่", "ข้อมูล", "เลือกสินค้า", "ยืนยัน"];
 
 // ── localStorage ─────────────────────────────────────────────────────────────
 const ls = {
@@ -366,9 +366,9 @@ export default function App() {
   }
 
   const canNext = [
-    cart.length > 0,
-    !!(customerName.trim() && customerPhone.trim().length >= 9),
     !!(locData && locData.zone),
+    !!(customerName.trim() && customerPhone.trim().length >= 9),
+    cart.length > 0,
     true,
   ][step];
 
@@ -501,8 +501,54 @@ export default function App() {
         {/* ── New order flow ── */}
         {!showReorder && (
           <>
-            {/* STEP 0 — เลือกสินค้า */}
+            {/* STEP 0 — ที่อยู่ */}
             {step === 0 && (
+              <div>
+                <div style={{ fontSize: 17, fontWeight: 800, color: NAVY, marginBottom: 16 }}>🗺 ระบุตำแหน่งจัดส่ง</div>
+                <MapPicker onLocationSelect={handleLocationSelect} locationData={locData} apiZones={apiZones}/>
+                {locData?.zone && (
+                  <div style={{ marginTop: 12 }}>
+                    <textarea value={note} onChange={e => setNote(e.target.value)}
+                      placeholder="💬 หมายเหตุเพิ่มเติม (ไม่บังคับ)"
+                      style={{ width: "100%", height: 68, padding: "10px 12px", borderRadius: 12, border: "2px solid #E5E7EB", fontSize: 13, resize: "none", color: GRAY, boxSizing: "border-box" }} />
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* STEP 1 — ข้อมูลลูกค้า */}
+            {step === 1 && (
+              <div>
+                <div style={{ fontSize: 17, fontWeight: 800, color: NAVY, marginBottom: 16 }}>👤 ข้อมูลผู้สั่ง</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                  <div>
+                    <label style={{ fontSize: 13, fontWeight: 700, color: NAVY, display: "block", marginBottom: 6 }}>ชื่อ-นามสกุล *</label>
+                    <input value={customerName} onChange={e => setCustomerName(e.target.value)} placeholder="เช่น สมชาย ใจดี"
+                      style={{ width: "100%", padding: "12px 14px", borderRadius: 12, border: "2px solid #E5E7EB", fontSize: 14, outline: "none", boxSizing: "border-box" }} />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 13, fontWeight: 700, color: NAVY, display: "block", marginBottom: 6 }}>เบอร์โทรศัพท์ *</label>
+                    <input value={customerPhone} onChange={e => setCustomerPhone(e.target.value)} placeholder="0812345678" type="tel"
+                      style={{ width: "100%", padding: "12px 14px", borderRadius: 12, border: "2px solid #E5E7EB", fontSize: 14, outline: "none", boxSizing: "border-box" }} />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 13, fontWeight: 700, color: NAVY, display: "block", marginBottom: 6 }}>วิธีชำระเงิน</label>
+                    <div style={{ display: "flex", gap: 10 }}>
+                      {[["cash","💵 เงินสด"],["qr","📱 QR Code"]].map(([val,label]) => (
+                        <div key={val} onClick={() => setPaymentMethod(val)} style={{
+                          flex: 1, padding: "12px 0", borderRadius: 12, textAlign: "center",
+                          border: `2px solid ${paymentMethod === val ? NAVY : "#E5E7EB"}`,
+                          background: paymentMethod === val ? "#EEF2FF" : WHITE,
+                          fontWeight: 700, fontSize: 14, color: paymentMethod === val ? NAVY : GRAY, cursor: "pointer" }}>{label}</div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* STEP 2 — เลือกสินค้า */}
+            {step === 2 && (
               <div>
                 {/* Cart preview */}
                 {cart.length > 0 && (
@@ -584,52 +630,6 @@ export default function App() {
                         </div>
                       </div>
                     )}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* STEP 1 — ข้อมูลลูกค้า */}
-            {step === 1 && (
-              <div>
-                <div style={{ fontSize: 17, fontWeight: 800, color: NAVY, marginBottom: 16 }}>👤 ข้อมูลผู้สั่ง</div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                  <div>
-                    <label style={{ fontSize: 13, fontWeight: 700, color: NAVY, display: "block", marginBottom: 6 }}>ชื่อ-นามสกุล *</label>
-                    <input value={customerName} onChange={e => setCustomerName(e.target.value)} placeholder="เช่น สมชาย ใจดี"
-                      style={{ width: "100%", padding: "12px 14px", borderRadius: 12, border: "2px solid #E5E7EB", fontSize: 14, outline: "none", boxSizing: "border-box" }} />
-                  </div>
-                  <div>
-                    <label style={{ fontSize: 13, fontWeight: 700, color: NAVY, display: "block", marginBottom: 6 }}>เบอร์โทรศัพท์ *</label>
-                    <input value={customerPhone} onChange={e => setCustomerPhone(e.target.value)} placeholder="0812345678" type="tel"
-                      style={{ width: "100%", padding: "12px 14px", borderRadius: 12, border: "2px solid #E5E7EB", fontSize: 14, outline: "none", boxSizing: "border-box" }} />
-                  </div>
-                  <div>
-                    <label style={{ fontSize: 13, fontWeight: 700, color: NAVY, display: "block", marginBottom: 6 }}>วิธีชำระเงิน</label>
-                    <div style={{ display: "flex", gap: 10 }}>
-                      {[["cash","💵 เงินสด"],["qr","📱 QR Code"]].map(([val,label]) => (
-                        <div key={val} onClick={() => setPaymentMethod(val)} style={{
-                          flex: 1, padding: "12px 0", borderRadius: 12, textAlign: "center",
-                          border: `2px solid ${paymentMethod === val ? NAVY : "#E5E7EB"}`,
-                          background: paymentMethod === val ? "#EEF2FF" : WHITE,
-                          fontWeight: 700, fontSize: 14, color: paymentMethod === val ? NAVY : GRAY, cursor: "pointer" }}>{label}</div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* STEP 2 — ที่อยู่ */}
-            {step === 2 && (
-              <div>
-                <div style={{ fontSize: 17, fontWeight: 800, color: NAVY, marginBottom: 16 }}>🗺 ระบุตำแหน่งจัดส่ง</div>
-                <MapPicker onLocationSelect={handleLocationSelect} locationData={locData} apiZones={apiZones}/>
-                {locData?.zone && (
-                  <div style={{ marginTop: 12 }}>
-                    <textarea value={note} onChange={e => setNote(e.target.value)}
-                      placeholder="💬 หมายเหตุเพิ่มเติม (ไม่บังคับ)"
-                      style={{ width: "100%", height: 68, padding: "10px 12px", borderRadius: 12, border: "2px solid #E5E7EB", fontSize: 13, resize: "none", color: GRAY, boxSizing: "border-box" }} />
                   </div>
                 )}
               </div>
@@ -724,20 +724,36 @@ export default function App() {
           width: "100%", maxWidth: 460, boxSizing: "border-box",
           background: WHITE, padding: "12px 16px 24px", boxShadow: "0 -4px 20px rgba(0,0,0,.1)" }}>
 
-          {/* Step 0: cart actions */}
-          {step === 0 && (
+          {/* Step 0-1: next/back */}
+          {(step === 0 || step === 1) && (
             <div style={{ display: "flex", gap: 10 }}>
+              {step > 0 && <button onClick={() => setStep(step - 1)} style={{ flex: 1, padding: 14, borderRadius: 12, border: "2px solid #E5E7EB", background: WHITE, fontWeight: 700, fontSize: 14, cursor: "pointer", color: NAVY }}>← กลับ</button>}
+              <button onClick={() => setStep(step + 1)} disabled={!canNext} style={{
+                flex: 2, padding: 14, borderRadius: 12, border: "none",
+                background: canNext ? `linear-gradient(135deg,${NAVY},${NAVY2})` : "#E5E7EB",
+                color: canNext ? WHITE : "#9CA3AF",
+                fontWeight: 800, fontSize: 14, cursor: canNext ? "pointer" : "default",
+                boxShadow: canNext ? "0 4px 16px rgba(26,43,107,.3)" : "none" }}>
+                ถัดไป →
+              </button>
+            </div>
+          )}
+
+          {/* Step 2: cart actions */}
+          {step === 2 && (
+            <div style={{ display: "flex", gap: 10 }}>
+              <button onClick={() => setStep(1)} style={{ flex: 1, padding: 14, borderRadius: 12, border: "2px solid #E5E7EB", background: WHITE, fontWeight: 700, fontSize: 14, cursor: "pointer", color: NAVY }}>← กลับ</button>
               {cart.length > 0 && (
-                <button onClick={() => setStep(1)} style={{
+                <button onClick={() => setStep(3)} style={{
                   flex: 2, padding: 14, borderRadius: 12, border: "none",
                   background: `linear-gradient(135deg,${NAVY},${NAVY2})`, color: WHITE,
                   fontWeight: 800, fontSize: 14, cursor: "pointer", boxShadow: "0 4px 16px rgba(26,43,107,.3)" }}>
-                  ดำเนินการต่อ ({cart.length} รายการ) →
+                  ตรวจสอบออเดอร์ ({cart.length} รายการ) →
                 </button>
               )}
               {cart.length === 0 && selProduct && (
                 <button onClick={addToCart} style={{
-                  flex: 1, padding: 14, borderRadius: 12, border: "none",
+                  flex: 2, padding: 14, borderRadius: 12, border: "none",
                   background: `linear-gradient(135deg,${NAVY},${NAVY2})`, color: WHITE,
                   fontWeight: 800, fontSize: 14, cursor: "pointer" }}>
                   + เพิ่มลงตะกร้า
@@ -746,17 +762,17 @@ export default function App() {
             </div>
           )}
 
-          {/* Steps 1-3 */}
-          {step > 0 && (
+          {/* Step 3: confirm */}
+          {step === 3 && (
             <div style={{ display: "flex", gap: 10 }}>
-              <button onClick={() => setStep(step - 1)} style={{ flex: 1, padding: 14, borderRadius: 12, border: "2px solid #E5E7EB", background: WHITE, fontWeight: 700, fontSize: 14, cursor: "pointer", color: NAVY }}>← กลับ</button>
-              <button onClick={handleNext} disabled={!canNext || submitting} style={{
+              <button onClick={() => setStep(2)} style={{ flex: 1, padding: 14, borderRadius: 12, border: "2px solid #E5E7EB", background: WHITE, fontWeight: 700, fontSize: 14, cursor: "pointer", color: NAVY }}>← กลับ</button>
+              <button onClick={handleNext} disabled={submitting} style={{
                 flex: 2, padding: 14, borderRadius: 12, border: "none",
-                background: canNext && !submitting ? `linear-gradient(135deg,${NAVY},${NAVY2})` : "#E5E7EB",
-                color: canNext && !submitting ? WHITE : "#9CA3AF",
-                fontWeight: 800, fontSize: 14, cursor: canNext && !submitting ? "pointer" : "default",
-                boxShadow: canNext ? "0 4px 16px rgba(26,43,107,.3)" : "none" }}>
-                {submitting ? "กำลังส่ง..." : step === 3 ? "🛵 ยืนยันสั่งแก๊สเลย!" : step === 2 ? "ตรวจสอบออเดอร์ →" : "ถัดไป →"}
+                background: !submitting ? `linear-gradient(135deg,${NAVY},${NAVY2})` : "#E5E7EB",
+                color: !submitting ? WHITE : "#9CA3AF",
+                fontWeight: 800, fontSize: 14, cursor: !submitting ? "pointer" : "default",
+                boxShadow: "0 4px 16px rgba(26,43,107,.3)" }}>
+                {submitting ? "กำลังส่ง..." : "🛵 ยืนยันสั่งแก๊สเลย!"}
               </button>
             </div>
           )}
