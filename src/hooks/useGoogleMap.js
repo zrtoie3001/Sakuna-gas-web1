@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState } from "react";
 import { SHOP_LAT, SHOP_LNG, getDistanceKm, detectZone } from "../config.js";
 
 // โหลด Google Maps Script แบบ lazy
@@ -19,10 +19,14 @@ function loadMapsScript(apiKey) {
 }
 
 export function useGoogleMap({ onLocationSelect, apiZones }) {
-  const mapRef     = useRef(null);   // div element
-  const mapObj     = useRef(null);   // google.maps.Map
-  const markerRef  = useRef(null);   // google.maps.Marker
-  const shopMarker = useRef(null);   // shop pin
+  const mapRef      = useRef(null);   // div element
+  const mapObj      = useRef(null);   // google.maps.Map
+  const markerRef   = useRef(null);   // google.maps.Marker
+  const shopMarker  = useRef(null);   // shop pin
+  const apiZonesRef = useRef(apiZones); // always latest apiZones
+
+  // keep ref in sync with prop
+  apiZonesRef.current = apiZones;
 
   const [loading, setLoading]   = useState(true);
   const [error, setError]       = useState(null);
@@ -115,7 +119,7 @@ export function useGoogleMap({ onLocationSelect, apiZones }) {
 
         function updateLocation(lat, lng) {
           const distKm = getDistanceKm(SHOP_LAT, SHOP_LNG, lat, lng);
-          const zone   = detectZone(lat, lng, distKm, apiZones);
+          const zone   = detectZone(lat, lng, distKm, apiZonesRef.current);
 
           // Reverse geocode เพื่อได้ที่อยู่
           const geocoder = new window.google.maps.Geocoder();
