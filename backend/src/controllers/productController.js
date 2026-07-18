@@ -82,12 +82,15 @@ async function deleteZone(req, res) {
 }
 
 async function getZoneWithPrices(_req, res) {
-  const zones = await DeliveryZone.findAll({
-    where: { isActive: true },
-    include: [{ model: ProductZonePrice, as: "zonePrices" }],
-    order: [["maxKm", "ASC"]],
-  });
-  res.json(zones);
+  try {
+    const { sequelize } = require("../config/database");
+    const zones = await DeliveryZone.findAll({
+      where: { isActive: true },
+      include: [{ model: ProductZonePrice, as: "zonePrices" }],
+      order: [[sequelize.literal("max_km NULLS LAST"), "ASC"]],
+    });
+    res.json(zones);
+  } catch (e) { res.status(500).json({ error: e.message }); }
 }
 
 async function deleteBrand(req, res) {
