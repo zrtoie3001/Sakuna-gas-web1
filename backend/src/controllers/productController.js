@@ -87,7 +87,7 @@ async function getZoneWithPrices(_req, res) {
     const zones = await DeliveryZone.findAll({
       where: { isActive: true },
       include: [{ model: ProductZonePrice, as: "zonePrices" }],
-      order: [[sequelize.literal("max_km NULLS LAST"), "ASC"]],
+      order: [sequelize.literal("max_km ASC NULLS LAST")],
     });
     res.json(zones);
   } catch (e) { res.status(500).json({ error: e.message }); }
