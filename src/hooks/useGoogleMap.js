@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { SHOP_LAT, SHOP_LNG, getDistanceKm, getZoneFromDist } from "../config.js";
+import { SHOP_LAT, SHOP_LNG, getDistanceKm, detectZone } from "../config.js";
 
 // โหลด Google Maps Script แบบ lazy
 function loadMapsScript(apiKey) {
@@ -18,7 +18,7 @@ function loadMapsScript(apiKey) {
   });
 }
 
-export function useGoogleMap({ onLocationSelect }) {
+export function useGoogleMap({ onLocationSelect, apiZones }) {
   const mapRef     = useRef(null);   // div element
   const mapObj     = useRef(null);   // google.maps.Map
   const markerRef  = useRef(null);   // google.maps.Marker
@@ -115,7 +115,7 @@ export function useGoogleMap({ onLocationSelect }) {
 
         function updateLocation(lat, lng) {
           const distKm = getDistanceKm(SHOP_LAT, SHOP_LNG, lat, lng);
-          const zone   = getZoneFromDist(distKm);
+          const zone   = detectZone(lat, lng, distKm, apiZones);
 
           // Reverse geocode เพื่อได้ที่อยู่
           const geocoder = new window.google.maps.Geocoder();

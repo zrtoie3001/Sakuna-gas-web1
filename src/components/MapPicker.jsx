@@ -6,14 +6,16 @@ const ORANGE = "#F47B20";
 const WHITE  = "#FFFFFF";
 const GRAY   = "#6B7280";
 
-export default function MapPicker({ onLocationSelect, locationData }) {
-  const { mapRef, loading, error, locData } = useGoogleMap({ onLocationSelect });
+export default function MapPicker({ onLocationSelect, locationData, apiZones }) {
+  const { mapRef, loading, error, locData } = useGoogleMap({ onLocationSelect, apiZones });
   const loc = locationData || locData;
 
-  // Zone color
-  const zoneColor = loc?.zone === "A" ? "#059669" : loc?.zone === "B" ? "#D97706" : "#DC2626";
-  const zoneLabel = loc?.zone ? ZONES[loc.zone].label : null;
-  const inArea    = loc?.zone !== null && loc?.zone !== undefined;
+  // Zone color — support both static (A/B) and dynamic zones
+  const zoneName = loc?.zone;
+  const apiZone  = apiZones?.find(z => z.name === zoneName);
+  const zoneColor = apiZone?.color || (zoneName === "A" ? "#059669" : zoneName === "B" ? "#D97706" : "#DC2626");
+  const zoneLabel = apiZone?.label || (zoneName ? ZONES[zoneName]?.label : null);
+  const inArea    = zoneName !== null && zoneName !== undefined;
 
   return (
     <div>

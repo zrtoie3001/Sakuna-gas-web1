@@ -66,6 +66,9 @@ const DeliveryZone = sequelize.define("DeliveryZone", {
   deliveryFee:  { type: DataTypes.DECIMAL(10, 2), defaultValue: 0 },
   color:        { type: DataTypes.STRING(20) },
   isActive:     { type: DataTypes.BOOLEAN, defaultValue: true },
+  centerLat:    { type: DataTypes.DECIMAL(10, 7) },
+  centerLng:    { type: DataTypes.DECIMAL(10, 7) },
+  radiusKm:     { type: DataTypes.DECIMAL(6, 2) },
 }, { tableName: "delivery_zones", underscored: true });
 
 // ── ProductZonePrice (ราคาร้านค้าแยกตามโซน) ──────────────────────────────────
@@ -146,9 +149,9 @@ Product.hasMany(Order, { foreignKey: "productId" });
 Order.belongsTo(Product, { foreignKey: "productId", as: "product" });
 
 Product.hasMany(ProductZonePrice, { foreignKey: "productId", as: "zonePrices" });
-ProductZonePrice.belongsTo(Product, { foreignKey: "productId" });
+ProductZonePrice.belongsTo(Product, { foreignKey: "productId", as: "product" });
 
-DeliveryZone.hasMany(ProductZonePrice, { foreignKey: "zoneId" });
+DeliveryZone.hasMany(ProductZonePrice, { foreignKey: "zoneId", as: "zonePrices" });
 ProductZonePrice.belongsTo(DeliveryZone, { foreignKey: "zoneId", as: "zone" });
 
 Order.hasMany(OrderStatusLog, { foreignKey: "orderId", as: "statusLogs" });

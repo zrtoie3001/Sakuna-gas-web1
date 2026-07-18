@@ -3,6 +3,7 @@ import liff from "@line/liff";
 import MapPicker from "./components/MapPicker.jsx";
 import qrBase64 from "./assets/qrBase64.js";
 import QRPayment from "./components/QRPayment.jsx";
+import { getPriceForZone } from "./config.js";
 
 const LIFF_ID = "2010449303-edxrP9ho";
 const API = import.meta.env.VITE_API_URL || "";
@@ -191,6 +192,7 @@ export default function App() {
   const [lineUserId, setLineUserId] = useState(null);
   const [brands, setBrands]         = useState([]);
   const [products, setProducts]     = useState([]);
+  const [apiZones, setApiZones]     = useState([]);
   const [loading, setLoading]       = useState(true);
   const [error, setError]           = useState(null);
   const [savedOrders, setSavedOrders] = useState([]);
@@ -244,10 +246,15 @@ export default function App() {
     }
     async function loadData() {
       try {
-        const [bRes, pRes] = await Promise.all([fetch(`${API}/api/v1/products/brands`), fetch(`${API}/api/v1/products`)]);
-        const bData = await bRes.json(); const pData = await pRes.json();
+        const [bRes, pRes, zRes] = await Promise.all([
+          fetch(`${API}/api/v1/products/brands`),
+          fetch(`${API}/api/v1/products`),
+          fetch(`${API}/api/v1/products/zones`),
+        ]);
+        const bData = await bRes.json(); const pData = await pRes.json(); const zData = await zRes.json();
         setBrands(Array.isArray(bData) ? bData : bData.brands || []);
         setProducts(Array.isArray(pData) ? pData : pData.products || []);
+        setApiZones(Array.isArray(zData) ? zData : []);
       } catch (e) { setError("โหลดข้อมูลสินค้าไม่ได้ กรุณาลองใหม่"); }
       setLoading(false);
     }
@@ -272,7 +279,8 @@ export default function App() {
         next[idx] = { ...next[idx], qty: next[idx].qty + selQty };
         return next;
       }
-      return [...prev, { brandId: selBrand, brandName: b.name, brandLogoUrl: b.logoUrl, brandColor: b.color, brandBgColor: b.bgColor, productId: selProduct, productName: p.name, unitPrice: p.homePrice, qty: selQty }];
+      const unitPrice = getPriceForZone(p, locData?.zone, apiZones);
+      return [...prev, { brandId: selBrand, brandName: b.name, brandLogoUrl: b.logoUrl, brandColor: b.color, brandBgColor: b.bgColor, productId: selProduct, productName: p.name, unitPrice, qty: selQty }];
     });
     setSelBrand(null); setSelProduct(null); setSelQty(1);
   }
@@ -545,7 +553,7 @@ export default function App() {
                             <div style={{ fontSize: 15, fontWeight: 800, color: NAVY }}>{p.name}</div>
                             {p.description && <div style={{ fontSize: 11, color: GRAY }}>{p.description}</div>}
                           </div>
-                          <div style={{ fontSize: 18, fontWeight: 900, color: ORANGE }}>฿{Number(p.homePrice).toLocaleString()}</div>
+                          <div style={{ fontSize: 18, fontWeight: 900, color: ORANGE }}>฿{getPriceForZone(p, locData?.zone, apiZones).toLocaleString()}</div>
                         </div>
                       ))}
                     </div>
@@ -557,7 +565,7 @@ export default function App() {
                           <button onClick={() => setSelQty(Math.max(1, selQty - 1))} style={{ width: 38, height: 38, borderRadius: 10, border: "2px solid #E5E7EB", background: WHITE, fontSize: 20, cursor: "pointer", color: NAVY }}>−</button>
                           <span style={{ fontSize: 24, fontWeight: 900, color: NAVY, minWidth: 28, textAlign: "center" }}>{selQty}</span>
                           <button onClick={() => setSelQty(selQty + 1)} style={{ width: 38, height: 38, borderRadius: 10, border: `2px solid ${ORANGE}`, background: "#FFF7ED", fontSize: 20, cursor: "pointer", color: ORANGE }}>+</button>
-                          <div style={{ marginLeft: "auto", fontWeight: 900, fontSize: 20, color: ORANGE }}>฿{(Number(currentProd?.homePrice) * selQty).toLocaleString()}</div>
+                          <div style={{ marginLeft: "auto", fontWeight: 900, fontSize: 20, color: ORANGE }}>฿{(getPriceForZone(currentProd, locData?.zone, apiZones) * selQty).toLocaleString()}</div>
                         </div>
                         <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
                           <button onClick={addToCart} style={{
@@ -608,7 +616,7 @@ export default function App() {
             {step === 2 && (
               <div>
                 <div style={{ fontSize: 17, fontWeight: 800, color: NAVY, marginBottom: 16 }}>🗺 ระบุตำแหน่งจัดส่ง</div>
-                <MapPicker onLocationSelect={handleLocationSelect} locationData={locData}/>
+                <MapPicker onLocationSelect={handleLocationSelect} locationData={locData} apiZones={apiZones}/>
                 {locData?.zone && (
                   <div style={{ marginTop: 12 }}>
                     <textarea value={note} onChange={e => setNote(e.target.value)}

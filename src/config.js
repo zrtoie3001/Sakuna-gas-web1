@@ -118,9 +118,36 @@ export function getDistanceKm(lat1, lng1, lat2, lng2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-// กำหนดโซนจากระยะทาง
+// กำหนดโซนจากระยะทาง (fallback เมื่อยังไม่ได้โหลด zones จาก API)
 export function getZoneFromDist(km) {
   if (km <= ZONES.A.maxKm) return "A";
   if (km <= ZONES.B.maxKm) return "B";
   return null; // นอกพื้นที่
+}
+
+// ตรวจโซนจาก API zones (geo zones ก่อน แล้ว distance zones)
+export function detectZone(lat, lng, distKm, apiZones) {
+  if (!apiZones?.length) return getZoneFromDist(distKm);
+  // geo zones first
+  for (const z of apiZones) {
+    if (z.centerLat && z.centerLng && z.radiusKm) {
+      const d = getDistanceKm(lat, lng, Number(z.centerLat), Number(z.centerLng));
+      if (d <= Number(z.radiusKm)) return z.name;
+    }
+  }
+  // distance zones
+  const distZones = [...apiZones].filter(z => !z.centerLat).sort((a, b) => a.maxKm - b.maxKm);
+  for (const z of distZones) {
+    if (distKm <= Number(z.maxKm)) return z.name;
+  }
+  return null;
+}
+
+// หาราคาสินค้าตามโซน
+export function getPriceForZone(product, zoneName, apiZones) {
+  if (!zoneName || !apiZones?.length) return Number(product.homePrice);
+  const zone = apiZones.find(z => z.name === zoneName);
+  if (!zone) return Number(product.homePrice);
+  const zp = zone.zonePrices?.find(p => p.productId === product.id);
+  return zp ? Number(zp.price) : Number(product.homePrice);
 }

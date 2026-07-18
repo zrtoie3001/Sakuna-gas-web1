@@ -1,10 +1,16 @@
 const { Op } = require("sequelize");
 const { v4: uuid } = require("uuid");
-const { Order, Customer, DeliveryAddress, Brand, Product, DiscountCode, OrderStatusLog, DeliveryZone, User } = require("../models");
+const { Order, Customer, DeliveryAddress, Brand, Product, DiscountCode, OrderStatusLog, DeliveryZone, ProductZonePrice, User } = require("../models");
 const { getDeliveryInfo } = require("../services/mapsService");
 const { sendOrderConfirmation, sendStatusUpdate, notifyAdminNewOrder } = require("../services/lineService");
 const { isOpen, getNextOpenTime } = require("../utils/businessHours");
 const { appendOrder, updateOrderStatus } = require("../services/sheetsService");
+
+function haversineKm(lat1, lng1, lat2, lng2) {
+  const R = 6371, dLat = (lat2 - lat1) * Math.PI / 180, dLng = (lng2 - lng1) * Math.PI / 180;
+  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
 
 function generateOrderNumber() {
   const d = new Date();
@@ -33,17 +39,31 @@ async function createOrder(req, res) { try {
     const info = await getDeliveryInfo(deliveryLat, deliveryLng);
     distanceKm = info.distanceKm;
     const zones = await DeliveryZone.findAll({ where: { isActive: true }, order: [["maxKm", "ASC"]] });
+    // Check geo zones (centerLat/centerLng/radiusKm) first
     for (const z of zones) {
-      if (distanceKm <= z.maxKm) { zone = z; break; }
+      if (z.centerLat && z.centerLng && z.radiusKm) {
+        const d = haversineKm(Number(deliveryLat), Number(deliveryLng), Number(z.centerLat), Number(z.centerLng));
+        if (d <= Number(z.radiusKm)) { zone = z; break; }
+      }
+    }
+    // Fall back to distance-from-store zones
+    if (!zone) {
+      for (const z of zones) {
+        if (!z.centerLat && distanceKm <= z.maxKm) { zone = z; break; }
+      }
     }
     if (!zone) return res.status(400).json({ error: "ที่อยู่อยู่นอกพื้นที่จัดส่ง" });
   } else {
-    // Admin-created order: use first zone as default
-    zone = (await DeliveryZone.findOne({ where: { isActive: true }, order: [["maxKm", "ASC"]] })) || { name: "admin" };
+    // Admin-created order: use first distance zone as default
+    zone = (await DeliveryZone.findOne({ where: { isActive: true, centerLat: null }, order: [["maxKm", "ASC"]] })) || { name: "admin" };
   }
 
-  // Price
+  // Price — use zone-specific price if available
   let unitPrice = Number(product.homePrice);
+  if (zone?.id) {
+    const zp = await ProductZonePrice.findOne({ where: { productId, zoneId: zone.id } });
+    if (zp) unitPrice = Number(zp.price);
+  }
 
   const subtotal = unitPrice * qty;
 

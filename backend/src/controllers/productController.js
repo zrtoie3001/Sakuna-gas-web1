@@ -55,8 +55,39 @@ async function getZones(_req, res) {
 async function updateZone(req, res) {
   const zone = await DeliveryZone.findByPk(req.params.id);
   if (!zone) return res.status(404).json({ error: "Not found" });
-  await zone.update(req.body);
+  const { zonePrices, ...data } = req.body;
+  await zone.update(data);
+  if (zonePrices) {
+    await ProductZonePrice.destroy({ where: { zoneId: zone.id } });
+    await ProductZonePrice.bulkCreate(zonePrices.map(zp => ({ ...zp, zoneId: zone.id })));
+  }
   res.json(zone);
+}
+
+async function createZone(req, res) {
+  const { zonePrices, ...data } = req.body;
+  const zone = await DeliveryZone.create(data);
+  if (zonePrices?.length) {
+    await ProductZonePrice.bulkCreate(zonePrices.map(zp => ({ ...zp, zoneId: zone.id })));
+  }
+  res.status(201).json(zone);
+}
+
+async function deleteZone(req, res) {
+  const zone = await DeliveryZone.findByPk(req.params.id);
+  if (!zone) return res.status(404).json({ error: "Not found" });
+  await ProductZonePrice.destroy({ where: { zoneId: zone.id } });
+  await zone.update({ isActive: false });
+  res.json({ ok: true });
+}
+
+async function getZoneWithPrices(_req, res) {
+  const zones = await DeliveryZone.findAll({
+    where: { isActive: true },
+    include: [{ model: ProductZonePrice, as: "zonePrices" }],
+    order: [["maxKm", "ASC"]],
+  });
+  res.json(zones);
 }
 
 async function deleteBrand(req, res) {
@@ -73,4 +104,4 @@ async function deleteProduct(req, res) {
   res.json({ ok: true });
 }
 
-module.exports = { getBrands, getProducts, createBrand, updateBrand, createProduct, updateProduct, getZones, updateZone, deleteBrand, deleteProduct };
+module.exports = { getBrands, getProducts, createBrand, updateBrand, createProduct, updateProduct, getZones, updateZone, createZone, deleteZone, getZoneWithPrices, deleteBrand, deleteProduct };

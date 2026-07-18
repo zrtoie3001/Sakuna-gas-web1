@@ -25,6 +25,7 @@ const TABS = [
   { key: "equipment", label: "🔧 อุปกรณ์/อะไหล่" },
   { key: "stove",     label: "🍳 เตา" },
   { key: "brands",    label: "🏷 ยี่ห้อ" },
+  { key: "zones",     label: "🗺 โซนราคา" },
 ];
 
 export default function Products() {
@@ -34,14 +35,19 @@ export default function Products() {
   const [products, setProducts] = useState([]);
   const [equipment, setEquipment] = useState([]);
   const [stoves, setStoves]     = useState([]);
-  const [modal, setModal]       = useState(null); // null | 'gas_new' | 'gas_edit' | 'equip_new' | 'equip_edit' | 'brand_new' | 'brand_edit'
+  const [zones, setZones]       = useState([]);
+  const [modal, setModal]       = useState(null);
   const [form, setForm]         = useState({});
+  const [zoneForm, setZoneForm] = useState({ name: "", label: "", color: "#DC2626", centerLat: "", centerLng: "", radiusKm: "", maxKm: "" });
+  const [zonePriceForm, setZonePriceForm] = useState({}); // { productId: price }
+  const [editZone, setEditZone] = useState(null);
 
   const load = () => {
     api.get("/api/v1/products/brands").then(r => setBrands(r.data)).catch(() => {});
     api.get("/api/v1/products").then(r => setProducts(Array.isArray(r.data) ? r.data : r.data.products || [])).catch(() => {});
     api.get("/api/v1/stock/equipment?category=equipment").then(r => setEquipment(r.data)).catch(() => {});
     api.get("/api/v1/stock/equipment?category=stove").then(r => setStoves(r.data)).catch(() => {});
+    api.get("/api/v1/products/zones").then(r => setZones(Array.isArray(r.data) ? r.data : [])).catch(() => {});
   };
   useEffect(load, []);
 
@@ -88,6 +94,37 @@ export default function Products() {
     if (!confirm("ลบยี่ห้อนี้?")) return;
     await api.delete(`/api/v1/products/brands/${id}`);
     load();
+  }
+
+  async function saveZone() {
+    const zonePrices = Object.entries(zonePriceForm)
+      .filter(([, price]) => price !== "" && price !== undefined)
+      .map(([productId, price]) => ({ productId, price: Number(price) }));
+    const payload = {
+      name: zoneForm.name, label: zoneForm.label, color: zoneForm.color,
+      centerLat: zoneForm.centerLat || null, centerLng: zoneForm.centerLng || null,
+      radiusKm: zoneForm.radiusKm || null, maxKm: zoneForm.maxKm || null,
+      isActive: true, zonePrices,
+    };
+    if (editZone) await api.put(`/api/v1/products/zones/${editZone.id}`, payload);
+    else await api.post("/api/v1/products/zones", payload);
+    setModal(null); setEditZone(null); setZoneForm({ name: "", label: "", color: "#DC2626", centerLat: "", centerLng: "", radiusKm: "", maxKm: "" }); setZonePriceForm({});
+    load();
+  }
+
+  async function deleteZone(id) {
+    if (!confirm("ลบโซนนี้?")) return;
+    await api.delete(`/api/v1/products/zones/${id}`);
+    load();
+  }
+
+  function openEditZone(zone) {
+    setEditZone(zone);
+    setZoneForm({ name: zone.name, label: zone.label || "", color: zone.color || "#DC2626", centerLat: zone.centerLat || "", centerLng: zone.centerLng || "", radiusKm: zone.radiusKm || "", maxKm: zone.maxKm || "" });
+    const priceMap = {};
+    (zone.zonePrices || []).forEach(zp => { priceMap[zp.productId] = zp.price; });
+    setZonePriceForm(priceMap);
+    setModal("zone_edit");
   }
 
   const F = ({ label, k, type = "text", ...rest }) => (
@@ -137,6 +174,7 @@ export default function Products() {
           {tab === "equipment" && <button onClick={() => { setModal("equip_new_equipment"); setForm({}); }} style={btn(ORANGE, WHITE)}>+ เพิ่มอุปกรณ์</button>}
           {tab === "stove" && <button onClick={() => { setModal("equip_new_stove"); setForm({}); }} style={btn(ORANGE, WHITE)}>+ เพิ่มเตา</button>}
           {tab === "brands" && <button onClick={() => { setModal("brand_new"); setForm({}); }} style={btn(NAVY, WHITE)}>+ เพิ่มยี่ห้อ</button>}
+          {tab === "zones" && <button onClick={() => { setModal("zone_new"); setEditZone(null); setZoneForm({ name: "", label: "", color: "#DC2626", centerLat: "", centerLng: "", radiusKm: "", maxKm: "" }); setZonePriceForm({}); }} style={btn(ORANGE, WHITE)}>+ เพิ่มโซน</button>}
         </div>
       </div>
 
@@ -208,6 +246,108 @@ export default function Products() {
             </div>
           ))}
         </div>
+      )}
+
+      {/* 🗺 โซนราคา */}
+      {tab === "zones" && (
+        <div>
+          <p style={{ fontSize: 12, color: GRAY, marginBottom: 12 }}>
+            กำหนดโซนพื้นที่พิเศษที่มีราคาสินค้าต่างจากปกติ เช่น โซนวัดหนองผักชี<br/>
+            <strong>โซนแบบพื้นที่</strong>: ใส่ Lat/Lng จุดกลาง + รัศมี (km) — ตรวจจากพิกัด GPS ลูกค้า<br/>
+            <strong>โซนแบบระยะทาง</strong>: ใส่ maxKm เท่านั้น — ตรวจจากระยะทางจากร้าน
+          </p>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12 }}>
+            {zones.map(z => (
+              <div key={z.id} style={{ background: WHITE, borderRadius: 14, padding: 16, boxShadow: "0 2px 8px rgba(0,0,0,.06)", borderLeft: `4px solid ${z.color || NAVY}` }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+                  <div>
+                    <span style={{ fontSize: 15, fontWeight: 800, color: NAVY }}>{z.label || z.name}</span>
+                    <span style={{ fontSize: 11, color: GRAY, marginLeft: 6 }}>({z.name})</span>
+                  </div>
+                  <span style={{ fontSize: 11, background: (z.color || "#6B7280") + "20", color: z.color || GRAY, padding: "2px 8px", borderRadius: 8, fontWeight: 700 }}>
+                    {z.centerLat ? `📍 ${Number(z.radiusKm).toFixed(1)} km` : `📏 ≤${Number(z.maxKm).toFixed(1)} km`}
+                  </span>
+                </div>
+                {(z.zonePrices || []).length > 0 && (
+                  <div style={{ marginBottom: 10 }}>
+                    {z.zonePrices.map(zp => {
+                      const prod = products.find(p => p.id === zp.productId);
+                      return prod ? (
+                        <div key={zp.productId} style={{ fontSize: 12, color: GRAY, display: "flex", justifyContent: "space-between" }}>
+                          <span>{prod.name}</span>
+                          <span style={{ fontWeight: 700, color: ORANGE }}>฿{Number(zp.price).toLocaleString()}</span>
+                        </div>
+                      ) : null;
+                    })}
+                  </div>
+                )}
+                {!(z.zonePrices || []).length && <p style={{ fontSize: 11, color: GRAY, marginBottom: 8 }}>ยังไม่มีราคาพิเศษ</p>}
+                <div style={{ display: "flex", gap: 6 }}>
+                  <button onClick={() => openEditZone(z)} style={{ ...btn(WHITE, NAVY), flex: 1, border: `2px solid ${NAVY}` }}>แก้ไข</button>
+                  <button onClick={() => deleteZone(z.id)} style={{ ...btn("#FEE2E2", "#991B1B"), border: "none" }}>ลบ</button>
+                </div>
+              </div>
+            ))}
+            {!zones.length && <p style={{ color: GRAY }}>ยังไม่มีโซน — กด "+ เพิ่มโซน"</p>}
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Zone */}
+      {(modal === "zone_new" || modal === "zone_edit") && (
+        <Modal title={modal === "zone_new" ? "เพิ่มโซนราคา" : "แก้ไขโซน"} onClose={() => { setModal(null); setEditZone(null); }}>
+          <div style={{ marginBottom: 12 }}>
+            <label style={{ fontSize: 11, color: GRAY, display: "block", marginBottom: 4, fontWeight: 700 }}>ชื่อโซน (ภาษาอังกฤษ เช่น C) *</label>
+            <input value={zoneForm.name} onChange={e => setZoneForm(f => ({ ...f, name: e.target.value }))} style={inp} placeholder="C" />
+          </div>
+          <div style={{ marginBottom: 12 }}>
+            <label style={{ fontSize: 11, color: GRAY, display: "block", marginBottom: 4, fontWeight: 700 }}>ชื่อแสดง เช่น โซนวัดหนองผักชี</label>
+            <input value={zoneForm.label} onChange={e => setZoneForm(f => ({ ...f, label: e.target.value }))} style={inp} placeholder="โซนวัดหนองผักชี" />
+          </div>
+          <div style={{ marginBottom: 12 }}>
+            <label style={{ fontSize: 11, color: GRAY, display: "block", marginBottom: 4, fontWeight: 700 }}>สี (hex)</label>
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <input type="color" value={zoneForm.color} onChange={e => setZoneForm(f => ({ ...f, color: e.target.value }))} style={{ width: 40, height: 36, border: "none", cursor: "pointer" }} />
+              <input value={zoneForm.color} onChange={e => setZoneForm(f => ({ ...f, color: e.target.value }))} style={{ ...inp, flex: 1 }} />
+            </div>
+          </div>
+          <div style={{ background: "#F8FAFC", borderRadius: 10, padding: 12, marginBottom: 12 }}>
+            <p style={{ fontSize: 12, fontWeight: 700, color: NAVY, marginBottom: 8 }}>📍 โซนแบบพื้นที่ (ใส่ lat/lng จุดกลาง + รัศมี)</p>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+              <div>
+                <label style={{ fontSize: 11, color: GRAY, display: "block", marginBottom: 4 }}>Latitude จุดกลาง</label>
+                <input type="number" step="any" value={zoneForm.centerLat} onChange={e => setZoneForm(f => ({ ...f, centerLat: e.target.value }))} style={inp} placeholder="13.900" />
+              </div>
+              <div>
+                <label style={{ fontSize: 11, color: GRAY, display: "block", marginBottom: 4 }}>Longitude จุดกลาง</label>
+                <input type="number" step="any" value={zoneForm.centerLng} onChange={e => setZoneForm(f => ({ ...f, centerLng: e.target.value }))} style={inp} placeholder="100.605" />
+              </div>
+            </div>
+            <div style={{ marginTop: 8 }}>
+              <label style={{ fontSize: 11, color: GRAY, display: "block", marginBottom: 4 }}>รัศมี (km)</label>
+              <input type="number" step="0.1" value={zoneForm.radiusKm} onChange={e => setZoneForm(f => ({ ...f, radiusKm: e.target.value }))} style={inp} placeholder="2.0" />
+            </div>
+          </div>
+          <div style={{ background: "#F8FAFC", borderRadius: 10, padding: 12, marginBottom: 12 }}>
+            <p style={{ fontSize: 12, fontWeight: 700, color: NAVY, marginBottom: 8 }}>📏 โซนแบบระยะทาง (ใส่ระยะสูงสุดจากร้าน)</p>
+            <div>
+              <label style={{ fontSize: 11, color: GRAY, display: "block", marginBottom: 4 }}>ระยะสูงสุด maxKm</label>
+              <input type="number" step="0.1" value={zoneForm.maxKm} onChange={e => setZoneForm(f => ({ ...f, maxKm: e.target.value }))} style={inp} placeholder="3.0" />
+            </div>
+          </div>
+          <div style={{ marginBottom: 12 }}>
+            <p style={{ fontSize: 12, fontWeight: 700, color: NAVY, marginBottom: 8 }}>💰 ราคาสินค้าในโซนนี้</p>
+            {products.map(p => (
+              <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                <span style={{ fontSize: 12, color: NAVY, flex: 1 }}>{p.name} <span style={{ color: GRAY }}>(ปกติ ฿{Number(p.homePrice).toLocaleString()})</span></span>
+                <input type="number" value={zonePriceForm[p.id] ?? ""} onChange={e => setZonePriceForm(f => ({ ...f, [p.id]: e.target.value }))}
+                  style={{ ...inp, width: 90 }} placeholder="ราคา" />
+              </div>
+            ))}
+            <p style={{ fontSize: 11, color: GRAY }}>ปล่อยว่างไว้ = ใช้ราคาปกติ</p>
+          </div>
+          <button onClick={saveZone} style={{ ...btn(NAVY, WHITE), width: "100%", padding: 12 }}>บันทึก</button>
+        </Modal>
       )}
 
       {/* Modal: Gas product */}
