@@ -105,6 +105,7 @@ const PORT = process.env.PORT || 3001;
     await sequelize.query(`ALTER TABLE delivery_zones ADD COLUMN IF NOT EXISTS center_lat DECIMAL(10,7);`).catch(() => {});
     await sequelize.query(`ALTER TABLE delivery_zones ADD COLUMN IF NOT EXISTS center_lng DECIMAL(10,7);`).catch(() => {});
     await sequelize.query(`ALTER TABLE delivery_zones ADD COLUMN IF NOT EXISTS radius_km DECIMAL(6,2);`).catch(() => {});
+    await sequelize.query(`ALTER TABLE delivery_zones ALTER COLUMN max_km DROP NOT NULL;`).catch(() => {});
     logger.info("Migrations done");
 
     app.listen(PORT, () => logger.info(`API running on port ${PORT}`));
