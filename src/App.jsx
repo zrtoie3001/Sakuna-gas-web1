@@ -219,7 +219,15 @@ export default function App() {
   const [discountMsg, setDiscountMsg]     = useState(null);
   const [validatingCode, setValidatingCode] = useState(false);
 
-  const handleLocationSelect = useCallback(d => setLocData(d), []);
+  const handleLocationSelect = useCallback(d => {
+    setLocData(d);
+    // recalculate cart prices when zone changes
+    setCart(prev => prev.map(item => {
+      const prod = products.find(p => p.id === item.productId);
+      if (!prod) return item;
+      return { ...item, unitPrice: getPriceForZone(prod, d?.zone, apiZones) };
+    }));
+  }, [products, apiZones]);
   const [submitting, setSubmitting] = useState(false);
   const [doneOrders, setDoneOrders] = useState(null);
   const [showNewOrder, setShowNewOrder] = useState(false);
