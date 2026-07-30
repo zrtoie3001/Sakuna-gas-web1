@@ -104,12 +104,12 @@ export default function Products() {
       name: zoneForm.name, label: zoneForm.label, color: zoneForm.color,
       centerLat: zoneForm.centerLat || null, centerLng: zoneForm.centerLng || null,
       radiusKm: zoneForm.radiusKm || null, maxKm: zoneForm.maxKm || null,
-      minLat: zoneForm.minLat || null,
+      minLat: zoneForm.minLat || null, minLng: zoneForm.minLng || null,
       isActive: true, zonePrices,
     };
     if (editZone) await api.put(`/api/v1/products/zones/${editZone.id}`, payload);
     else await api.post("/api/v1/products/zones", payload);
-    setModal(null); setEditZone(null); setZoneForm({ name: "", label: "", color: "#DC2626", centerLat: "", centerLng: "", radiusKm: "", maxKm: "", minLat: "" }); setZonePriceForm({});
+    setModal(null); setEditZone(null); setZoneForm({ name: "", label: "", color: "#DC2626", centerLat: "", centerLng: "", radiusKm: "", maxKm: "", minLat: "", minLng: "" }); setZonePriceForm({});
     load();
   }
 
@@ -121,7 +121,7 @@ export default function Products() {
 
   function openEditZone(zone) {
     setEditZone(zone);
-    setZoneForm({ name: zone.name, label: zone.label || "", color: zone.color || "#DC2626", centerLat: zone.centerLat || "", centerLng: zone.centerLng || "", radiusKm: zone.radiusKm || "", maxKm: zone.maxKm || "", minLat: zone.minLat || "" });
+    setZoneForm({ name: zone.name, label: zone.label || "", color: zone.color || "#DC2626", centerLat: zone.centerLat || "", centerLng: zone.centerLng || "", radiusKm: zone.radiusKm || "", maxKm: zone.maxKm || "", minLat: zone.minLat || "", minLng: zone.minLng || "" });
     const priceMap = {};
     (zone.zonePrices || []).forEach(zp => { priceMap[zp.productId] = zp.price; });
     setZonePriceForm(priceMap);
@@ -175,7 +175,7 @@ export default function Products() {
           {tab === "equipment" && <button onClick={() => { setModal("equip_new_equipment"); setForm({}); }} style={btn(ORANGE, WHITE)}>+ เพิ่มอุปกรณ์</button>}
           {tab === "stove" && <button onClick={() => { setModal("equip_new_stove"); setForm({}); }} style={btn(ORANGE, WHITE)}>+ เพิ่มเตา</button>}
           {tab === "brands" && <button onClick={() => { setModal("brand_new"); setForm({}); }} style={btn(NAVY, WHITE)}>+ เพิ่มยี่ห้อ</button>}
-          {tab === "zones" && <button onClick={() => { setModal("zone_new"); setEditZone(null); setZoneForm({ name: "", label: "", color: "#DC2626", centerLat: "", centerLng: "", radiusKm: "", maxKm: "", minLat: "" }); setZonePriceForm({}); }} style={btn(ORANGE, WHITE)}>+ เพิ่มโซน</button>}
+          {tab === "zones" && <button onClick={() => { setModal("zone_new"); setEditZone(null); setZoneForm({ name: "", label: "", color: "#DC2626", centerLat: "", centerLng: "", radiusKm: "", maxKm: "", minLat: "", minLng: "" }); setZonePriceForm({}); }} style={btn(ORANGE, WHITE)}>+ เพิ่มโซน</button>}
         </div>
       </div>
 
@@ -328,11 +328,17 @@ export default function Products() {
               <label style={{ fontSize: 11, color: GRAY, display: "block", marginBottom: 4 }}>รัศมี (km)</label>
               <input type="number" step="0.1" value={zoneForm.radiusKm} onChange={e => setZoneForm(f => ({ ...f, radiusKm: e.target.value }))} style={inp} placeholder="2.0" />
             </div>
-            <div style={{ marginTop: 8 }}>
-              <label style={{ fontSize: 11, color: GRAY, display: "block", marginBottom: 4 }}>Latitude ขั้นต่ำ (minLat) — กรองเฉพาะฝั่งเหนือ</label>
-              <input type="number" step="any" value={zoneForm.minLat ?? ""} onChange={e => setZoneForm(f => ({ ...f, minLat: e.target.value }))} style={inp} placeholder="13.883" />
-              <p style={{ fontSize: 10, color: GRAY, marginTop: 3 }}>ปล่อยว่าง = ไม่จำกัดทิศทาง · ใส่ค่า lat เพื่อจำกัดให้นับเฉพาะพื้นที่ฝั่งเหนือเส้นนั้น</p>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 8 }}>
+              <div>
+                <label style={{ fontSize: 11, color: GRAY, display: "block", marginBottom: 4 }}>minLat — เหนือเส้น lat นี้เท่านั้น</label>
+                <input type="number" step="any" value={zoneForm.minLat ?? ""} onChange={e => setZoneForm(f => ({ ...f, minLat: e.target.value }))} style={inp} placeholder="13.883" />
+              </div>
+              <div>
+                <label style={{ fontSize: 11, color: GRAY, display: "block", marginBottom: 4 }}>minLng — ตะวันออกของ lng นี้เท่านั้น</label>
+                <input type="number" step="any" value={zoneForm.minLng ?? ""} onChange={e => setZoneForm(f => ({ ...f, minLng: e.target.value }))} style={inp} placeholder="100.600" />
+              </div>
             </div>
+            <p style={{ fontSize: 10, color: GRAY, marginTop: 4 }}>ปล่อยว่าง = ไม่จำกัด · ใช้คู่กันเพื่อตัดพื้นที่ฝั่งที่ไม่ต้องการออก</p>
           </div>
           <div style={{ background: "#F8FAFC", borderRadius: 10, padding: 12, marginBottom: 12 }}>
             <p style={{ fontSize: 12, fontWeight: 700, color: NAVY, marginBottom: 8 }}>📏 โซนแบบระยะทาง (ใส่ระยะสูงสุดจากร้าน)</p>

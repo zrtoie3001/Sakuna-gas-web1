@@ -70,6 +70,7 @@ const DeliveryZone = sequelize.define("DeliveryZone", {
   centerLng:    { type: DataTypes.DECIMAL(10, 7) },
   radiusKm:     { type: DataTypes.DECIMAL(6, 2) },
   minLat:       { type: DataTypes.DECIMAL(10, 7) },
+  minLng:       { type: DataTypes.DECIMAL(10, 7) },
 }, { tableName: "delivery_zones", underscored: true });
 
 // ── ProductZonePrice (ราคาร้านค้าแยกตามโซน) ──────────────────────────────────
