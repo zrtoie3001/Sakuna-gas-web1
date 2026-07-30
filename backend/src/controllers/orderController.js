@@ -43,7 +43,9 @@ async function createOrder(req, res) { try {
     for (const z of zones) {
       if (z.centerLat && z.centerLng && z.radiusKm) {
         const d = haversineKm(Number(deliveryLat), Number(deliveryLng), Number(z.centerLat), Number(z.centerLng));
-        if (d <= Number(z.radiusKm)) { zone = z; break; }
+        const inRadius = d <= Number(z.radiusKm);
+        const aboveMinLat = !z.minLat || Number(deliveryLat) >= Number(z.minLat);
+        if (inRadius && aboveMinLat) { zone = z; break; }
       }
     }
     // Fall back to distance-from-store zones

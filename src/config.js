@@ -132,7 +132,9 @@ export function detectZone(lat, lng, distKm, apiZones) {
   for (const z of apiZones) {
     if (z.centerLat && z.centerLng && z.radiusKm) {
       const d = getDistanceKm(lat, lng, Number(z.centerLat), Number(z.centerLng));
-      if (d <= Number(z.radiusKm)) return z.name;
+      const inRadius = d <= Number(z.radiusKm);
+      const aboveMinLat = !z.minLat || lat >= Number(z.minLat);
+      if (inRadius && aboveMinLat) return z.name;
     }
   }
   // distance zones
