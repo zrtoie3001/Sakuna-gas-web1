@@ -67,18 +67,18 @@ function PolygonEditor({ existingCoords, color, onSave, onClose }) {
   function save() { onSave(JSON.stringify(pts)); }
 
   return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.85)", zIndex: 1000, display: "flex", flexDirection: "column" }}>
-      <div style={{ padding: "10px 16px", background: NAVY, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+    <div style={{ position: "fixed", inset: 0, zIndex: 1000 }}>
+      <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 52, background: NAVY, display: "flex", alignItems: "center", gap: 10, padding: "0 16px", flexWrap: "wrap", zIndex: 2 }}>
         <span style={{ color: WHITE, fontWeight: 800, fontSize: 14 }}>🗺 วาดขอบเขตโซน — คลิกบนแผนที่เพื่อเพิ่มจุด</span>
         <span style={{ color: "rgba(255,255,255,.6)", fontSize: 12 }}>{pts.length} จุด{pts.length >= 3 ? " ✓" : " (ต้องการ ≥ 3)"}</span>
         <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
-          <button onClick={undo} disabled={!pts.length} style={{ padding: "6px 12px", borderRadius: 8, border: "none", background: "#374151", color: WHITE, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>↩ ยกเลิกจุดล่าสุด</button>
-          <button onClick={clear} style={{ padding: "6px 12px", borderRadius: 8, border: "none", background: "#7F1D1D", color: WHITE, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>🗑 ล้างทั้งหมด</button>
-          <button onClick={save} disabled={pts.length < 3} style={{ padding: "6px 14px", borderRadius: 8, border: "none", background: pts.length >= 3 ? "#059669" : "#374151", color: WHITE, fontWeight: 800, fontSize: 13, cursor: pts.length >= 3 ? "pointer" : "default" }}>✅ บันทึก Polygon</button>
-          <button onClick={onClose} style={{ padding: "6px 12px", borderRadius: 8, border: "none", background: "#374151", color: WHITE, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>✕ ยกเลิก</button>
+          <button onClick={undo} disabled={!pts.length} style={{ padding: "6px 12px", borderRadius: 8, border: "none", background: "#374151", color: WHITE, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>↩ ยกเลิก</button>
+          <button onClick={clear} style={{ padding: "6px 12px", borderRadius: 8, border: "none", background: "#7F1D1D", color: WHITE, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>🗑 ล้าง</button>
+          <button onClick={save} disabled={pts.length < 3} style={{ padding: "6px 14px", borderRadius: 8, border: "none", background: pts.length >= 3 ? "#059669" : "#374151", color: WHITE, fontWeight: 800, fontSize: 13, cursor: pts.length >= 3 ? "pointer" : "default" }}>✅ บันทึก</button>
+          <button onClick={onClose} style={{ padding: "6px 12px", borderRadius: 8, border: "none", background: "#374151", color: WHITE, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>✕</button>
         </div>
       </div>
-      <div ref={mapRef} style={{ width: "100%", height: "calc(100vh - 52px)" }} />
+      <div ref={mapRef} style={{ position: "absolute", top: 52, left: 0, right: 0, bottom: 0 }} />
     </div>
   );
 }
