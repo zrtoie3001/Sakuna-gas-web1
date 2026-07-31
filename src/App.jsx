@@ -271,7 +271,8 @@ export default function App() {
 
   // Cart totals
   const cartSubtotal = cart.reduce((s, i) => s + Number(i.unitPrice) * i.qty, 0);
-  const cartTotal = Math.max(0, cartSubtotal - discountAmount);
+  const deliveryFee = locData?.distKm > 3 ? 10 : 0;
+  const cartTotal = Math.max(0, cartSubtotal + deliveryFee - discountAmount);
 
   const currentBrandObj = brands.find(b => b.id === selBrand);
   const currentProd     = products.find(p => p.id === selProduct);
@@ -400,7 +401,7 @@ export default function App() {
       const applicable = discountCode && discountApplicableIds.includes(item.productId);
       const itemTotal = item.unitPrice * item.qty;
       return s + (applicable ? itemTotal - discountAmount : itemTotal);
-    }, 0);
+    }, 0) + deliveryFee;
     return (
       <PreQRScreen total={preTotal} onConfirmed={() => { setShowPreQR(false); submitOrders(); }} onBack={() => setShowPreQR(false)} />
     );
@@ -678,6 +679,12 @@ export default function App() {
                         <span style={{ color: NAVY, maxWidth: "62%", textAlign: "right", wordBreak: "break-word" }}>{v}</span>
                       </div>
                     ))}
+                    {deliveryFee > 0 && (
+                      <div style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid #F3F4F6", fontSize: 13 }}>
+                        <span style={{ color: GRAY }}>🛵 ค่าส่ง (เกิน 3 กม.)</span>
+                        <span style={{ color: NAVY, fontWeight: 700 }}>฿{deliveryFee}</span>
+                      </div>
+                    )}
                     <div style={{ display: "flex", justifyContent: "space-between", padding: "10px 0", fontSize: 16, fontWeight: 900 }}>
                       <span style={{ color: GRAY }}>💰 ยอดรวม</span>
                       <span style={{ color: ORANGE }}>฿{cartTotal.toLocaleString()}</span>

@@ -38,22 +38,10 @@ async function createOrder(req, res) { try {
   if (deliveryLat && deliveryLng) {
     const info = await getDeliveryInfo(deliveryLat, deliveryLng);
     distanceKm = info.distanceKm;
-    const zones = await DeliveryZone.findAll({ where: { isActive: true }, order: [["maxKm", "ASC"]] });
-    // Check geo zones (centerLat/centerLng/radiusKm) first
+    deliveryFee = distanceKm > 3 ? 10 : 0;
+    const zones = await DeliveryZone.findAll({ where: { isActive: true, centerLat: null }, order: [["maxKm", "ASC"]] });
     for (const z of zones) {
-      if (z.centerLat && z.centerLng && z.radiusKm) {
-        const d = haversineKm(Number(deliveryLat), Number(deliveryLng), Number(z.centerLat), Number(z.centerLng));
-        const inRadius = d <= Number(z.radiusKm);
-        const aboveMinLat = !z.minLat || Number(deliveryLat) >= Number(z.minLat);
-        const eastOfMinLng = !z.minLng || Number(deliveryLng) >= Number(z.minLng);
-        if (inRadius && aboveMinLat && eastOfMinLng) { zone = z; break; }
-      }
-    }
-    // Fall back to distance-from-store zones
-    if (!zone) {
-      for (const z of zones) {
-        if (!z.centerLat && distanceKm <= z.maxKm) { zone = z; break; }
-      }
+      if (distanceKm <= z.maxKm) { zone = z; break; }
     }
     if (!zone) return res.status(400).json({ error: "ที่อยู่อยู่นอกพื้นที่จัดส่ง" });
   } else {
@@ -61,12 +49,8 @@ async function createOrder(req, res) { try {
     zone = (await DeliveryZone.findOne({ where: { isActive: true, centerLat: null }, order: [["maxKm", "ASC"]] })) || { name: "admin" };
   }
 
-  // Price — use zone-specific price if available
-  let unitPrice = Number(product.homePrice);
-  if (zone?.id) {
-    const zp = await ProductZonePrice.findOne({ where: { productId, zoneId: zone.id } });
-    if (zp) unitPrice = Number(zp.price);
-  }
+  // Price — use homePrice for all zones
+  const unitPrice = Number(product.homePrice);
 
   const subtotal = unitPrice * qty;
 
