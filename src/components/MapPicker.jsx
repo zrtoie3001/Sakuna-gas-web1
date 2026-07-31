@@ -87,7 +87,7 @@ export default function MapPicker({ onLocationSelect, locationData, apiZones }) 
               </div>
             )}
             <div style={{ fontSize: 9, color: "#999", marginBottom: 2 }}>
-              zones:{apiZones?.length || 0} z:{zoneName}
+              zones:{apiZones?.length || 0} z:{zoneName} lat:{loc?.lat?.toFixed(4)} lng:{loc?.lng?.toFixed(4)}
             </div>
             <div style={{ fontSize: 10, fontWeight: 700,
               color: inArea ? "#059669" : "#DC2626" }}>
