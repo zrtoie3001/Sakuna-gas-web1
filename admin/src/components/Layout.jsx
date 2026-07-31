@@ -80,6 +80,7 @@ const NAV = [
   { to: "/reports",   icon: "📈", label: "รายงาน" },
   { to: "/stock",     icon: "📦", label: "สต็อก" },
   { to: "/debts",     icon: "💸", label: "ค้างเงิน/ถัง" },
+  { to: "/expenses",  icon: "🧾", label: "เบิกเงิน" },
   { to: "/settings",  icon: "⚙️", label: "ตั้งค่า" },
 ];
 

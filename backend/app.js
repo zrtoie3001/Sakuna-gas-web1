@@ -51,6 +51,7 @@ app.use("/api/v1/maps",      require("./src/routes/maps"));
 app.use("/api/v1/stock",     require("./src/routes/stock"));
 app.use("/api/v1/settings",  require("./src/routes/settings"));
 app.use("/api/v1/debts",     require("./src/routes/debts"));
+app.use("/api/v1/expenses",  require("./src/routes/expenses"));
 
 // ── Health ────────────────────────────────────────────────────────────────────
 app.get("/health", (_req, res) => res.json({ status: "ok", ts: new Date() }));
@@ -109,6 +110,18 @@ const PORT = process.env.PORT || 3001;
     await sequelize.query(`ALTER TABLE delivery_zones ADD COLUMN IF NOT EXISTS min_lat DECIMAL(10,7);`).catch(() => {});
     await sequelize.query(`ALTER TABLE delivery_zones ADD COLUMN IF NOT EXISTS min_lng DECIMAL(10,7);`).catch(() => {});
     await sequelize.query(`ALTER TABLE delivery_zones ADD COLUMN IF NOT EXISTS polygon_coords TEXT;`).catch(() => {});
+    await sequelize.query(`
+      CREATE TABLE IF NOT EXISTS expenses (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        type VARCHAR(20) NOT NULL DEFAULT 'other',
+        amount NUMERIC(10,2) NOT NULL,
+        description TEXT,
+        slip_url TEXT,
+        created_by UUID,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      );
+    `).catch(() => {});
     logger.info("Migrations done");
 
     app.listen(PORT, () => logger.info(`API running on port ${PORT}`));
