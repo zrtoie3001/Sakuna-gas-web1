@@ -4,8 +4,8 @@ import api from "../utils/api.js";
 const NAVY = "#1A2B6B"; const ORANGE = "#F47B20"; const WHITE = "#FFFFFF"; const GRAY = "#6B7280";
 const EMPTY = { name: "", email: "", phone: "", password: "", role: "driver" };
 
-const ROLE_LABELS = { admin: "Admin เท่านั้น", driver: "พนักงานส่ง", both: "Admin + ส่งของ" };
-const ROLE_COLORS = { admin: { bg: "#EEF2FF", color: "#1A2B6B" }, driver: { bg: "#D1FAE5", color: "#065F46" }, both: { bg: "#FEF3C7", color: "#92400E" } };
+const ROLE_LABELS = { admin: "Admin เท่านั้น", driver: "พนักงานส่ง", both: "Admin + ส่งของ", finance: "🧾 อนุมัติเบิกเงิน" };
+const ROLE_COLORS = { admin: { bg: "#EEF2FF", color: "#1A2B6B" }, driver: { bg: "#D1FAE5", color: "#065F46" }, both: { bg: "#FEF3C7", color: "#92400E" }, finance: { bg: "#F3E8FF", color: "#6B21A8" } };
 
 export default function Drivers() {
   const [drivers, setDrivers]   = useState([]);

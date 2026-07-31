@@ -80,7 +80,7 @@ const NAV = [
   { to: "/reports",   icon: "📈", label: "รายงาน" },
   { to: "/stock",     icon: "📦", label: "สต็อก" },
   { to: "/debts",     icon: "💸", label: "ค้างเงิน/ถัง" },
-  { to: "/expenses",  icon: "🧾", label: "เบิกเงิน" },
+  { to: "/expenses",  icon: "🧾", label: "เบิกเงิน", roles: ["admin", "finance"] },
   { to: "/settings",  icon: "⚙️", label: "ตั้งค่า" },
 ];
 
@@ -166,7 +166,7 @@ export default function Layout() {
 
       {/* Nav */}
       <nav style={{ flex: 1, padding: "12px 0" }}>
-        {NAV.map(item => (
+        {NAV.filter(item => !item.roles || item.roles.includes(user.role)).map(item => (
           <NavLink key={item.to} to={item.to} end={item.to === "/"} onClick={() => setSideOpen(false)}
             style={({ isActive }) => ({
               display: "flex", alignItems: "center", gap: 12,

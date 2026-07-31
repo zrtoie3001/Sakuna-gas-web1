@@ -15,8 +15,8 @@ const upload = multer({ storage, limits: { fileSize: 10 * 1024 * 1024 } });
 
 router.use(requireAuth);
 
-router.get("/",           ctrl.listExpenses);
-router.post("/",          requireRole("admin"), upload.single("slip"), ctrl.createExpense);
-router.delete("/:id",     requireRole("admin"), ctrl.deleteExpense);
+router.get("/",           requireRole("admin", "finance"), ctrl.listExpenses);
+router.post("/",          requireRole("admin", "finance"), upload.single("slip"), ctrl.createExpense);
+router.delete("/:id",     requireRole("admin", "finance"), ctrl.deleteExpense);
 
 module.exports = router;

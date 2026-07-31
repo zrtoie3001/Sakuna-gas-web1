@@ -81,6 +81,8 @@ const PORT = process.env.PORT || 3001;
       DO $$ BEGIN
         BEGIN ALTER TYPE enum_users_role ADD VALUE IF NOT EXISTS 'both';
         EXCEPTION WHEN duplicate_object THEN NULL; END;
+        BEGIN ALTER TYPE enum_users_role ADD VALUE IF NOT EXISTS 'finance';
+        EXCEPTION WHEN duplicate_object THEN NULL; END;
       END $$;
     `).catch(() => {});
     await sequelize.query(`
