@@ -8,10 +8,10 @@ router.get("/pending",     requireAuth, requireRole("driver", "admin"), ctrl.get
 router.get("/route",       requireAuth, requireRole("driver"), ctrl.getOptimizedRoute);
 router.put("/location",    requireAuth, requireRole("driver"), ctrl.updateLocation);
 
-// Admin
-router.get("/",            requireAuth, requireRole("admin"), ctrl.listDrivers);
-router.get("/locations",   requireAuth, requireRole("admin"), ctrl.getDriverLocations);
-router.post("/",           requireAuth, requireRole("admin"), ctrl.createDriver);
-router.put("/:id",         requireAuth, requireRole("admin"), ctrl.updateDriver);
+// Finance only (finance role inherits admin via middleware)
+router.get("/",            requireAuth, requireRole("finance"), ctrl.listDrivers);
+router.get("/locations",   requireAuth, requireRole("admin"),   ctrl.getDriverLocations);
+router.post("/",           requireAuth, requireRole("finance"), ctrl.createDriver);
+router.put("/:id",         requireAuth, requireRole("finance"), ctrl.updateDriver);
 
 module.exports = router;

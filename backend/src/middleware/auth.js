@@ -20,9 +20,10 @@ async function requireAuth(req, res, next) {
 function requireRole(...roles) {
   return (req, res, next) => {
     const userRole = req.user?.role;
+    // finance = super admin (has all admin perms + finance perms)
     const hasAccess = roles.includes(userRole) ||
       (userRole === "both" && (roles.includes("admin") || roles.includes("driver"))) ||
-      (userRole === "finance" && roles.includes("finance"));
+      (userRole === "finance" && (roles.includes("finance") || roles.includes("admin")));
     if (!hasAccess) return res.status(403).json({ error: "Forbidden" });
     next();
   };
