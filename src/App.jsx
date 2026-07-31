@@ -257,7 +257,7 @@ export default function App() {
         const [bRes, pRes, zRes] = await Promise.all([
           fetch(`${API}/api/v1/products/brands`),
           fetch(`${API}/api/v1/products`),
-          fetch(`${API}/api/v1/products/zones`),
+          fetch(`${API}/api/v1/products/zones`, { cache: "no-store" }),
         ]);
         const bData = await bRes.json(); const pData = await pRes.json(); const zData = await zRes.json();
         setBrands(Array.isArray(bData) ? bData : bData.brands || []);
