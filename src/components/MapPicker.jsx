@@ -86,6 +86,9 @@ export default function MapPicker({ onLocationSelect, locationData, apiZones }) 
                 {zoneLabel}
               </div>
             )}
+            <div style={{ fontSize: 9, color: "#999", marginBottom: 2 }}>
+              zones:{apiZones?.length || 0} z:{zoneName}
+            </div>
             <div style={{ fontSize: 10, fontWeight: 700,
               color: inArea ? "#059669" : "#DC2626" }}>
               {inArea ? "✅ ในพื้นที่" : "⚠️ นอกพื้นที่"}
