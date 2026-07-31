@@ -78,7 +78,7 @@ function PolygonEditor({ existingCoords, color, onSave, onClose }) {
           <button onClick={onClose} style={{ padding: "6px 12px", borderRadius: 8, border: "none", background: "#374151", color: WHITE, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>✕ ยกเลิก</button>
         </div>
       </div>
-      <div ref={mapRef} style={{ flex: 1, minHeight: 0, height: "100%" }} />
+      <div ref={mapRef} style={{ width: "100%", height: "calc(100vh - 52px)" }} />
     </div>
   );
 }
