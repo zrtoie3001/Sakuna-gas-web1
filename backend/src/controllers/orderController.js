@@ -51,7 +51,8 @@ async function createOrder(req, res) { try {
     distanceKm = info.distanceKm;
     deliveryFee = distanceKm > 3 ? 10 : 0;
     const lat = Number(deliveryLat), lng = Number(deliveryLng);
-    const zones = await DeliveryZone.findAll({ where: { isActive: true }, order: [["maxKm", "ASC", "NULLS LAST"]] });
+    const zones = await DeliveryZone.findAll({ where: { isActive: true } });
+    zones.sort((a, b) => (a.maxKm == null ? 1 : b.maxKm == null ? -1 : a.maxKm - b.maxKm));
     // Polygon zones first
     for (const z of zones) {
       if (z.polygonCoords) {
