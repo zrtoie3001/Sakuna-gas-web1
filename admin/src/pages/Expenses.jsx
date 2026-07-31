@@ -173,7 +173,7 @@ export default function Expenses() {
             </div>
 
             <div style={{ marginBottom: 12 }}>
-              <label style={{ fontSize: 11, color: GRAY, display: "block", marginBottom: 4, fontWeight: 700 }}>ชื่อพนักงาน *</label>
+              <label style={{ fontSize: 11, color: GRAY, display: "block", marginBottom: 4, fontWeight: 700 }}>ใครเบิก (ถ้ามี)</label>
               <input value={form.createdByName} onChange={e => setForm(f => ({ ...f, createdByName: e.target.value }))} style={inp} placeholder="เช่น สมชาย / ป้าแดง" />
             </div>
 
