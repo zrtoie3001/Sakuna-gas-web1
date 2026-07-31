@@ -37,11 +37,14 @@ function PolygonEditor({ existingCoords, color, onSave, onClose }) {
 
   useEffect(() => {
     function initMap() {
+      if (!mapRef.current) return;
       const map = new window.google.maps.Map(mapRef.current, {
         center: { lat: 13.890, lng: 100.620 }, zoom: 14,
         mapTypeControl: false, streetViewControl: false,
       });
       mapObj.current = map;
+      // force resize so map fills container
+      setTimeout(() => window.google.maps.event.trigger(map, "resize"), 100);
       map.addListener("click", e => {
         const pt = { lat: e.latLng.lat(), lng: e.latLng.lng() };
         setPts(prev => { const next = [...prev, pt]; redraw(map, next); return next; });
@@ -53,7 +56,7 @@ function PolygonEditor({ existingCoords, color, onSave, onClose }) {
     const cbName = "__gmPolygonInit" + Date.now();
     window[cbName] = () => { initMap(); delete window[cbName]; };
     const s = document.createElement("script");
-    s.src = `https://maps.googleapis.com/maps/api/js?key=${window.GOOGLE_MAPS_API_KEY}&callback=${cbName}`;
+    s.src = `https://maps.googleapis.com/maps/api/js?key=${window.GOOGLE_MAPS_API_KEY}&loading=async&callback=${cbName}`;
     document.head.appendChild(s);
   }, []);
 
@@ -75,7 +78,7 @@ function PolygonEditor({ existingCoords, color, onSave, onClose }) {
           <button onClick={onClose} style={{ padding: "6px 12px", borderRadius: 8, border: "none", background: "#374151", color: WHITE, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>✕ ยกเลิก</button>
         </div>
       </div>
-      <div ref={mapRef} style={{ flex: 1 }} />
+      <div ref={mapRef} style={{ flex: 1, minHeight: 0, height: "100%" }} />
     </div>
   );
 }
