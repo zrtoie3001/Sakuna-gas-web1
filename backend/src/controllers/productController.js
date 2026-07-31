@@ -66,9 +66,15 @@ async function updateZone(req, res) {
 
 async function createZone(req, res) {
   const { zonePrices, ...data } = req.body;
-  const zone = await DeliveryZone.create(data);
-  if (zonePrices?.length) {
-    await ProductZonePrice.bulkCreate(zonePrices.map(zp => ({ ...zp, zoneId: zone.id })));
+  let zone = await DeliveryZone.findOne({ where: { name: data.name } });
+  if (zone) {
+    await zone.update({ ...data, isActive: true });
+  } else {
+    zone = await DeliveryZone.create(data);
+  }
+  if (zonePrices) {
+    await ProductZonePrice.destroy({ where: { zoneId: zone.id } });
+    if (zonePrices.length) await ProductZonePrice.bulkCreate(zonePrices.map(zp => ({ ...zp, zoneId: zone.id })));
   }
   res.status(201).json(zone);
 }
