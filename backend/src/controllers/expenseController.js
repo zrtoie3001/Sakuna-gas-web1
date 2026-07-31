@@ -21,7 +21,7 @@ async function listExpenses(req, res) {
 
 async function createExpense(req, res) {
   try {
-    const { type, amount, description } = req.body;
+    const { type, amount, description, createdByName } = req.body;
     if (!amount || isNaN(Number(amount))) return res.status(400).json({ error: "กรุณาระบุจำนวนเงิน" });
     const slipUrl = req.file ? `/uploads/slips/${req.file.filename}` : null;
     const expense = await Expense.create({
@@ -30,6 +30,7 @@ async function createExpense(req, res) {
       description: description || null,
       slipUrl,
       createdBy: req.user?.id || null,
+      createdByName: createdByName || null,
     });
     res.status(201).json(expense);
   } catch (e) {

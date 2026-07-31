@@ -62,7 +62,7 @@ async function dashboardStats(req, res) {
   const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
   const day7Start  = new Date(); day7Start.setDate(day7Start.getDate() - 6); day7Start.setHours(0,0,0,0);
 
-  const [todaySummary, monthRevenue, totalCustomers, pendingOrders, trend7, topProducts, paymentBreakdown, brandBreakdown] = await Promise.all([
+  const [todaySummary, monthRevenue, totalCustomers, pendingOrders, trend7, topProducts, paymentBreakdown, brandBreakdown, todayPayBreakdown, monthPayBreakdown] = await Promise.all([
     Order.findOne({
       where: { createdAt: { [Op.between]: [todayStart, todayEnd] }, status: { [Op.ne]: "cancelled" } },
       attributes: [[fn("COUNT", col("id")), "count"], [fn("SUM", col("total")), "revenue"]],
@@ -109,6 +109,20 @@ async function dashboardStats(req, res) {
       order: [[literal("count"), "DESC"]],
       raw: false,
     }),
+    // Today payment breakdown (cash vs transfer)
+    Order.findAll({
+      where: { createdAt: { [Op.between]: [todayStart, todayEnd] }, status: { [Op.ne]: "cancelled" } },
+      attributes: ["paymentMethod", [fn("COUNT", col("id")), "count"], [fn("SUM", col("total")), "revenue"]],
+      group: ["paymentMethod"],
+      raw: true,
+    }),
+    // Month payment breakdown
+    Order.findAll({
+      where: { createdAt: { [Op.gte]: monthStart }, status: { [Op.ne]: "cancelled" } },
+      attributes: ["paymentMethod", [fn("COUNT", col("id")), "count"], [fn("SUM", col("total")), "revenue"]],
+      group: ["paymentMethod"],
+      raw: true,
+    }),
   ]);
 
   // Fill missing days in trend
@@ -130,6 +144,8 @@ async function dashboardStats(req, res) {
     topProducts: topProducts.map(p => ({ name: p.product?.name || "-", qty: parseInt(p.dataValues.totalQty || 0), revenue: Number(p.dataValues.revenue || 0) })),
     paymentBreakdown: paymentBreakdown.map(p => ({ method: p.paymentMethod, count: parseInt(p.count), revenue: Number(p.revenue) })),
     brandBreakdown: brandBreakdown.map(b => ({ name: b.brand?.name || "-", count: parseInt(b.dataValues.count || 0), revenue: Number(b.dataValues.revenue || 0) })),
+    todayPayBreakdown: todayPayBreakdown.map(p => ({ method: p.paymentMethod, count: parseInt(p.count), revenue: Number(p.revenue) })),
+    monthPayBreakdown: monthPayBreakdown.map(p => ({ method: p.paymentMethod, count: parseInt(p.count), revenue: Number(p.revenue) })),
   });
 }
 

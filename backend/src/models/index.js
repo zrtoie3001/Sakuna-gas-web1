@@ -240,8 +240,9 @@ const Expense = sequelize.define("Expense", {
   type:        { type: DataTypes.ENUM("fuel", "repair", "other"), allowNull: false, defaultValue: "other" },
   amount:      { type: DataTypes.DECIMAL(10, 2), allowNull: false },
   description: { type: DataTypes.TEXT },
-  slipUrl:     { type: DataTypes.TEXT },
-  createdBy:   { type: DataTypes.UUID },
+  slipUrl:         { type: DataTypes.TEXT },
+  createdBy:       { type: DataTypes.UUID },
+  createdByName:   { type: DataTypes.STRING(100) },
 }, { tableName: "expenses", underscored: true });
 
 // ── Debt (ค้างเงิน / ค้างถัง) ─────────────────────────────────────────────────

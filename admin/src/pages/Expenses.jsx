@@ -26,7 +26,7 @@ export default function Expenses() {
   const [expenses, setExpenses] = useState([]);
   const [total, setTotal] = useState(0);
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ type: "fuel", amount: "", description: "" });
+  const [form, setForm] = useState({ type: "fuel", amount: "", description: "", createdByName: "" });
   const [slipFile, setSlipFile] = useState(null);
   const [slipPreview, setSlipPreview] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -65,9 +65,10 @@ export default function Expenses() {
       fd.append("type", form.type);
       fd.append("amount", form.amount);
       fd.append("description", form.description);
+      fd.append("createdByName", form.createdByName);
       if (slipFile) fd.append("slip", slipFile);
       await api.post("/api/v1/expenses", fd, { headers: { "Content-Type": "multipart/form-data" } });
-      setForm({ type: "fuel", amount: "", description: "" });
+      setForm({ type: "fuel", amount: "", description: "", createdByName: "" });
       setSlipFile(null); setSlipPreview(null);
       setShowForm(false);
       load();
@@ -145,7 +146,8 @@ export default function Expenses() {
                 </span>
                 <span style={{ fontWeight: 800, color: RED, fontSize: 16, whiteSpace: "nowrap" }}>฿{Number(e.amount).toLocaleString()}</span>
               </div>
-              {e.description && <div style={{ marginTop: 6, fontSize: 13, color: "#374151" }}>{e.description}</div>}
+              {e.createdByName && <div style={{ marginTop: 6, fontSize: 12, color: NAVY, fontWeight: 700 }}>👤 {e.createdByName}</div>}
+              {e.description && <div style={{ marginTop: 4, fontSize: 13, color: "#374151" }}>{e.description}</div>}
               <div style={{ marginTop: 4, fontSize: 11, color: GRAY }}>
                 {new Date(e.createdAt).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
               </div>
@@ -168,6 +170,11 @@ export default function Expenses() {
                 <option value="repair">🔧 ซ่อมรถ / ค่าจิปาถะ</option>
                 <option value="other">📦 อื่นๆ</option>
               </select>
+            </div>
+
+            <div style={{ marginBottom: 12 }}>
+              <label style={{ fontSize: 11, color: GRAY, display: "block", marginBottom: 4, fontWeight: 700 }}>ชื่อพนักงาน *</label>
+              <input value={form.createdByName} onChange={e => setForm(f => ({ ...f, createdByName: e.target.value }))} style={inp} placeholder="เช่น สมชาย / ป้าแดง" />
             </div>
 
             <div style={{ marginBottom: 12 }}>

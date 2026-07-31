@@ -64,6 +64,13 @@ export default function Dashboard() {
     value: p.count,
   }));
 
+  function payRevenue(breakdown, method) {
+    const match = (breakdown || []).filter(p =>
+      method === "cash" ? p.method === "cash" : ["qr", "transfer", "cod"].includes(p.method)
+    );
+    return match.reduce((s, p) => s + p.revenue, 0);
+  }
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       <h1 style={{ fontSize: 22, fontWeight: 900, color: NAVY, margin: 0 }}>📊 Dashboard</h1>
@@ -76,6 +83,25 @@ export default function Dashboard() {
         <StatCard icon="👥" label="ลูกค้าทั้งหมด"   value={stats?.totalCustomers ?? "—"} color="#F59E0B" />
         <StatCard icon="⏳" label="รอดำเนินการ"     value={stats?.pendingOrders ?? "—"} color="#EF4444"
           sub={stats?.pendingOrders > 0 ? "⚠️ มีออเดอร์รอ" : undefined} />
+      </div>
+
+      {/* Cash vs Transfer today */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 14 }}>
+        <div style={{ background: WHITE, borderRadius: 14, padding: "16px 20px", boxShadow: "0 2px 12px rgba(0,0,0,.06)", borderLeft: "4px solid #10B981" }}>
+          <div style={{ fontSize: 12, color: GRAY, marginBottom: 4, fontWeight: 700 }}>💵 เงินสด — วันนี้</div>
+          <div style={{ fontSize: 26, fontWeight: 900, color: "#065F46" }}>฿{payRevenue(stats?.todayPayBreakdown, "cash").toLocaleString()}</div>
+          <div style={{ fontSize: 12, color: GRAY, marginTop: 4 }}>เดือนนี้ ฿{payRevenue(stats?.monthPayBreakdown, "cash").toLocaleString()}</div>
+        </div>
+        <div style={{ background: WHITE, borderRadius: 14, padding: "16px 20px", boxShadow: "0 2px 12px rgba(0,0,0,.06)", borderLeft: "4px solid #6366F1" }}>
+          <div style={{ fontSize: 12, color: GRAY, marginBottom: 4, fontWeight: 700 }}>📲 เงินโอน — วันนี้</div>
+          <div style={{ fontSize: 26, fontWeight: 900, color: "#3730A3" }}>฿{payRevenue(stats?.todayPayBreakdown, "transfer").toLocaleString()}</div>
+          <div style={{ fontSize: 12, color: GRAY, marginTop: 4 }}>เดือนนี้ ฿{payRevenue(stats?.monthPayBreakdown, "transfer").toLocaleString()}</div>
+        </div>
+        <div style={{ background: WHITE, borderRadius: 14, padding: "16px 20px", boxShadow: "0 2px 12px rgba(0,0,0,.06)", borderLeft: "4px solid #F59E0B" }}>
+          <div style={{ fontSize: 12, color: GRAY, marginBottom: 4, fontWeight: 700 }}>💰 รวมทั้งหมด — วันนี้</div>
+          <div style={{ fontSize: 26, fontWeight: 900, color: NAVY }}>฿{(stats?.today?.revenue ?? 0).toLocaleString()}</div>
+          <div style={{ fontSize: 12, color: GRAY, marginTop: 4 }}>เดือนนี้ ฿{(stats?.month?.revenue ?? 0).toLocaleString()}</div>
+        </div>
       </div>
 
       {/* Charts row 1 */}
