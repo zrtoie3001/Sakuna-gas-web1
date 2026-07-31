@@ -125,21 +125,31 @@ export function getZoneFromDist(km) {
   return null; // นอกพื้นที่
 }
 
-// ตรวจโซนจาก API zones (geo zones ก่อน แล้ว distance zones)
+function pointInPolygon(lat, lng, coords) {
+  let inside = false;
+  for (let i = 0, j = coords.length - 1; i < coords.length; j = i++) {
+    const xi = coords[i].lat, yi = coords[i].lng;
+    const xj = coords[j].lat, yj = coords[j].lng;
+    if (((yi > lng) !== (yj > lng)) && (lat < (xj - xi) * (lng - yi) / (yj - yi) + xi))
+      inside = !inside;
+  }
+  return inside;
+}
+
+// ตรวจโซนจาก API zones (polygon ก่อน แล้ว distance zones)
 export function detectZone(lat, lng, distKm, apiZones) {
   if (!apiZones?.length) return getZoneFromDist(distKm);
-  // geo zones first
+  // polygon zones first
   for (const z of apiZones) {
-    if (z.centerLat && z.centerLng && z.radiusKm) {
-      const d = getDistanceKm(lat, lng, Number(z.centerLat), Number(z.centerLng));
-      const inRadius = d <= Number(z.radiusKm);
-      const aboveMinLat = !z.minLat || lat >= Number(z.minLat);
-      const eastOfMinLng = !z.minLng || lng >= Number(z.minLng);
-      if (inRadius && aboveMinLat && eastOfMinLng) return z.name;
+    if (z.polygonCoords) {
+      try {
+        const coords = JSON.parse(z.polygonCoords);
+        if (pointInPolygon(lat, lng, coords)) return z.name;
+      } catch {}
     }
   }
   // distance zones
-  const distZones = [...apiZones].filter(z => !z.centerLat).sort((a, b) => a.maxKm - b.maxKm);
+  const distZones = [...apiZones].filter(z => !z.polygonCoords && !z.centerLat).sort((a, b) => Number(a.maxKm) - Number(b.maxKm));
   for (const z of distZones) {
     if (distKm <= Number(z.maxKm)) return z.name;
   }

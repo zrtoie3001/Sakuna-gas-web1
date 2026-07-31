@@ -1,7 +1,84 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import api from "../utils/api.js";
 
 const NAVY = "#1A2B6B"; const ORANGE = "#F47B20"; const WHITE = "#FFFFFF"; const GRAY = "#6B7280";
+
+// ── Polygon Map Editor ────────────────────────────────────────────────────────
+function PolygonEditor({ existingCoords, color, onSave, onClose }) {
+  const mapRef = useRef(null);
+  const mapObj = useRef(null);
+  const polyObj = useRef(null);
+  const markersRef = useRef([]);
+  const [pts, setPts] = useState(() => {
+    try { return existingCoords ? JSON.parse(existingCoords) : []; } catch { return []; }
+  });
+
+  const redraw = useCallback((map, points) => {
+    markersRef.current.forEach(m => m.setMap(null));
+    markersRef.current = [];
+    if (polyObj.current) polyObj.current.setMap(null);
+    if (!points.length) return;
+    points.forEach((p, i) => {
+      const m = new window.google.maps.Marker({
+        position: p, map,
+        label: { text: String(i + 1), color: "#fff", fontSize: "11px", fontWeight: "800" },
+        icon: { path: window.google.maps.SymbolPath.CIRCLE, scale: 8, fillColor: color || "#FF0000", fillOpacity: 1, strokeWeight: 0 },
+      });
+      markersRef.current.push(m);
+    });
+    if (points.length >= 3) {
+      polyObj.current = new window.google.maps.Polygon({
+        paths: points, map,
+        strokeColor: color || "#FF0000", strokeOpacity: 0.9, strokeWeight: 2,
+        fillColor: color || "#FF0000", fillOpacity: 0.2,
+      });
+    }
+  }, [color]);
+
+  useEffect(() => {
+    function initMap() {
+      const map = new window.google.maps.Map(mapRef.current, {
+        center: { lat: 13.890, lng: 100.620 }, zoom: 14,
+        mapTypeControl: false, streetViewControl: false,
+      });
+      mapObj.current = map;
+      map.addListener("click", e => {
+        const pt = { lat: e.latLng.lat(), lng: e.latLng.lng() };
+        setPts(prev => { const next = [...prev, pt]; redraw(map, next); return next; });
+      });
+      const initial = (() => { try { return existingCoords ? JSON.parse(existingCoords) : []; } catch { return []; } })();
+      if (initial.length) { redraw(map, initial); }
+    }
+    if (window.google?.maps) { initMap(); return; }
+    const cbName = "__gmPolygonInit" + Date.now();
+    window[cbName] = () => { initMap(); delete window[cbName]; };
+    const s = document.createElement("script");
+    s.src = `https://maps.googleapis.com/maps/api/js?key=${window.GOOGLE_MAPS_API_KEY}&callback=${cbName}`;
+    document.head.appendChild(s);
+  }, []);
+
+  function undo() {
+    setPts(prev => { const next = prev.slice(0, -1); redraw(mapObj.current, next); return next; });
+  }
+  function clear() { setPts([]); redraw(mapObj.current, []); }
+  function save() { onSave(JSON.stringify(pts)); }
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.85)", zIndex: 1000, display: "flex", flexDirection: "column" }}>
+      <div style={{ padding: "10px 16px", background: NAVY, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+        <span style={{ color: WHITE, fontWeight: 800, fontSize: 14 }}>🗺 วาดขอบเขตโซน — คลิกบนแผนที่เพื่อเพิ่มจุด</span>
+        <span style={{ color: "rgba(255,255,255,.6)", fontSize: 12 }}>{pts.length} จุด{pts.length >= 3 ? " ✓" : " (ต้องการ ≥ 3)"}</span>
+        <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
+          <button onClick={undo} disabled={!pts.length} style={{ padding: "6px 12px", borderRadius: 8, border: "none", background: "#374151", color: WHITE, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>↩ ยกเลิกจุดล่าสุด</button>
+          <button onClick={clear} style={{ padding: "6px 12px", borderRadius: 8, border: "none", background: "#7F1D1D", color: WHITE, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>🗑 ล้างทั้งหมด</button>
+          <button onClick={save} disabled={pts.length < 3} style={{ padding: "6px 14px", borderRadius: 8, border: "none", background: pts.length >= 3 ? "#059669" : "#374151", color: WHITE, fontWeight: 800, fontSize: 13, cursor: pts.length >= 3 ? "pointer" : "default" }}>✅ บันทึก Polygon</button>
+          <button onClick={onClose} style={{ padding: "6px 12px", borderRadius: 8, border: "none", background: "#374151", color: WHITE, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>✕ ยกเลิก</button>
+        </div>
+      </div>
+      <div ref={mapRef} style={{ flex: 1 }} />
+    </div>
+  );
+}
 
 function Modal({ title, onClose, children }) {
   return (
@@ -38,9 +115,10 @@ export default function Products() {
   const [zones, setZones]       = useState([]);
   const [modal, setModal]       = useState(null);
   const [form, setForm]         = useState({});
-  const [zoneForm, setZoneForm] = useState({ name: "", label: "", color: "#DC2626", centerLat: "", centerLng: "", radiusKm: "", maxKm: "", minLat: "" });
+  const [zoneForm, setZoneForm] = useState({ name: "", label: "", color: "#DC2626", centerLat: "", centerLng: "", radiusKm: "", maxKm: "", minLat: "", minLng: "", polygonCoords: "" });
   const [zonePriceForm, setZonePriceForm] = useState({}); // { productId: price }
   const [editZone, setEditZone] = useState(null);
+  const [showPolyEditor, setShowPolyEditor] = useState(false);
 
   const load = () => {
     api.get("/api/v1/products/brands").then(r => setBrands(r.data)).catch(() => {});
@@ -105,6 +183,7 @@ export default function Products() {
       centerLat: zoneForm.centerLat || null, centerLng: zoneForm.centerLng || null,
       radiusKm: zoneForm.radiusKm || null, maxKm: zoneForm.maxKm || null,
       minLat: zoneForm.minLat || null, minLng: zoneForm.minLng || null,
+      polygonCoords: zoneForm.polygonCoords || null,
       isActive: true, zonePrices,
     };
     if (editZone) await api.put(`/api/v1/products/zones/${editZone.id}`, payload);
@@ -125,6 +204,7 @@ export default function Products() {
     const priceMap = {};
     (zone.zonePrices || []).forEach(zp => { priceMap[zp.productId] = zp.price; });
     setZonePriceForm(priceMap);
+    setZoneForm(f => ({ ...f, polygonCoords: zone.polygonCoords || "" }));
     setModal("zone_edit");
   }
 
@@ -175,7 +255,7 @@ export default function Products() {
           {tab === "equipment" && <button onClick={() => { setModal("equip_new_equipment"); setForm({}); }} style={btn(ORANGE, WHITE)}>+ เพิ่มอุปกรณ์</button>}
           {tab === "stove" && <button onClick={() => { setModal("equip_new_stove"); setForm({}); }} style={btn(ORANGE, WHITE)}>+ เพิ่มเตา</button>}
           {tab === "brands" && <button onClick={() => { setModal("brand_new"); setForm({}); }} style={btn(NAVY, WHITE)}>+ เพิ่มยี่ห้อ</button>}
-          {tab === "zones" && <button onClick={() => { setModal("zone_new"); setEditZone(null); setZoneForm({ name: "", label: "", color: "#DC2626", centerLat: "", centerLng: "", radiusKm: "", maxKm: "", minLat: "", minLng: "" }); setZonePriceForm({}); }} style={btn(ORANGE, WHITE)}>+ เพิ่มโซน</button>}
+          {tab === "zones" && <button onClick={() => { setModal("zone_new"); setEditZone(null); setZoneForm({ name: "", label: "", color: "#DC2626", centerLat: "", centerLng: "", radiusKm: "", maxKm: "", minLat: "", minLng: "", polygonCoords: "" }); setZonePriceForm({}); }} style={btn(ORANGE, WHITE)}>+ เพิ่มโซน</button>}
         </div>
       </div>
 
@@ -266,7 +346,7 @@ export default function Products() {
                     <span style={{ fontSize: 11, color: GRAY, marginLeft: 6 }}>({z.name})</span>
                   </div>
                   <span style={{ fontSize: 11, background: (z.color || "#6B7280") + "20", color: z.color || GRAY, padding: "2px 8px", borderRadius: 8, fontWeight: 700 }}>
-                    {z.centerLat ? `📍 ${Number(z.radiusKm).toFixed(1)} km` : `📏 ≤${Number(z.maxKm).toFixed(1)} km`}
+                    {z.polygonCoords ? `🗺 Polygon` : z.centerLat ? `📍 ${Number(z.radiusKm).toFixed(1)} km` : `📏 ≤${Number(z.maxKm).toFixed(1)} km`}
                   </span>
                 </div>
                 {(z.zonePrices || []).length > 0 && (
@@ -312,8 +392,26 @@ export default function Products() {
               <input value={zoneForm.color} onChange={e => setZoneForm(f => ({ ...f, color: e.target.value }))} style={{ ...inp, flex: 1 }} />
             </div>
           </div>
+          {/* Polygon zone */}
+          <div style={{ background: "#F0FDF4", borderRadius: 10, padding: 12, marginBottom: 12, border: "2px solid #86EFAC" }}>
+            <p style={{ fontSize: 12, fontWeight: 700, color: "#166534", marginBottom: 8 }}>🗺 โซนแบบ Polygon (แนะนำ — วาดตามถนนได้เลย)</p>
+            {zoneForm.polygonCoords ? (
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                <span style={{ fontSize: 12, color: "#166534", flex: 1 }}>
+                  ✅ วาดแล้ว {(() => { try { return JSON.parse(zoneForm.polygonCoords).length; } catch { return 0; } })()} จุด
+                </span>
+                <button onClick={() => setShowPolyEditor(true)} style={{ ...btn("#D1FAE5", "#065F46"), fontSize: 11 }}>แก้ไข</button>
+                <button onClick={() => setZoneForm(f => ({ ...f, polygonCoords: "" }))} style={{ ...btn("#FEE2E2", "#991B1B"), fontSize: 11 }}>ลบ</button>
+              </div>
+            ) : (
+              <button onClick={() => setShowPolyEditor(true)} style={{ ...btn("#059669", WHITE), width: "100%", padding: 10 }}>
+                ✏️ วาด Polygon บนแผนที่
+              </button>
+            )}
+          </div>
+
           <div style={{ background: "#F8FAFC", borderRadius: 10, padding: 12, marginBottom: 12 }}>
-            <p style={{ fontSize: 12, fontWeight: 700, color: NAVY, marginBottom: 8 }}>📍 โซนแบบพื้นที่ (ใส่ lat/lng จุดกลาง + รัศมี)</p>
+            <p style={{ fontSize: 12, fontWeight: 700, color: NAVY, marginBottom: 8 }}>📍 โซนแบบวงกลม (ถ้าไม่ใช้ Polygon)</p>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
               <div>
                 <label style={{ fontSize: 11, color: GRAY, display: "block", marginBottom: 4 }}>Latitude จุดกลาง</label>
@@ -360,6 +458,16 @@ export default function Products() {
           </div>
           <button onClick={saveZone} style={{ ...btn(NAVY, WHITE), width: "100%", padding: 12 }}>บันทึก</button>
         </Modal>
+      )}
+
+      {/* Polygon Editor overlay */}
+      {showPolyEditor && (
+        <PolygonEditor
+          existingCoords={zoneForm.polygonCoords}
+          color={zoneForm.color}
+          onSave={coords => { setZoneForm(f => ({ ...f, polygonCoords: coords })); setShowPolyEditor(false); }}
+          onClose={() => setShowPolyEditor(false)}
+        />
       )}
 
       {/* Modal: Gas product */}

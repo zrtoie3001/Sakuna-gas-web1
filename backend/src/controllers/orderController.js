@@ -12,6 +12,17 @@ function haversineKm(lat1, lng1, lat2, lng2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
 }
 
+function pointInPolygon(lat, lng, coords) {
+  let inside = false;
+  for (let i = 0, j = coords.length - 1; i < coords.length; j = i++) {
+    const xi = coords[i].lat, yi = coords[i].lng;
+    const xj = coords[j].lat, yj = coords[j].lng;
+    if (((yi > lng) !== (yj > lng)) && (lat < (xj - xi) * (lng - yi) / (yj - yi) + xi))
+      inside = !inside;
+  }
+  return inside;
+}
+
 function generateOrderNumber() {
   const d = new Date();
   const pad = n => String(n).padStart(2, "0");
@@ -39,9 +50,22 @@ async function createOrder(req, res) { try {
     const info = await getDeliveryInfo(deliveryLat, deliveryLng);
     distanceKm = info.distanceKm;
     deliveryFee = distanceKm > 3 ? 10 : 0;
-    const zones = await DeliveryZone.findAll({ where: { isActive: true, centerLat: null }, order: [["maxKm", "ASC"]] });
+    const lat = Number(deliveryLat), lng = Number(deliveryLng);
+    const zones = await DeliveryZone.findAll({ where: { isActive: true }, order: [["maxKm", "ASC", "NULLS LAST"]] });
+    // Polygon zones first
     for (const z of zones) {
-      if (distanceKm <= z.maxKm) { zone = z; break; }
+      if (z.polygonCoords) {
+        try {
+          const coords = JSON.parse(z.polygonCoords);
+          if (pointInPolygon(lat, lng, coords)) { zone = z; break; }
+        } catch {}
+      }
+    }
+    // Distance zones fallback
+    if (!zone) {
+      for (const z of zones) {
+        if (!z.polygonCoords && !z.centerLat && z.maxKm && distanceKm <= z.maxKm) { zone = z; break; }
+      }
     }
     if (!zone) return res.status(400).json({ error: "ที่อยู่อยู่นอกพื้นที่จัดส่ง" });
   } else {
