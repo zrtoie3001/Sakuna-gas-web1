@@ -85,6 +85,8 @@ const PORT = process.env.PORT || 3001;
         EXCEPTION WHEN duplicate_object THEN NULL; END;
       END $$;
     `).catch(() => {});
+    // Convert role column from ENUM to VARCHAR so new roles can be added freely
+    await sequelize.query(`ALTER TABLE users ALTER COLUMN role TYPE VARCHAR(20);`).catch(() => {});
     await sequelize.query(`
       CREATE TABLE IF NOT EXISTS debts (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
