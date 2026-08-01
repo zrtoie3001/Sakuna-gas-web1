@@ -52,6 +52,7 @@ app.use("/api/v1/stock",     require("./src/routes/stock"));
 app.use("/api/v1/settings",  require("./src/routes/settings"));
 app.use("/api/v1/debts",     require("./src/routes/debts"));
 app.use("/api/v1/expenses",  require("./src/routes/expenses"));
+app.use("/api/v1/payroll",   require("./src/routes/payroll"));
 
 // ── Health ────────────────────────────────────────────────────────────────────
 app.get("/health", (_req, res) => res.json({ status: "ok", ts: new Date() }));
@@ -127,6 +128,20 @@ const PORT = process.env.PORT || 3001;
       );
     `).catch(() => {});
     await sequelize.query(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS created_by_name VARCHAR(100);`).catch(() => {});
+    await sequelize.query(`
+      CREATE TABLE IF NOT EXISTS staff_payments (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        staff_name VARCHAR(100) NOT NULL,
+        amount NUMERIC(10,2) NOT NULL,
+        type VARCHAR(30) NOT NULL DEFAULT 'salary',
+        note TEXT,
+        slip_url TEXT,
+        created_by UUID,
+        created_by_name VARCHAR(100),
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      );
+    `).catch(() => {});
     logger.info("Migrations done");
 
     app.listen(PORT, () => logger.info(`API running on port ${PORT}`));

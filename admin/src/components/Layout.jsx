@@ -66,12 +66,13 @@ const NAV = [
   { to: "/orders",    icon: "📦", label: "ออเดอร์" },
   { to: "/products",  icon: "🛢", label: "สินค้า" },
   { to: "/discounts", icon: "🎟", label: "โค้ดส่วนลด" },
-  { to: "/drivers",   icon: "🛵", label: "พนักงาน",   roles: ["finance"] },
+  { to: "/drivers",   icon: "🛵", label: "พนักงาน",      roles: ["finance"] },
   { to: "/customers", icon: "👥", label: "ลูกค้า" },
   { to: "/reports",   icon: "📈", label: "รายงาน" },
   { to: "/stock",     icon: "📦", label: "สต็อก" },
   { to: "/debts",     icon: "💸", label: "ค้างเงิน/ถัง" },
-  { to: "/expenses",  icon: "🧾", label: "เบิกเงิน", roles: ["finance"] },
+  { to: "/expenses",  icon: "🧾", label: "เบิกเงิน" },
+  { to: "/finance",   icon: "💼", label: "การเงิน",      roles: ["finance"] },
   { to: "/settings",  icon: "⚙️", label: "ตั้งค่า" },
 ];
 
