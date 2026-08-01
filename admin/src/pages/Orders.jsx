@@ -29,8 +29,7 @@ function CustomerAutocomplete({ value, onChange, onSelect, placeholder, type = "
     if (!q || q.length < 1) { setSuggestions([]); setOpen(false); return; }
     timer.current = setTimeout(async () => {
       try {
-        const { default: apiInst } = await import("../utils/api.js");
-        const r = await apiInst.get(`/api/v1/orders/customer-suggestions?q=${encodeURIComponent(q)}`);
+        const r = await api.get(`/api/v1/orders/customer-suggestions?q=${encodeURIComponent(q)}`);
         const data = r.data || [];
         setSuggestions(data);
         setOpen(data.length > 0);
@@ -819,9 +818,23 @@ export default function Orders() {
             </div>
             <div style={{ marginBottom: 12 }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>ที่อยู่จัดส่ง *</div>
-              <input type="text" value={createForm.deliveryAddress} onChange={e => setCreateForm(f => ({ ...f, deliveryAddress: e.target.value }))}
-                style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 14, boxSizing: "border-box" }} />
-              {createCustAddrs.length > 0 && (
+              <CustomerAutocomplete
+                value={createForm.deliveryAddress}
+                onChange={v => setCreateForm(f => ({ ...f, deliveryAddress: v }))}
+                onSelect={c => {
+                  setCreateCustAddrs(c.addresses || []);
+                  setCreateForm(f => ({
+                    ...f,
+                    customerName:    f.customerName    || c.customerName || "",
+                    customerPhone:   f.customerPhone   || c.customerPhone || "",
+                    deliveryAddress: c.addresses?.[0]  || c.deliveryAddress || f.deliveryAddress,
+                    brandId:   f.brandId   || c.brandId   || "",
+                    productId: f.productId || c.productId || "",
+                  }));
+                }}
+                placeholder="บ้านเลขที่ ซอย..."
+              />
+              {createCustAddrs.length > 1 && (
                 <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 4 }}>
                   {createCustAddrs.map((addr, i) => (
                     <button key={i} onClick={() => setCreateForm(f => ({ ...f, deliveryAddress: addr }))}
