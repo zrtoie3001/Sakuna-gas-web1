@@ -22,32 +22,27 @@ router.post("/walkin", requireAuth, createWalkinOrder);
 router.get("/customer-suggestions", requireAuth, async (req, res) => {
   try {
     const { q = "" } = req.query;
-    const { sequelize: seq } = require("../config/database");
     const ql = (q || "").trim();
     if (!ql) return res.json([]);
 
-    // Use raw SQL to avoid underscored/iLike issues — search name, phone, address
-    const [rows] = await seq.query(`
-      SELECT DISTINCT ON (COALESCE(customer_phone, customer_name))
-        customer_name   AS "customerName",
-        customer_phone  AS "customerPhone",
-        delivery_address AS "deliveryAddress",
-        brand_id        AS "brandId",
-        product_id      AS "productId",
-        note
-      FROM orders
-      WHERE
-        customer_name    ILIKE :q
-        OR customer_phone ILIKE :q
-        OR delivery_address ILIKE :q
-      ORDER BY COALESCE(customer_phone, customer_name), created_at DESC
-      LIMIT 300
-    `, { replacements: { q: `%${ql}%` }, type: seq.QueryTypes.SELECT });
+    const { sequelize: seq } = require("../config/database");
+    const { QueryTypes } = require("sequelize");
 
-    // Fetch brand/product names in one go
-    const brandIds   = [...new Set(rows.map(r => r.brandId).filter(Boolean))];
-    const productIds = [...new Set(rows.map(r => r.productId).filter(Boolean))];
+    // Raw SQL — safe parameterized query, search name/phone/address
+    const rows = await seq.query(
+      `SELECT customer_name, customer_phone, delivery_address, brand_id, product_id, note
+       FROM orders
+       WHERE customer_name ILIKE $1
+          OR customer_phone ILIKE $1
+          OR delivery_address ILIKE $1
+       ORDER BY created_at DESC
+       LIMIT 300`,
+      { bind: [`%${ql}%`], type: QueryTypes.SELECT }
+    );
 
+    // Fetch brand/product names
+    const brandIds   = [...new Set(rows.map(r => r.brand_id).filter(Boolean))];
+    const productIds = [...new Set(rows.map(r => r.product_id).filter(Boolean))];
     const brandMap   = new Map();
     const productMap = new Map();
     if (brandIds.length) {
@@ -59,10 +54,10 @@ router.get("/customer-suggestions", requireAuth, async (req, res) => {
       ps.forEach(p => productMap.set(p.id, { name: p.name, price: p.price }));
     }
 
-    // Group by phone/name to collect all addresses
+    // Deduplicate by phone/name, collect all addresses
     const map = new Map();
     for (const r of rows) {
-      const key = (r.customerPhone || r.customerName || "").trim().toLowerCase();
+      const key = (r.customer_phone || r.customer_name || "").trim().toLowerCase();
       if (!key) continue;
 
       let walkin = null;
@@ -71,25 +66,25 @@ router.get("/customer-suggestions", requireAuth, async (req, res) => {
       }
 
       if (!map.has(key)) {
-        const prod = r.productId ? productMap.get(r.productId) : null;
+        const prod = r.product_id ? productMap.get(r.product_id) : null;
         map.set(key, {
-          customerName:   r.customerName,
-          customerPhone:  r.customerPhone,
-          deliveryAddress: r.deliveryAddress,
+          customerName:    r.customer_name,
+          customerPhone:   r.customer_phone,
+          deliveryAddress: r.delivery_address,
           addresses: [],
-          addrSet: new Set(),
-          brandId:      r.brandId   || null,
-          productId:    r.productId || null,
-          brandName:    (r.brandId ? brandMap.get(r.brandId) : null) || walkin?.brandName || null,
+          addrSet:  new Set(),
+          brandId:      r.brand_id   || null,
+          productId:    r.product_id || null,
+          brandName:    (r.brand_id ? brandMap.get(r.brand_id) : null) || walkin?.brandName || null,
           productName:  prod?.name || (walkin ? `${walkin.brandName} ${walkin.weightKg}กก.` : null),
           productPrice: prod?.price || null,
           weightKg:     walkin?.weightKg || null,
         });
       }
       const entry = map.get(key);
-      if (r.deliveryAddress && !entry.addrSet.has(r.deliveryAddress)) {
-        entry.addrSet.add(r.deliveryAddress);
-        entry.addresses.push(r.deliveryAddress);
+      if (r.delivery_address && !entry.addrSet.has(r.delivery_address)) {
+        entry.addrSet.add(r.delivery_address);
+        entry.addresses.push(r.delivery_address);
       }
       if (!entry.brandName && walkin?.brandName) entry.brandName = walkin.brandName;
       if (!entry.weightKg  && walkin?.weightKg)  entry.weightKg  = walkin.weightKg;
