@@ -22,50 +22,68 @@ router.post("/walkin", requireAuth, createWalkinOrder);
 router.get("/customer-suggestions", requireAuth, async (req, res) => {
   try {
     const { q = "" } = req.query;
-    const { Op } = require("sequelize");
-    const where = q ? {
-      [Op.or]: [
-        { customerName:    { [Op.iLike]: `%${q}%` } },
-        { customerPhone:   { [Op.iLike]: `%${q}%` } },
-        { deliveryAddress: { [Op.iLike]: `%${q}%` } },
-      ],
-    } : {};
-    const rows = await Order.findAll({
-      attributes: ["customerName", "customerPhone", "deliveryAddress", "brandId", "productId", "note"],
-      include: [
-        { model: Brand,   as: "brand",   attributes: ["id", "name"], required: false },
-        { model: Product, as: "product", attributes: ["id", "name", "price"], required: false },
-      ],
-      where,
-      order: [["createdAt", "DESC"]],
-      limit: 300,
-    });
+    const { sequelize: seq } = require("../config/database");
+    const ql = (q || "").trim();
+    if (!ql) return res.json([]);
 
-    // Group by phone (preferred) or name, collect all addresses + keep most-recent gas info
+    // Use raw SQL to avoid underscored/iLike issues — search name, phone, address
+    const [rows] = await seq.query(`
+      SELECT DISTINCT ON (COALESCE(customer_phone, customer_name))
+        customer_name   AS "customerName",
+        customer_phone  AS "customerPhone",
+        delivery_address AS "deliveryAddress",
+        brand_id        AS "brandId",
+        product_id      AS "productId",
+        note
+      FROM orders
+      WHERE
+        customer_name    ILIKE :q
+        OR customer_phone ILIKE :q
+        OR delivery_address ILIKE :q
+      ORDER BY COALESCE(customer_phone, customer_name), created_at DESC
+      LIMIT 300
+    `, { replacements: { q: `%${ql}%` }, type: seq.QueryTypes.SELECT });
+
+    // Fetch brand/product names in one go
+    const brandIds   = [...new Set(rows.map(r => r.brandId).filter(Boolean))];
+    const productIds = [...new Set(rows.map(r => r.productId).filter(Boolean))];
+
+    const brandMap   = new Map();
+    const productMap = new Map();
+    if (brandIds.length) {
+      const bs = await Brand.findAll({ where: { id: brandIds }, attributes: ["id", "name"] });
+      bs.forEach(b => brandMap.set(b.id, b.name));
+    }
+    if (productIds.length) {
+      const ps = await Product.findAll({ where: { id: productIds }, attributes: ["id", "name", "price"] });
+      ps.forEach(p => productMap.set(p.id, { name: p.name, price: p.price }));
+    }
+
+    // Group by phone/name to collect all addresses
     const map = new Map();
     for (const r of rows) {
       const key = (r.customerPhone || r.customerName || "").trim().toLowerCase();
       if (!key) continue;
 
-      // Parse walkin note for gas info
       let walkin = null;
       if (r.note?.startsWith("__walkin:")) {
         try { walkin = JSON.parse(r.note.replace(/^__walkin:/, "").split("\n")[0]); } catch {}
       }
 
       if (!map.has(key)) {
+        const prod = r.productId ? productMap.get(r.productId) : null;
         map.set(key, {
-          customerName:  r.customerName,
-          customerPhone: r.customerPhone,
+          customerName:   r.customerName,
+          customerPhone:  r.customerPhone,
           deliveryAddress: r.deliveryAddress,
           addresses: [],
           addrSet: new Set(),
-          brandId:     r.brandId   || null,
-          productId:   r.productId || null,
-          brandName:   r.brand?.name   || walkin?.brandName || null,
-          productName: r.product?.name || (walkin ? `${walkin.brandName} ${walkin.weightKg}กก.` : null),
-          productPrice: r.product?.price || null,
-          weightKg:    walkin?.weightKg || null,
+          brandId:      r.brandId   || null,
+          productId:    r.productId || null,
+          brandName:    (r.brandId ? brandMap.get(r.brandId) : null) || walkin?.brandName || null,
+          productName:  prod?.name || (walkin ? `${walkin.brandName} ${walkin.weightKg}กก.` : null),
+          productPrice: prod?.price || null,
+          weightKg:     walkin?.weightKg || null,
         });
       }
       const entry = map.get(key);
@@ -73,18 +91,8 @@ router.get("/customer-suggestions", requireAuth, async (req, res) => {
         entry.addrSet.add(r.deliveryAddress);
         entry.addresses.push(r.deliveryAddress);
       }
-      // Fill gas info from most recent order that has it
-      if (!entry.brandId && r.brandId) {
-        entry.brandId = r.brandId;
-        entry.productId = r.productId;
-        entry.brandName = r.brand?.name;
-        entry.productName = r.product?.name;
-        entry.productPrice = r.product?.price;
-      }
-      if (!entry.weightKg && walkin?.weightKg) {
-        entry.weightKg = walkin.weightKg;
-        entry.brandName = entry.brandName || walkin.brandName;
-      }
+      if (!entry.brandName && walkin?.brandName) entry.brandName = walkin.brandName;
+      if (!entry.weightKg  && walkin?.weightKg)  entry.weightKg  = walkin.weightKg;
     }
 
     const result = [];
