@@ -459,9 +459,9 @@ ${noteText ? `<div style="margin-top:8px; padding:6px 8px; border:1.5px dashed #
   const st = (key) => STATUSES.find(s => s.key === key) || STATUSES[0];
 
   return (
-    <div style={{ display: "flex", gap: 16, flexWrap: "wrap", alignItems: "flex-start" }}>
+    <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
       {/* Left: List */}
-      <div style={{ flex: "1 1 500px" }}>
+      <div style={{ flex: 1, minWidth: 0, paddingRight: selected ? 340 : 0, transition: "padding-right .2s" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10, flexWrap: "wrap" }}>
           <h1 style={{ fontSize: 20, fontWeight: 900, color: NAVY }}>📦 ออเดอร์</h1>
           <span style={{ fontSize: 13, color: GRAY }}>{total} รายการ</span>
@@ -546,7 +546,7 @@ ${noteText ? `<div style="margin-top:8px; padding:6px 8px; border:1.5px dashed #
                 : `อุปกรณ์ ×${selected.qty}`
             : `${selected.product?.name || "-"} ×${selected.qty}`;
         return (
-        <div style={{ flex: "0 0 320px", background: WHITE, borderRadius: 14, padding: 20, boxShadow: "0 2px 12px rgba(0,0,0,.06)", position: "sticky", top: 0, maxHeight: "calc(100vh - 40px)", overflowY: "auto" }}>
+        <div style={{ position: "fixed", top: 70, right: 16, width: 320, background: WHITE, borderRadius: 14, padding: 20, boxShadow: "0 4px 24px rgba(0,0,0,.12)", maxHeight: "calc(100vh - 86px)", overflowY: "auto", zIndex: 200 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
             <h2 style={{ fontSize: 16, fontWeight: 900, color: NAVY }}>{selected.orderNumber}</h2>
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
