@@ -414,7 +414,7 @@ export default function Orders() {
 
         {/* Table */}
         <div style={{ background: WHITE, borderRadius: 14, overflow: "hidden", boxShadow: "0 2px 12px rgba(0,0,0,.06)" }}>
-          {orders.filter(o => !search || [o.orderNumber, o.customerName, o.customerPhone, o.product?.name].some(v => String(v||"").toLowerCase().includes(search.toLowerCase()))).map(o => {
+          {orders.filter(o => !search || [o.orderNumber, o.customerName, o.customerPhone, o.deliveryAddress, o.product?.name].some(v => String(v||"").toLowerCase().includes(search.toLowerCase()))).map(o => {
             const s = st(o.status);
             return (
               <div key={o.id} onClick={() => setSelected(o)} style={{
@@ -435,6 +435,7 @@ export default function Orders() {
                   </div>
                   <p style={{ fontSize: 12, color: NAVY }}>{o.customerName} · {o.customerPhone}</p>
                   <p style={{ fontSize: 12, color: GRAY }}>{o.product?.name} ×{o.qty} · ฿{Number(o.total).toLocaleString()}</p>
+                  {o.deliveryAddress && <p style={{ fontSize: 11, color: "#6B7280", marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>📍 {o.deliveryAddress}</p>}
                   {o.driver && <p style={{ fontSize: 11, color: "#059669", fontWeight: 700 }}>🛵 {o.driver.name}</p>}
                 </div>
                 <div style={{ fontSize: 11, color: GRAY, textAlign: "right", flexShrink: 0 }}>
