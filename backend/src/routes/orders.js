@@ -1,7 +1,7 @@
 const router = require("express").Router();
 const multer = require("multer");
 const path = require("path");
-const { createOrder, getOrderById, listOrders, updateStatus, acceptOrder, createWalkinOrder } = require("../controllers/orderController");
+const { createOrder, getOrderById, listOrders, updateStatus, acceptOrder, createWalkinOrder, updateOrder } = require("../controllers/orderController");
 const { notifyAdminPaymentConfirmed, sendPaymentReceivedToCustomer } = require("../services/lineService");
 const { Order, Brand, Product, Customer } = require("../models");
 const { requireAuth, requireRole } = require("../middleware/auth");
@@ -134,6 +134,7 @@ router.post("/:id/payment-confirmed", async (req, res) => {
 });
 
 // Staff actions
+router.put("/:id", requireAuth, updateOrder);
 router.put("/:id/status", requireAuth, updateStatus);
 router.put("/:id/payment", requireAuth, async (req, res) => {
   const { paymentMethod } = req.body;

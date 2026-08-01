@@ -17,7 +17,7 @@ const STATUSES = [
   { key: "cancelled",         label: "ยกเลิก",         bg: "#FEE2E2", color: "#991B1B" },
 ];
 
-const EMPTY_ORDER = { customerName: "", customerPhone: "", brandId: "", productId: "", qty: 1, paymentMethod: "cash", deliveryAddress: "", note: "", orderType: "gas" };
+const EMPTY_ORDER = { customerName: "", customerPhone: "", brandId: "", productId: "", qty: 1, unitPrice: "", paymentMethod: "cash", deliveryAddress: "", note: "", orderType: "gas" };
 
 function CustomerAutocomplete({ value, onChange, onSelect, placeholder, type = "text" }) {
   const [open, setOpen] = useState(false);
@@ -115,11 +115,15 @@ export default function Orders() {
   const [walkinType, setWalkinType] = useState("gas"); // gas | new_tank | equipment
   const [walkinForm, setWalkinForm] = useState({ customerName: "", customerPhone: "", brandName: "", productId: "", qty: 1, price: "", paymentMethod: "cash", note: "", gasBrand: "", gasWeight: "", stockId: "", equipId: "" });
   const [walkinSaving, setWalkinSaving] = useState(false);
-  const [walkinResult, setWalkinResult] = useState(null); // order returned after save
+  const [walkinResult, setWalkinResult] = useState(null); // { order, cart }
+  const [walkinCart, setWalkinCart]     = useState([]); // cart items before save
   const [gasStocks, setGasStocks]   = useState([]);
   const [equipList, setEquipList]   = useState([]);
   const [extraItems, setExtraItems] = useState({}); // { [orderId]: [{id, name, qty, price}] }
   const [createCustAddrs, setCreateCustAddrs] = useState([]); // addresses of selected customer in create modal
+  const [editOrder, setEditOrder]     = useState(null);   // order being edited
+  const [editForm,  setEditForm]      = useState({});
+  const [editSaving, setEditSaving]   = useState(false);
 
   const fetch = useCallback(async () => {
     const params = new URLSearchParams({ page, limit: 20 });
@@ -167,47 +171,66 @@ export default function Orders() {
       } else {
         if (!createForm.deliveryAddress || !createForm.brandId || !createForm.productId)
           return alert("กรุณากรอกที่อยู่จัดส่ง ยี่ห้อ และน้ำหนัก");
-        await api.post("/api/v1/orders", { ...createForm, qty: Number(createForm.qty) || 1 });
+        await api.post("/api/v1/orders", {
+          ...createForm,
+          qty: Number(createForm.qty) || 1,
+          ...(createForm.unitPrice ? { unitPrice: Number(createForm.unitPrice) } : {}),
+        });
       }
       setShowCreate(false); setCreateForm(EMPTY_ORDER); fetch();
     } catch (e) { alert(e.response?.data?.error || "เกิดข้อผิดพลาด"); }
     finally { setCreating(false); }
   }
 
+  function addToWalkinCart() {
+    if (walkinType === "gas" || walkinType === "new_tank") {
+      const stock = gasStocks.find(s => s.id === walkinForm.stockId);
+      if (!stock) return alert("กรุณาเลือกยี่ห้อและน้ำหนัก");
+      if (!walkinForm.price) return alert("กรุณาใส่ราคา");
+      const prefix = walkinType === "new_tank" ? "🆕 ถังใหม่ " : "⛽ ";
+      setWalkinCart(c => [...c, {
+        type: walkinType,
+        brandName: stock.brandName,
+        weightKg: stock.weightKg,
+        stockId: stock.id,
+        qty: Number(walkinForm.qty || 1),
+        price: Number(walkinForm.price),
+        label: `${prefix}${stock.brandName} ${stock.weightKg} กก.`,
+      }]);
+    } else {
+      const item = equipList.find(e => e.id === walkinForm.equipId);
+      if (!item) return alert("กรุณาเลือกสินค้า");
+      const qty = Number(walkinForm.qty || 1);
+      const price = Number(walkinForm.price || item.price || 0);
+      if (!price) return alert("กรุณาใส่ราคา");
+      setWalkinCart(c => [...c, {
+        type: "equipment",
+        equipId: item.id,
+        name: item.name,
+        qty,
+        price,
+        label: `🔧 ${item.name}`,
+      }]);
+    }
+    setWalkinForm(f => ({ ...f, gasBrand: "", gasWeight: "", stockId: "", equipId: "", qty: 1, price: "" }));
+  }
+
   async function saveWalkin() {
+    if (walkinCart.length === 0) return alert("กรุณาเพิ่มสินค้าในตะกร้าก่อน");
     setWalkinSaving(true);
     try {
-      let payload;
-      if (walkinType === "gas" || walkinType === "new_tank") {
-        const stock = gasStocks.find(s => s.id === walkinForm.stockId);
-        if (!stock) return alert("กรุณาเลือกสินค้า");
-        if (!walkinForm.price) return alert("กรุณาใส่ราคา");
-        payload = {
-          type: walkinType,
-          customerName: walkinForm.customerName,
-          customerPhone: walkinForm.customerPhone,
-          paymentMethod: walkinForm.paymentMethod,
-          note: walkinForm.note,
-          brandName: stock.brandName,
-          weightKg: stock.weightKg,
-          qty: Number(walkinForm.qty || 1),
-          price: Number(walkinForm.price),
-        };
-      } else {
-        const item = equipList.find(e => e.id === walkinForm.equipId);
-        if (!item) return alert("กรุณาเลือกสินค้า");
-        payload = {
-          type: "equipment",
-          customerName: walkinForm.customerName,
-          customerPhone: walkinForm.customerPhone,
-          paymentMethod: walkinForm.paymentMethod,
-          note: walkinForm.note,
-          items: [{ id: item.id, name: item.name, qty: Number(walkinForm.qty || 1), price: Number(walkinForm.price || item.price) }],
-        };
-      }
+      const payload = {
+        type: "mixed",
+        cartItems: walkinCart,
+        customerName: walkinForm.customerName,
+        customerPhone: walkinForm.customerPhone,
+        paymentMethod: walkinForm.paymentMethod,
+        note: walkinForm.note,
+      };
       const { data: order } = await api.post("/api/v1/orders/walkin", payload);
-      setWalkinResult({ order, walkinType, walkinForm: { ...walkinForm } });
+      setWalkinResult({ order, cart: walkinCart });
       setShowWalkin(false);
+      setWalkinCart([]);
       setWalkinForm({ customerName: "", customerPhone: "", brandName: "", productId: "", qty: 1, price: "", paymentMethod: "cash", note: "", gasBrand: "", gasWeight: "", stockId: "", equipId: "" });
       fetch();
     } catch (e) { alert(e.response?.data?.error || "เกิดข้อผิดพลาด"); }
@@ -247,29 +270,20 @@ export default function Orders() {
     openReceiptWindow(o, itemsHtml, total, dateStr, timeStr, payLabel);
   }
 
-  function printWalkinReceipt(order, wType, wForm) {
+  function printWalkinReceipt(order, cart) {
     const d = new Date(order.createdAt);
     const dateStr = d.toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" });
     const timeStr = d.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
-    const payLabel = order.paymentMethod === "cash" ? "เงินสด" : "QR โอน";
-    let itemsHtml = "";
+    const payLabel = order.paymentMethod === "cash" ? "เงินสด" : order.paymentMethod === "qr" ? "QR โอน" : "เก็บปลายทาง";
     let total = 0;
-    if (wType === "gas" || wType === "new_tank") {
-      const qty = Number(wForm.qty || 1);
-      const price = Number(wForm.price || 0);
+    let itemsHtml = "";
+    for (const it of (cart || [])) {
+      const qty = Number(it.qty || 1);
+      const price = Number(it.price || 0);
       const lineTotal = qty * price;
-      total = lineTotal;
-      const stock = gasStocks.find(s => s.id === wForm.stockId);
-      const prefix = wType === "new_tank" ? "🆕 ถังใหม่ " : "";
-      const name = stock ? `${prefix}${stock.brandName} ${stock.weightKg} กก.` : (wType === "new_tank" ? "🆕 ถังใหม่" : "ถังแก๊ส");
-      itemsHtml = `<tr><td>${name}</td><td style="text-align:center;">${qty}</td><td style="text-align:right;">${price.toLocaleString()}</td><td style="text-align:right;">${lineTotal.toLocaleString()}</td></tr>`;
-    } else {
-      const item = equipList.find(e => e.id === wForm.equipId);
-      const qty = Number(wForm.qty || 1);
-      const price = Number(wForm.price || item?.price || 0);
-      const lineTotal = qty * price;
-      total = lineTotal;
-      itemsHtml = `<tr><td>${item?.name || "สินค้า"}</td><td style="text-align:center;">${qty}</td><td style="text-align:right;">${price.toLocaleString()}</td><td style="text-align:right;">${lineTotal.toLocaleString()}</td></tr>`;
+      total += lineTotal;
+      const name = it.label || it.name || it.brandName || "สินค้า";
+      itemsHtml += `<tr><td>${name}</td><td style="text-align:center;">${qty}</td><td style="text-align:right;">${price.toLocaleString()}</td><td style="text-align:right;">${lineTotal.toLocaleString()}</td></tr>`;
     }
     openReceiptWindow(order, itemsHtml, total, dateStr, timeStr, payLabel);
   }
@@ -385,6 +399,48 @@ export default function Orders() {
     if (selected?.id === orderId) setSelected(s => ({ ...s, isPaid: data.isPaid }));
   }
 
+  function openEdit(order) {
+    setEditOrder(order);
+    setEditForm({
+      customerName:    order.customerName    || "",
+      customerPhone:   order.customerPhone   || "",
+      deliveryAddress: order.deliveryAddress || "",
+      qty:             order.qty             ?? 1,
+      unitPrice:       order.unitPrice       ?? order.total ?? 0,
+      total:           order.total           ?? 0,
+      paymentMethod:   order.paymentMethod   || "cash",
+      note:            (() => {
+        // strip __walkin: prefix from note for display
+        const n = order.note || "";
+        if (n.startsWith("__walkin:")) return n.split("\n").slice(1).join("\n").trim();
+        return n;
+      })(),
+    });
+  }
+
+  async function saveEdit() {
+    setEditSaving(true);
+    try {
+      const qty   = Number(editForm.qty   || 1);
+      const price = Number(editForm.unitPrice || 0);
+      const payload = {
+        customerName:    editForm.customerName,
+        customerPhone:   editForm.customerPhone,
+        deliveryAddress: editForm.deliveryAddress,
+        qty,
+        unitPrice: price,
+        total:     qty * price,
+        paymentMethod: editForm.paymentMethod,
+        note: editForm.note,
+      };
+      const { data: updated } = await api.put(`/api/v1/orders/${editOrder.id}`, payload);
+      setSelected(s => s?.id === editOrder.id ? { ...s, ...updated } : s);
+      setOrders(prev => prev.map(o => o.id === editOrder.id ? { ...o, ...updated } : o));
+      setEditOrder(null);
+    } catch (e) { alert(e.response?.data?.error || "เกิดข้อผิดพลาด"); }
+    finally { setEditSaving(false); }
+  }
+
   const st = (key) => STATUSES.find(s => s.key === key) || STATUSES[0];
 
   return (
@@ -484,6 +540,10 @@ export default function Orders() {
                 background: selected.isPaid ? "#D1FAE5" : "#FEE2E2",
                 color: selected.isPaid ? "#065F46" : "#991B1B",
               }}>{selected.isPaid ? "✅ จ่ายแล้ว" : "⏳ ยังไม่จ่าย"}</button>
+              <button onClick={() => openEdit(selected)} style={{
+                padding: "6px 10px", borderRadius: 8, border: `2px solid ${ORANGE}`,
+                background: WHITE, color: ORANGE, fontSize: 12, fontWeight: 700, cursor: "pointer",
+              }}>✏️ แก้ไข</button>
               <button onClick={() => {
                 const ex = extraItems[selected.id] || [];
                 if (ex.length) printReceiptWithExtras(selected, ex);
@@ -585,13 +645,77 @@ export default function Orders() {
         );
       })()}
 
+      {/* Edit order modal */}
+      {editOrder && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", zIndex: 500, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+          <div style={{ background: WHITE, borderRadius: 20, padding: 24, width: "100%", maxWidth: 420, maxHeight: "90vh", overflowY: "auto" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
+              <h2 style={{ fontSize: 16, fontWeight: 800, color: NAVY }}>✏️ แก้ไขออเดอร์ {editOrder.orderNumber}</h2>
+              <button onClick={() => setEditOrder(null)} style={{ background: "none", border: "none", fontSize: 20, color: GRAY, cursor: "pointer" }}>✕</button>
+            </div>
+
+            {[
+              ["ชื่อลูกค้า", "customerName", "text"],
+              ["เบอร์โทร",   "customerPhone", "tel"],
+              ["ที่อยู่",    "deliveryAddress", "text"],
+            ].map(([label, key, type]) => (
+              <div key={key} style={{ marginBottom: 12 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>{label}</div>
+                <input type={type} value={editForm[key] || ""} onChange={e => setEditForm(f => ({ ...f, [key]: e.target.value }))}
+                  style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 14, boxSizing: "border-box" }} />
+              </div>
+            ))}
+
+            <div style={{ display: "flex", gap: 12, marginBottom: 12 }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>จำนวน</div>
+                <input type="number" min="1" value={editForm.qty || ""} onChange={e => setEditForm(f => ({ ...f, qty: e.target.value, total: Number(e.target.value) * Number(f.unitPrice || 0) }))}
+                  style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 14, boxSizing: "border-box" }} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>ราคา/หน่วย (บาท)</div>
+                <input type="number" value={editForm.unitPrice || ""} onChange={e => setEditForm(f => ({ ...f, unitPrice: e.target.value, total: Number(f.qty || 1) * Number(e.target.value) }))}
+                  style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 14, boxSizing: "border-box" }} />
+              </div>
+            </div>
+
+            <div style={{ background: "#F0FDF4", borderRadius: 10, padding: "10px 14px", marginBottom: 14, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ fontWeight: 700, color: "#166534", fontSize: 13 }}>ยอดรวม</span>
+              <span style={{ fontWeight: 900, fontSize: 18, color: "#059669" }}>฿{(Number(editForm.qty || 1) * Number(editForm.unitPrice || 0)).toLocaleString()}</span>
+            </div>
+
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>วิธีชำระเงิน</div>
+              <select value={editForm.paymentMethod || "cash"} onChange={e => setEditForm(f => ({ ...f, paymentMethod: e.target.value }))}
+                style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 14, boxSizing: "border-box" }}>
+                <option value="cash">เงินสด</option>
+                <option value="qr">โอน</option>
+                <option value="cod">เก็บปลายทาง</option>
+              </select>
+            </div>
+            <div style={{ marginBottom: 18 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>หมายเหตุ</div>
+              <input value={editForm.note || ""} onChange={e => setEditForm(f => ({ ...f, note: e.target.value }))}
+                style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 14, boxSizing: "border-box" }} />
+            </div>
+
+            <div style={{ display: "flex", gap: 10 }}>
+              <button onClick={() => setEditOrder(null)} style={{ flex: 1, padding: 12, borderRadius: 10, border: "2px solid #E5E7EB", background: WHITE, color: GRAY, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>ยกเลิก</button>
+              <button onClick={saveEdit} disabled={editSaving} style={{ flex: 2, padding: 12, borderRadius: 10, border: "none", background: NAVY, color: WHITE, fontWeight: 800, fontSize: 14, cursor: "pointer", opacity: editSaving ? 0.6 : 1 }}>
+                {editSaving ? "กำลังบันทึก..." : "💾 บันทึกการแก้ไข"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Walk-in sale modal */}
       {showWalkin && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", zIndex: 400, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
           <div style={{ background: WHITE, borderRadius: 20, padding: 24, width: "100%", maxWidth: 420, margin: "auto", maxHeight: "90vh", overflowY: "auto" }}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
               <h2 style={{ fontSize: 16, fontWeight: 800, color: NAVY }}>🏪 ขายหน้าร้าน</h2>
-              <button onClick={() => setShowWalkin(false)} style={{ background: "none", border: "none", fontSize: 20, color: GRAY, cursor: "pointer" }}>✕</button>
+              <button onClick={() => { setShowWalkin(false); setWalkinCart([]); }} style={{ background: "none", border: "none", fontSize: 20, color: GRAY, cursor: "pointer" }}>✕</button>
             </div>
 
             {/* Customer info */}
@@ -724,6 +848,33 @@ export default function Orders() {
               </>
             )}
 
+            {/* Add to cart button */}
+            <button onClick={addToWalkinCart} style={{
+              width: "100%", padding: 11, borderRadius: 10, border: "none",
+              background: ORANGE, color: WHITE, fontWeight: 800, fontSize: 14, cursor: "pointer", marginBottom: 16,
+            }}>➕ เพิ่มใส่ตะกร้า</button>
+
+            {/* Cart */}
+            {walkinCart.length > 0 && (
+              <div style={{ background: "#F8FAFC", border: "2px solid #E5E7EB", borderRadius: 12, padding: 12, marginBottom: 14 }}>
+                <div style={{ fontSize: 12, fontWeight: 800, color: NAVY, marginBottom: 8 }}>🛒 ตะกร้าสินค้า</div>
+                {walkinCart.map((it, idx) => (
+                  <div key={idx} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 0", borderBottom: idx < walkinCart.length - 1 ? "1px solid #E5E7EB" : "none" }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: "#1F2937" }}>{it.label}</div>
+                      <div style={{ fontSize: 12, color: GRAY }}>x{it.qty} × ฿{Number(it.price).toLocaleString()} = <strong>฿{(it.qty * it.price).toLocaleString()}</strong></div>
+                    </div>
+                    <button onClick={() => setWalkinCart(c => c.filter((_, i) => i !== idx))}
+                      style={{ background: "none", border: "none", color: "#EF4444", fontSize: 18, cursor: "pointer", padding: "0 4px", lineHeight: 1 }}>✕</button>
+                  </div>
+                ))}
+                <div style={{ display: "flex", justifyContent: "space-between", marginTop: 10, paddingTop: 8, borderTop: "2px solid #D1D5DB" }}>
+                  <span style={{ fontWeight: 800, fontSize: 14, color: NAVY }}>รวมทั้งสิ้น</span>
+                  <span style={{ fontWeight: 900, fontSize: 16, color: "#059669" }}>฿{walkinCart.reduce((s, i) => s + i.qty * i.price, 0).toLocaleString()}</span>
+                </div>
+              </div>
+            )}
+
             <div style={{ marginBottom: 12 }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>ช่องทางชำระเงิน</div>
               <select value={walkinForm.paymentMethod} onChange={e => setWalkinForm(f => ({ ...f, paymentMethod: e.target.value }))}
@@ -737,11 +888,11 @@ export default function Orders() {
               <input value={walkinForm.note} onChange={e => setWalkinForm(f => ({ ...f, note: e.target.value }))}
                 style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 14, boxSizing: "border-box" }} />
             </div>
-            <button onClick={saveWalkin} disabled={walkinSaving} style={{
+            <button onClick={saveWalkin} disabled={walkinSaving || walkinCart.length === 0} style={{
               width: "100%", padding: 13, borderRadius: 12, border: "none",
-              background: "#10B981", color: WHITE, fontWeight: 800, fontSize: 15, cursor: "pointer",
+              background: walkinCart.length === 0 ? "#9CA3AF" : "#10B981", color: WHITE, fontWeight: 800, fontSize: 15, cursor: walkinCart.length === 0 ? "not-allowed" : "pointer",
               opacity: walkinSaving ? 0.6 : 1,
-            }}>{walkinSaving ? "กำลังบันทึก..." : "✅ บันทึกการขาย"}</button>
+            }}>{walkinSaving ? "กำลังบันทึก..." : `✅ บันทึกการขาย${walkinCart.length > 0 ? ` (${walkinCart.length} รายการ)` : ""}`}</button>
           </div>
         </div>
       )}
@@ -753,10 +904,11 @@ export default function Orders() {
             <div style={{ fontSize: 48, marginBottom: 8 }}>✅</div>
             <h2 style={{ fontSize: 16, fontWeight: 800, color: NAVY, marginBottom: 6 }}>บันทึกการขายสำเร็จ</h2>
             <p style={{ fontSize: 13, color: GRAY, marginBottom: 4 }}>เลขออเดอร์: <strong style={{ color: NAVY }}>{walkinResult.order.orderNumber}</strong></p>
+            <p style={{ fontSize: 13, color: GRAY, marginBottom: 4 }}>รายการ: <strong style={{ color: NAVY }}>{(walkinResult.cart || []).length} รายการ</strong></p>
             <p style={{ fontSize: 13, color: GRAY, marginBottom: 20 }}>ยอดรวม: <strong style={{ color: NAVY }}>฿{Number(walkinResult.order.total).toLocaleString()}</strong></p>
             <div style={{ display: "flex", gap: 10 }}>
               <button onClick={() => setWalkinResult(null)} style={{ flex: 1, padding: 12, borderRadius: 10, border: "2px solid #E5E7EB", background: WHITE, color: GRAY, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>ปิด</button>
-              <button onClick={() => { printWalkinReceipt(walkinResult.order, walkinResult.walkinType, walkinResult.walkinForm); setWalkinResult(null); }} style={{ flex: 1, padding: 12, borderRadius: 10, border: "none", background: NAVY, color: WHITE, fontWeight: 800, fontSize: 14, cursor: "pointer" }}>🖨 ปริ้นใบเสร็จ</button>
+              <button onClick={() => { printWalkinReceipt(walkinResult.order, walkinResult.cart); setWalkinResult(null); }} style={{ flex: 1, padding: 12, borderRadius: 10, border: "none", background: NAVY, color: WHITE, fontWeight: 800, fontSize: 14, cursor: "pointer" }}>🖨 ปริ้นใบเสร็จ</button>
             </div>
           </div>
         </div>
@@ -855,26 +1007,39 @@ export default function Orders() {
             </div>
 
             {createForm.orderType === "gas" ? (
-              <div style={{ display: "flex", gap: 12, marginBottom: 12 }}>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>ยี่ห้อ *</div>
-                  <select value={createForm.brandId} onChange={e => setCreateForm(f => ({ ...f, brandId: e.target.value, productId: "" }))}
-                    style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 14, boxSizing: "border-box" }}>
-                    <option value="">-- เลือก --</option>
-                    {brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-                  </select>
+              <>
+                <div style={{ display: "flex", gap: 12, marginBottom: 12 }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>ยี่ห้อ *</div>
+                    <select value={createForm.brandId} onChange={e => setCreateForm(f => ({ ...f, brandId: e.target.value, productId: "", unitPrice: "" }))}
+                      style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 14, boxSizing: "border-box" }}>
+                      <option value="">-- เลือก --</option>
+                      {brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                    </select>
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>น้ำหนัก *</div>
+                    <select value={createForm.productId} onChange={e => {
+                      const pid = e.target.value;
+                      const p = products.find(x => x.id === pid);
+                      setCreateForm(f => ({ ...f, productId: pid, unitPrice: p?.homePrice ? String(p.homePrice) : f.unitPrice }));
+                    }} style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 14, boxSizing: "border-box" }}>
+                      <option value="">-- เลือก --</option>
+                      {products.map(p => (
+                        <option key={p.id} value={p.id}>{p.name}</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>น้ำหนัก *</div>
-                  <select value={createForm.productId} onChange={e => setCreateForm(f => ({ ...f, productId: e.target.value }))}
-                    style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 14, boxSizing: "border-box" }}>
-                    <option value="">-- เลือก --</option>
-                    {products.map(p => (
-                      <option key={p.id} value={p.id}>{p.name}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
+                {createForm.productId && (
+                  <div style={{ marginBottom: 12 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>ราคา (บาท)</div>
+                    <input type="number" value={createForm.unitPrice || ""} onChange={e => setCreateForm(f => ({ ...f, unitPrice: e.target.value }))}
+                      placeholder="ราคาต่อถัง"
+                      style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 14, boxSizing: "border-box" }} />
+                  </div>
+                )}
+              </>
             ) : (() => {
               const ntBrands = [...new Set(gasStocks.map(s => s.brandName))].sort();
               const ntWeights = [...new Set(gasStocks.filter(s => !createForm.ntBrand || s.brandName === createForm.ntBrand).map(s => Number(s.weightKg)))].sort((a,b)=>a-b);

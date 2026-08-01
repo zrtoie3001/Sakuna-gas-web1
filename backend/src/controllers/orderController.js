@@ -35,6 +35,7 @@ async function createOrder(req, res) { try {
     lineUserId, brandId, productId, qty, customerName, customerPhone,
     deliveryLat, deliveryLng, deliveryAddress,
     paymentMethod, discountCode: codeStr, note,
+    unitPrice: unitPriceOverride,  // admin can override price
   } = req.body;
 
   // Validate product
@@ -74,8 +75,8 @@ async function createOrder(req, res) { try {
     zone = (await DeliveryZone.findOne({ where: { isActive: true, centerLat: null }, order: [["maxKm", "ASC"]] })) || { name: "admin" };
   }
 
-  // Price — use homePrice for all zones
-  const unitPrice = Number(product.homePrice);
+  // Price — admin can override, otherwise use homePrice
+  const unitPrice = unitPriceOverride ? Number(unitPriceOverride) : Number(product.homePrice);
 
   const subtotal = unitPrice * qty;
 
@@ -260,37 +261,73 @@ async function createWalkinOrder(req, res) {
   try {
     const { type, customerName, customerPhone, paymentMethod, note,
             brandName, weightKg, qty, price, items,
+            cartItems,  // new: mixed cart
             deliveryAddress: customAddress, orderStatus } = req.body;
 
     const { GasStock, Equipment, EquipmentSale } = require("../models");
-    const q = Number(qty) || 1;
     let total = 0;
     let walkinNote = note || "";
+    let totalQty = 1;
 
-    if (type === "gas") {
+    // ── Mixed cart (multiple items) ───────────────────────────────────────────
+    if (type === "mixed" && cartItems && cartItems.length) {
+      const noteItems = [];
+      for (const it of cartItems) {
+        const q = Number(it.qty) || 1;
+        const p = Number(it.price) || 0;
+        if (it.type === "gas") {
+          const stock = await GasStock.findOne({ where: { brandName: it.brandName, weightKg: Number(it.weightKg) } });
+          if (!stock) return res.status(400).json({ error: `ไม่พบสต็อก ${it.brandName} ${it.weightKg}กก.` });
+          if (stock.hasGas < q) return res.status(400).json({ error: `สต็อก ${it.brandName} ${it.weightKg}กก. ไม่พอ (มี ${stock.hasGas} ถัง)` });
+          await stock.update({ hasGas: stock.hasGas - q });
+        } else if (it.type === "new_tank") {
+          const stock = await GasStock.findOne({ where: { brandName: it.brandName, weightKg: Number(it.weightKg) } });
+          if (!stock) return res.status(400).json({ error: `ไม่พบสต็อก ${it.brandName} ${it.weightKg}กก.` });
+          if (stock.newTank < q) return res.status(400).json({ error: `ถังใหม่ ${it.brandName} ไม่พอ` });
+          await stock.update({ newTank: stock.newTank - q });
+        } else if (it.type === "equipment") {
+          const eq = await Equipment.findByPk(it.equipId);
+          if (!eq) return res.status(400).json({ error: `ไม่พบสินค้า: ${it.name}` });
+          if (eq.qty < q) return res.status(400).json({ error: `สต็อก ${it.name} ไม่พอ` });
+          await eq.update({ qty: eq.qty - q });
+          await EquipmentSale.create({ equipmentId: eq.id, qty: q, salePrice: p, note: note || null });
+        }
+        total += p * q;
+        noteItems.push({ ...it, qty: q, price: p });
+      }
+      walkinNote = `__walkin:${JSON.stringify({ type: "mixed", items: noteItems })}` + (note ? `\n${note}` : "");
+      totalQty = cartItems.reduce((s, it) => s + (Number(it.qty) || 1), 0);
+
+    // ── Single gas ────────────────────────────────────────────────────────────
+    } else if (type === "gas") {
+      const q = Number(qty) || 1;
       if (!brandName || !weightKg) return res.status(400).json({ error: "กรุณาเลือกยี่ห้อและน้ำหนัก" });
       const stock = await GasStock.findOne({ where: { brandName, weightKg: Number(weightKg) } });
       if (!stock) return res.status(400).json({ error: "ไม่พบสินค้าในสต็อก" });
       if (stock.hasGas < q) return res.status(400).json({ error: `สต็อกไม่พอ (มีแค่ ${stock.hasGas} ถัง)` });
-      total = Number(price) * q;
+      total = Number(price) * q; totalQty = q;
       await stock.update({ hasGas: stock.hasGas - q });
       walkinNote = `__walkin:${JSON.stringify({ type: "gas", brandName, weightKg, qty: q, unitPrice: Number(price) })}` + (note ? `\n${note}` : "");
+
+    // ── Single new tank ───────────────────────────────────────────────────────
     } else if (type === "new_tank") {
+      const q = Number(qty) || 1;
       if (!brandName || !weightKg) return res.status(400).json({ error: "กรุณาเลือกยี่ห้อและน้ำหนัก" });
       const stock = await GasStock.findOne({ where: { brandName, weightKg: Number(weightKg) } });
       if (!stock) return res.status(400).json({ error: "ไม่พบสินค้าในสต็อก" });
       if (stock.newTank < q) return res.status(400).json({ error: `ถังใหม่ไม่พอ (มีแค่ ${stock.newTank} ถัง)` });
-      total = Number(price) * q;
+      total = Number(price) * q; totalQty = q;
       await stock.update({ newTank: stock.newTank - q });
       walkinNote = `__walkin:${JSON.stringify({ type: "new_tank", brandName, weightKg, qty: q, unitPrice: Number(price) })}` + (note ? `\n${note}` : "");
+
+    // ── Equipment only ────────────────────────────────────────────────────────
     } else {
       if (!items || !items.length) return res.status(400).json({ error: "กรุณาเลือกสินค้า" });
       for (const it of items) {
         const eq = await Equipment.findByPk(it.id);
         if (!eq) return res.status(400).json({ error: `ไม่พบสินค้า: ${it.name}` });
         if (eq.qty < it.qty) return res.status(400).json({ error: `สต็อก ${it.name} ไม่พอ` });
-        const itQty = Number(it.qty);
-        const itPrice = Number(it.price);
+        const itQty = Number(it.qty); const itPrice = Number(it.price);
         await eq.update({ qty: eq.qty - itQty });
         await EquipmentSale.create({ equipmentId: eq.id, qty: itQty, salePrice: itPrice, note: note || null });
         total += itPrice * itQty;
@@ -304,8 +341,8 @@ async function createWalkinOrder(req, res) {
       customerPhone: customerPhone || null,
       deliveryAddress: customAddress || "หน้าร้าน",
       paymentMethod: paymentMethod || "cash",
-      qty: q,
-      unitPrice: (type === "gas" || type === "new_tank") ? Number(price) : total,
+      qty: totalQty,
+      unitPrice: total,
       subtotal: total,
       deliveryFee: 0,
       discountAmount: 0,
@@ -320,4 +357,33 @@ async function createWalkinOrder(req, res) {
   }
 }
 
-module.exports = { createOrder, getOrderById, listOrders, updateStatus, acceptOrder, createWalkinOrder };
+// ── Admin: update order fields ────────────────────────────────────────────────
+async function updateOrder(req, res) {
+  try {
+    const order = await Order.findByPk(req.params.id);
+    if (!order) return res.status(404).json({ error: "Not found" });
+
+    const { customerName, customerPhone, deliveryAddress, qty, unitPrice, total, note, paymentMethod, status } = req.body;
+    const updates = {};
+    if (customerName   !== undefined) updates.customerName   = customerName;
+    if (customerPhone  !== undefined) updates.customerPhone  = customerPhone;
+    if (deliveryAddress !== undefined) updates.deliveryAddress = deliveryAddress;
+    if (note           !== undefined) updates.note           = note;
+    if (paymentMethod  !== undefined) updates.paymentMethod  = paymentMethod;
+    if (status         !== undefined) updates.status         = status;
+    if (qty            !== undefined) updates.qty            = Number(qty);
+    if (unitPrice      !== undefined) updates.unitPrice      = Number(unitPrice);
+    if (total          !== undefined) updates.total          = Number(total);
+    else if (qty !== undefined && unitPrice !== undefined) {
+      updates.subtotal = Number(qty) * Number(unitPrice);
+      updates.total    = Number(qty) * Number(unitPrice);
+    }
+
+    await order.update(updates);
+    res.json(order);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+}
+
+module.exports = { createOrder, getOrderById, listOrders, updateStatus, acceptOrder, createWalkinOrder, updateOrder };
