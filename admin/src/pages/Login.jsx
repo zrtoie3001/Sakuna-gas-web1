@@ -19,7 +19,7 @@ export default function Login() {
     setLoading(true); setError("");
     try {
       const { data } = await api.post("/api/v1/auth/login", { email, password });
-      if (data.user.role !== "admin" && data.user.role !== "both") { setError("ไม่มีสิทธิ์เข้าใช้งาน"); return; }
+      if (!["admin", "both", "finance"].includes(data.user.role)) { setError("ไม่มีสิทธิ์เข้าใช้งาน"); return; }
       localStorage.setItem("admin_token", data.token);
       localStorage.setItem("admin_user", JSON.stringify(data.user));
       navigate("/");
