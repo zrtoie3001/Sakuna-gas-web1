@@ -349,11 +349,11 @@ export default function Orders() {
 <table style="margin-bottom:8px;">
   <tr>
     <td style="width:55%; font-size:14px; font-weight:800;">ลูกค้า: ${order.customerName || "ลูกค้าทั่วไป"}</td>
-    <td style="width:45%; text-align:right; font-size:13px; font-weight:800;">วันที่ ${dateStr}</td>
+    <td style="width:45%; text-align:right; font-size:11px; font-weight:400;">วันที่ ${dateStr}</td>
   </tr>
   <tr>
     <td style="font-size:13px; font-weight:800; padding-top:2px;">เลขออเดอร์: <b>${order.orderNumber}</b></td>
-    <td style="text-align:right; font-size:13px; font-weight:800; padding-top:2px;">เวลา ${timeStr} น.</td>
+    <td style="text-align:right; font-size:11px; font-weight:400; padding-top:2px;">เวลา ${timeStr} น.</td>
   </tr>
   <tr><td colspan="2" style="padding-top:4px; font-size:14px; font-weight:800;">📞 ${order.customerPhone || "-"} &nbsp;|&nbsp; 💳 ${payLabel}</td></tr>
   <tr><td colspan="2" style="word-break:break-word; font-size:14px; font-weight:800; padding-top:3px;">📍 ${order.deliveryAddress || "-"}</td></tr>
