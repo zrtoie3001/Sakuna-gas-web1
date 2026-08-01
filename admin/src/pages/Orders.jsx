@@ -269,7 +269,12 @@ export default function Orders() {
     if (discount > 0) {
       itemsHtml += `<tr><td colspan="3" style="font-size:13px; font-weight:800; color:#000;">ส่วนลด${o.discountCode ? ` (${o.discountCode})` : ""}</td><td style="text-align:right; font-weight:800; color:#000;">-${discount.toLocaleString()}</td></tr>`;
     }
-    openReceiptWindow(o, itemsHtml, total, dateStr, timeStr, payLabel);
+    const displayNote = (() => {
+      const n = o.note || "";
+      if (!n || n.startsWith("__walkin:")) return n.split("\n").slice(1).join("\n").trim();
+      return n.trim();
+    })();
+    openReceiptWindow(o, itemsHtml, total, dateStr, timeStr, payLabel, displayNote);
   }
 
   function printWalkinReceipt(order, cart) {
@@ -288,7 +293,12 @@ export default function Orders() {
       const unit = it.type === "equipment" ? " ชิ้น" : " ถัง";
       itemsHtml += `<tr><td>${name}</td><td style="text-align:center;">${qty}${unit}</td><td style="text-align:right;">${price.toLocaleString()}</td><td style="text-align:right;">${lineTotal.toLocaleString()}</td></tr>`;
     }
-    openReceiptWindow(order, itemsHtml, total, dateStr, timeStr, payLabel);
+    const walkinNote = (() => {
+      const n = order.note || "";
+      if (n.startsWith("__walkin:")) return n.split("\n").slice(1).join("\n").trim();
+      return n.trim();
+    })();
+    openReceiptWindow(order, itemsHtml, total, dateStr, timeStr, payLabel, walkinNote);
   }
 
   function printReceiptWithExtras(order, extras) {
@@ -311,10 +321,11 @@ export default function Orders() {
       total -= discount; // already included in order.total but adding extras so recalc
       total = Number(order.total) + extras.reduce((s, e) => s + Number(e.price) * Number(e.qty), 0);
     }
-    openReceiptWindow(order, itemsHtml, total, dateStr, timeStr, payLabel);
+    const extrasNote = (order.note || "").replace(/^__walkin:.*\n?/, "").trim();
+    openReceiptWindow(order, itemsHtml, total, dateStr, timeStr, payLabel, extrasNote);
   }
 
-  function openReceiptWindow(order, itemsHtml, total, dateStr, timeStr, payLabel) {
+  function openReceiptWindow(order, itemsHtml, total, dateStr, timeStr, payLabel, noteText) {
     const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
 <title>ใบเสร็จ ${order.orderNumber}</title>
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;700;800&display=swap" rel="stylesheet">
@@ -372,6 +383,7 @@ export default function Orders() {
   </tr>
 </table>
 <div class="double"></div>
+${noteText ? `<div style="margin-top:8px; padding:6px 8px; border:1.5px dashed #000; border-radius:4px; font-size:13px; font-weight:800;">💬 หมายเหตุ: ${noteText}</div>` : ""}
 <div class="dash" style="margin-top:6px;"></div>
 <div class="center" style="font-size:13px; font-weight:800; margin:6px 0 4px;">สแกนโอนเงิน PromptPay</div>
 <div class="center"><img src="${qrBase64}" style="width:48mm; height:48mm; object-fit:contain;" /></div>
