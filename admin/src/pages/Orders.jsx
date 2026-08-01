@@ -33,7 +33,9 @@ function CustomerAutocomplete({ value, onChange, onSelect, placeholder, type = "
         const data = r.data || [];
         setSuggestions(data);
         setOpen(data.length > 0);
-      } catch {}
+      } catch (err) {
+        console.error("autocomplete error:", err);
+      }
     }, 200);
   }
 

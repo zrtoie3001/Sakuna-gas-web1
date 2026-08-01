@@ -25,8 +25,9 @@ router.get("/customer-suggestions", requireAuth, async (req, res) => {
     const { Op } = require("sequelize");
     const where = q ? {
       [Op.or]: [
-        { customerName: { [Op.iLike]: `%${q}%` } },
-        { customerPhone: { [Op.iLike]: `%${q}%` } },
+        { customerName:    { [Op.iLike]: `%${q}%` } },
+        { customerPhone:   { [Op.iLike]: `%${q}%` } },
+        { deliveryAddress: { [Op.iLike]: `%${q}%` } },
       ],
     } : {};
     const rows = await Order.findAll({
@@ -35,7 +36,7 @@ router.get("/customer-suggestions", requireAuth, async (req, res) => {
         { model: Brand,   as: "brand",   attributes: ["id", "name"], required: false },
         { model: Product, as: "product", attributes: ["id", "name", "price"], required: false },
       ],
-      where: { ...where, customerName: { [Op.ne]: null } },
+      where,
       order: [["createdAt", "DESC"]],
       limit: 300,
     });
