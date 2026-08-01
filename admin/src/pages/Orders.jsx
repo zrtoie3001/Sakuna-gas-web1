@@ -257,11 +257,13 @@ export default function Orders() {
     }
     const displayQty = walkinData?.qty ?? o.qty ?? 1;
     const unitPrice = walkinData?.unitPrice ?? (displayQty > 0 ? Math.round(subtotal / displayQty) : 0);
-    let itemsHtml = `<tr><td>${productLabel || "-"}</td><td style="text-align:center;">${displayQty}</td><td style="text-align:right;">${Number(unitPrice).toLocaleString()}</td><td style="text-align:right;">${subtotal.toLocaleString()}</td></tr>`;
+    const isEquip = walkinData?.type === "equipment";
+    const qtyUnit = isEquip ? " ชิ้น" : " ถัง";
+    let itemsHtml = `<tr><td>${productLabel || "-"}</td><td style="text-align:center;">${displayQty}${qtyUnit}</td><td style="text-align:right;">${Number(unitPrice).toLocaleString()}</td><td style="text-align:right;">${subtotal.toLocaleString()}</td></tr>`;
     let total = Number(o.total);
     for (const ex of extras) {
       const lineTotal = Number(ex.price) * Number(ex.qty);
-      itemsHtml += `<tr><td>${ex.name}</td><td style="text-align:center;">${ex.qty}</td><td style="text-align:right;">${Number(ex.price).toLocaleString()}</td><td style="text-align:right;">${lineTotal.toLocaleString()}</td></tr>`;
+      itemsHtml += `<tr><td>${ex.name}</td><td style="text-align:center;">${ex.qty} ชิ้น</td><td style="text-align:right;">${Number(ex.price).toLocaleString()}</td><td style="text-align:right;">${lineTotal.toLocaleString()}</td></tr>`;
       total += lineTotal;
     }
     if (discount > 0) {
@@ -283,7 +285,8 @@ export default function Orders() {
       const lineTotal = qty * price;
       total += lineTotal;
       const name = it.label || it.name || it.brandName || "สินค้า";
-      itemsHtml += `<tr><td>${name}</td><td style="text-align:center;">${qty}</td><td style="text-align:right;">${price.toLocaleString()}</td><td style="text-align:right;">${lineTotal.toLocaleString()}</td></tr>`;
+      const unit = it.type === "equipment" ? " ชิ้น" : " ถัง";
+      itemsHtml += `<tr><td>${name}</td><td style="text-align:center;">${qty}${unit}</td><td style="text-align:right;">${price.toLocaleString()}</td><td style="text-align:right;">${lineTotal.toLocaleString()}</td></tr>`;
     }
     openReceiptWindow(order, itemsHtml, total, dateStr, timeStr, payLabel);
   }
@@ -297,11 +300,11 @@ export default function Orders() {
     const subtotal = Number(order.total) + discount;
     const unitPrice = order.qty > 0 ? Math.round(subtotal / order.qty) : 0;
     let total = Number(order.total);
-    let itemsHtml = `<tr><td>${(order.brand?.name || "") + " " + (order.product?.name || "")}</td><td style="text-align:center;">${order.qty}</td><td style="text-align:right;">${unitPrice.toLocaleString()}</td><td style="text-align:right;">${subtotal.toLocaleString()}</td></tr>`;
+    let itemsHtml = `<tr><td>${(order.brand?.name || "") + " " + (order.product?.name || "")}</td><td style="text-align:center;">${order.qty} ถัง</td><td style="text-align:right;">${unitPrice.toLocaleString()}</td><td style="text-align:right;">${subtotal.toLocaleString()}</td></tr>`;
     for (const ex of extras) {
       const lineTotal = Number(ex.price) * Number(ex.qty);
       total += lineTotal;
-      itemsHtml += `<tr><td>${ex.name}</td><td style="text-align:center;">${ex.qty}</td><td style="text-align:right;">${Number(ex.price).toLocaleString()}</td><td style="text-align:right;">${lineTotal.toLocaleString()}</td></tr>`;
+      itemsHtml += `<tr><td>${ex.name}</td><td style="text-align:center;">${ex.qty} ชิ้น</td><td style="text-align:right;">${Number(ex.price).toLocaleString()}</td><td style="text-align:right;">${lineTotal.toLocaleString()}</td></tr>`;
     }
     if (discount > 0) {
       itemsHtml += `<tr><td colspan="3" style="font-size:13px; font-weight:800; color:#000;">ส่วนลด${order.discountCode ? ` (${order.discountCode})` : ""}</td><td style="text-align:right; font-weight:800; color:#000;">-${discount.toLocaleString()}</td></tr>`;
@@ -325,7 +328,7 @@ export default function Orders() {
   .dash   { border-top: 1.5px dashed #000; margin: 8px 0; }
   .double { border-top: 3px double #000; margin-top: 2px; }
   table { width: 100%; border-collapse: collapse; }
-  td, th { padding: 3px 2px; font-size: 14px; font-weight: 800; color: #000; }
+  td, th { padding: 3px 4px; font-size: 14px; font-weight: 800; color: #000; }
   @media print { body { margin:0; } @page { margin:0; size:80mm auto; } }
 </style></head><body>
 <div class="center bold" style="font-size:30px; font-weight:900; letter-spacing:2px; margin-bottom:4px;">🔥 สกุณาแก๊ส</div>
@@ -348,10 +351,10 @@ export default function Orders() {
 <table>
   <thead>
     <tr style="border-bottom:1.5px solid #000;">
-      <th style="text-align:left; width:40%; font-size:14px;">รายการ</th>
-      <th style="text-align:center; width:15%; font-size:14px;">จำนวน</th>
-      <th style="text-align:right; width:22%; font-size:14px;">ราคา/ชิ้น</th>
-      <th style="text-align:right; width:23%; font-size:14px;">รวม</th>
+      <th style="text-align:left; width:36%; font-size:14px; padding-right:4px;">รายการ</th>
+      <th style="text-align:center; width:22%; font-size:14px; padding:0 4px;">จำนวน</th>
+      <th style="text-align:right; width:20%; font-size:14px; padding:0 4px;">ราคา/ชิ้น</th>
+      <th style="text-align:right; width:22%; font-size:14px;">รวม</th>
     </tr>
   </thead>
   <tbody>
