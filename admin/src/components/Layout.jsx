@@ -203,7 +203,7 @@ export default function Layout() {
   }
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh" }} onClick={unlockAudio}>
+    <div style={{ display: "flex", minHeight: "100vh", overflowY: "auto" }} onClick={unlockAudio}>
       {/* Desktop sidebar */}
       <div style={{ display: "none" }} className="desktop-sidebar">
         <Sidebar user={user} onClose={() => {}} onPasswordClick={() => setPwModal(true)} onLogout={logout} />
@@ -257,7 +257,7 @@ export default function Layout() {
         )}
 
         {/* Content */}
-        <div style={{ flex: 1, padding: "20px", overflowY: "auto" }}>
+        <div style={{ flex: 1, padding: "20px", overflowY: "visible" }}>
           <SearchContext.Provider value={{ q: globalQ, setQ: setGlobalQ }}>
             <Outlet />
           </SearchContext.Provider>
