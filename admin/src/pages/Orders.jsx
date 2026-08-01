@@ -589,11 +589,44 @@ ${noteText ? `<div style="margin-top:8px; padding:6px 8px; border:1.5px dashed #
             </div>
           ))}
 
-          {selected.note && (
-            <div style={{ marginTop: 10, background: "#FFF7ED", borderRadius: 8, padding: 10, fontSize: 12, color: "#92400E" }}>
-              💬 {selected.note}
-            </div>
-          )}
+          {(() => {
+            const n = selected.note || "";
+            if (n.startsWith("__walkin:")) {
+              // show cart items in human-readable form
+              let walkinItems = null;
+              try {
+                const data = JSON.parse(n.replace(/^__walkin:/, "").split("\n")[0]);
+                walkinItems = data.items || (data.type !== "mixed" ? [data] : null);
+              } catch {}
+              const userNote = n.split("\n").slice(1).join("\n").trim();
+              return (
+                <>
+                  {walkinItems && (
+                    <div style={{ marginTop: 10, background: "#F0FDF4", borderRadius: 8, padding: 10, fontSize: 12 }}>
+                      <div style={{ fontWeight: 700, color: "#166534", marginBottom: 6 }}>🛒 รายการสินค้า</div>
+                      {walkinItems.map((it, i) => (
+                        <div key={i} style={{ color: "#1F2937", padding: "3px 0", borderBottom: i < walkinItems.length-1 ? "1px solid #D1FAE5" : "none" }}>
+                          {it.label || it.name || `${it.brandName || ""} ${it.weightKg ? it.weightKg+"กก." : ""}`.trim()}
+                          {" · "}{it.qty} {it.type === "equipment" ? "ชิ้น" : "ถัง"}
+                          {it.price ? ` · ฿${Number(it.price).toLocaleString()}` : ""}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {userNote && (
+                    <div style={{ marginTop: 8, background: "#FFF7ED", borderRadius: 8, padding: 10, fontSize: 12, color: "#92400E" }}>
+                      💬 {userNote}
+                    </div>
+                  )}
+                </>
+              );
+            }
+            return n ? (
+              <div style={{ marginTop: 10, background: "#FFF7ED", borderRadius: 8, padding: 10, fontSize: 12, color: "#92400E" }}>
+                💬 {n}
+              </div>
+            ) : null;
+          })()}
 
           {selected.slipUrl && (
             <div style={{ marginTop: 10 }}>
