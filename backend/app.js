@@ -128,6 +128,9 @@ const PORT = process.env.PORT || 3001;
       );
     `).catch(() => {});
     await sequelize.query(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS created_by_name VARCHAR(100);`).catch(() => {});
+    // Fix payment_method ENUM to include 'cod'
+    await sequelize.query(`ALTER TABLE orders DROP CONSTRAINT IF EXISTS orders_payment_method_check;`).catch(() => {});
+    await sequelize.query(`ALTER TABLE orders ADD CONSTRAINT orders_payment_method_check CHECK (payment_method IN ('cash','qr','cod'));`).catch(() => {});
     await sequelize.query(`
       CREATE TABLE IF NOT EXISTS staff_payments (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

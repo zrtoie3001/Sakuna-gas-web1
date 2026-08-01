@@ -869,7 +869,7 @@ export default function Orders() {
                     style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 14, boxSizing: "border-box" }}>
                     <option value="">-- เลือก --</option>
                     {products.map(p => (
-                      <option key={p.id} value={p.id}>{p.name} — ฿{Number(p.price).toLocaleString()}</option>
+                      <option key={p.id} value={p.id}>{p.name}</option>
                     ))}
                   </select>
                 </div>
