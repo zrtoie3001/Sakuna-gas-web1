@@ -18,11 +18,10 @@ const upload = multer({
 // Walk-in sale (admin)
 router.post("/walkin", requireAuth, createWalkinOrder);
 
-// Customer name suggestions — MUST be before /:id
+// Customer suggestions — search by name OR phone, returns gas info + all addresses
 router.get("/customer-suggestions", requireAuth, async (req, res) => {
   try {
     const { q = "" } = req.query;
-    const { sequelize } = require("../config/database");
     const { Op } = require("sequelize");
     const where = q ? {
       [Op.or]: [
@@ -31,18 +30,66 @@ router.get("/customer-suggestions", requireAuth, async (req, res) => {
       ],
     } : {};
     const rows = await Order.findAll({
-      attributes: ["customerName", "customerPhone", "deliveryAddress"],
+      attributes: ["customerName", "customerPhone", "deliveryAddress", "brandId", "productId", "note"],
+      include: [
+        { model: Brand,   as: "brand",   attributes: ["id", "name"], required: false },
+        { model: Product, as: "product", attributes: ["id", "name", "price"], required: false },
+      ],
       where: { ...where, customerName: { [Op.ne]: null } },
       order: [["createdAt", "DESC"]],
-      limit: 100,
-      raw: true,
+      limit: 300,
     });
-    // Deduplicate by name (case-insensitive)
-    const seen = new Set();
-    const result = [];
+
+    // Group by phone (preferred) or name, collect all addresses + keep most-recent gas info
+    const map = new Map();
     for (const r of rows) {
-      const key = (r.customerName || "").trim().toLowerCase();
-      if (key && !seen.has(key)) { seen.add(key); result.push(r); }
+      const key = (r.customerPhone || r.customerName || "").trim().toLowerCase();
+      if (!key) continue;
+
+      // Parse walkin note for gas info
+      let walkin = null;
+      if (r.note?.startsWith("__walkin:")) {
+        try { walkin = JSON.parse(r.note.replace(/^__walkin:/, "").split("\n")[0]); } catch {}
+      }
+
+      if (!map.has(key)) {
+        map.set(key, {
+          customerName:  r.customerName,
+          customerPhone: r.customerPhone,
+          deliveryAddress: r.deliveryAddress,
+          addresses: [],
+          addrSet: new Set(),
+          brandId:     r.brandId   || null,
+          productId:   r.productId || null,
+          brandName:   r.brand?.name   || walkin?.brandName || null,
+          productName: r.product?.name || (walkin ? `${walkin.brandName} ${walkin.weightKg}กก.` : null),
+          productPrice: r.product?.price || null,
+          weightKg:    walkin?.weightKg || null,
+        });
+      }
+      const entry = map.get(key);
+      if (r.deliveryAddress && !entry.addrSet.has(r.deliveryAddress)) {
+        entry.addrSet.add(r.deliveryAddress);
+        entry.addresses.push(r.deliveryAddress);
+      }
+      // Fill gas info from most recent order that has it
+      if (!entry.brandId && r.brandId) {
+        entry.brandId = r.brandId;
+        entry.productId = r.productId;
+        entry.brandName = r.brand?.name;
+        entry.productName = r.product?.name;
+        entry.productPrice = r.product?.price;
+      }
+      if (!entry.weightKg && walkin?.weightKg) {
+        entry.weightKg = walkin.weightKg;
+        entry.brandName = entry.brandName || walkin.brandName;
+      }
+    }
+
+    const result = [];
+    for (const [, v] of map) {
+      delete v.addrSet;
+      result.push(v);
       if (result.length >= 10) break;
     }
     res.json(result);

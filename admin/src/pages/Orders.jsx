@@ -19,27 +19,29 @@ const STATUSES = [
 
 const EMPTY_ORDER = { customerName: "", customerPhone: "", brandId: "", productId: "", qty: 1, paymentMethod: "cash", deliveryAddress: "", note: "", orderType: "gas" };
 
-function CustomerAutocomplete({ value, onChange, onSelect, placeholder }) {
+function CustomerAutocomplete({ value, onChange, onSelect, placeholder, type = "text" }) {
   const [open, setOpen] = useState(false);
   const [suggestions, setSuggestions] = useState([]);
   const timer = useRef(null);
 
   function search(q) {
     clearTimeout(timer.current);
-    if (!q || q.length < 1) { setSuggestions([]); return; }
+    if (!q || q.length < 1) { setSuggestions([]); setOpen(false); return; }
     timer.current = setTimeout(async () => {
       try {
-        const { default: api } = await import("../utils/api.js");
-        const r = await api.get(`/api/v1/orders/customer-suggestions?q=${encodeURIComponent(q)}`);
-        setSuggestions(r.data || []);
-        setOpen(true);
+        const { default: apiInst } = await import("../utils/api.js");
+        const r = await apiInst.get(`/api/v1/orders/customer-suggestions?q=${encodeURIComponent(q)}`);
+        const data = r.data || [];
+        setSuggestions(data);
+        setOpen(data.length > 0);
       } catch {}
-    }, 250);
+    }, 200);
   }
 
   return (
     <div style={{ position: "relative" }}>
       <input
+        type={type}
         value={value}
         onChange={e => { onChange(e.target.value); search(e.target.value); }}
         onBlur={() => setTimeout(() => setOpen(false), 200)}
@@ -47,13 +49,20 @@ function CustomerAutocomplete({ value, onChange, onSelect, placeholder }) {
         style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 14, boxSizing: "border-box" }}
       />
       {open && suggestions.length > 0 && (
-        <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: "#fff", border: "2px solid #E5E7EB", borderRadius: 8, zIndex: 9999, maxHeight: 220, overflowY: "auto", boxShadow: "0 4px 16px rgba(0,0,0,.18)" }}>
+        <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: "#fff", border: "2px solid #E5E7EB", borderRadius: 8, zIndex: 9999, maxHeight: 260, overflowY: "auto", boxShadow: "0 6px 20px rgba(0,0,0,.15)" }}>
           {suggestions.map((c, i) => (
             <div key={i} onMouseDown={() => { onSelect(c); setOpen(false); setSuggestions([]); }}
-              style={{ padding: "10px 14px", fontSize: 14, cursor: "pointer", borderBottom: "1px solid #F3F4F6", background: "#fff" }}>
-              <strong style={{ color: "#1A2B6B" }}>{c.customerName}</strong>
-              {c.customerPhone && <span style={{ color: "#6B7280", marginLeft: 8 }}>· {c.customerPhone}</span>}
-              {c.deliveryAddress && <div style={{ fontSize: 11, color: "#9CA3AF", marginTop: 2 }}>📍 {c.deliveryAddress}</div>}
+              style={{ padding: "10px 14px", fontSize: 13, cursor: "pointer", borderBottom: "1px solid #F3F4F6", background: "#fff" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+                <strong style={{ color: "#1A2B6B", fontSize: 14 }}>{c.customerName}</strong>
+                {c.customerPhone && <span style={{ color: "#6B7280", fontSize: 12 }}>{c.customerPhone}</span>}
+              </div>
+              {(c.brandName || c.productName) && (
+                <div style={{ fontSize: 11, color: "#059669", marginTop: 2, fontWeight: 700 }}>
+                  ⛽ {c.brandName}{c.weightKg ? ` ${c.weightKg}กก.` : ""}{c.productName && !c.weightKg ? ` · ${c.productName}` : ""}
+                </div>
+              )}
+              {c.addresses?.[0] && <div style={{ fontSize: 11, color: "#9CA3AF", marginTop: 2 }}>📍 {c.addresses[0]}</div>}
             </div>
           ))}
         </div>
@@ -584,21 +593,47 @@ export default function Orders() {
             </div>
 
             {/* Customer info */}
-            <div style={{ display: "flex", gap: 12, marginBottom: 12 }}>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>ชื่อลูกค้า</div>
-                <CustomerAutocomplete
-                  value={walkinForm.customerName}
-                  onChange={v => setWalkinForm(f => ({ ...f, customerName: v }))}
-                  onSelect={c => setWalkinForm(f => ({ ...f, customerName: c.customerName || c.name || "", customerPhone: c.customerPhone || c.phone || "" }))}
-                />
-              </div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>เบอร์โทร</div>
-                <input value={walkinForm.customerPhone} onChange={e => setWalkinForm(f => ({ ...f, customerPhone: e.target.value }))} placeholder="ไม่ระบุได้" type="tel"
-                  style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 14, boxSizing: "border-box" }} />
-              </div>
-            </div>
+            {(() => {
+              function applyWalkinCustomer(c) {
+                setWalkinForm(f => {
+                  const updated = {
+                    ...f,
+                    customerName:  c.customerName  || f.customerName  || "",
+                    customerPhone: c.customerPhone || f.customerPhone || "",
+                  };
+                  // autofill gas info if not already selected
+                  if (!f.gasBrand && c.brandName) updated.gasBrand = c.brandName;
+                  if (!f.gasWeight && c.weightKg)  updated.gasWeight = String(c.weightKg);
+                  if (updated.gasBrand && updated.gasWeight) {
+                    const s = gasStocks.find(x => x.brandName === updated.gasBrand && Number(x.weightKg) === Number(updated.gasWeight));
+                    if (s) updated.stockId = s.id;
+                  }
+                  return updated;
+                });
+              }
+              return (
+                <div style={{ display: "flex", gap: 12, marginBottom: 12 }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>ชื่อลูกค้า</div>
+                    <CustomerAutocomplete
+                      value={walkinForm.customerName}
+                      onChange={v => setWalkinForm(f => ({ ...f, customerName: v }))}
+                      onSelect={applyWalkinCustomer}
+                    />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>เบอร์โทร</div>
+                    <CustomerAutocomplete
+                      type="tel"
+                      value={walkinForm.customerPhone}
+                      onChange={v => setWalkinForm(f => ({ ...f, customerPhone: v }))}
+                      onSelect={applyWalkinCustomer}
+                      placeholder="ไม่ระบุได้"
+                    />
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* Type toggle */}
             <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
@@ -753,17 +788,34 @@ export default function Orders() {
                   setCreateCustAddrs(c.addresses || []);
                   setCreateForm(f => ({
                     ...f,
-                    customerName: c.customerName || c.name || "",
-                    customerPhone: c.customerPhone || c.phone || "",
-                    deliveryAddress: f.deliveryAddress || c.deliveryAddress || "",
+                    customerName:    c.customerName || "",
+                    customerPhone:   c.customerPhone || f.customerPhone || "",
+                    deliveryAddress: f.deliveryAddress || c.addresses?.[0] || c.deliveryAddress || "",
+                    brandId:   f.brandId   || c.brandId   || "",
+                    productId: f.productId || c.productId || "",
                   }));
                 }}
               />
             </div>
             <div style={{ marginBottom: 12 }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>เบอร์โทร</div>
-              <input type="tel" value={createForm.customerPhone} onChange={e => setCreateForm(f => ({ ...f, customerPhone: e.target.value }))}
-                style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 14, boxSizing: "border-box" }} />
+              <CustomerAutocomplete
+                type="tel"
+                value={createForm.customerPhone}
+                onChange={v => setCreateForm(f => ({ ...f, customerPhone: v }))}
+                onSelect={c => {
+                  setCreateCustAddrs(c.addresses || []);
+                  setCreateForm(f => ({
+                    ...f,
+                    customerName:    f.customerName    || c.customerName || "",
+                    customerPhone:   c.customerPhone   || "",
+                    deliveryAddress: f.deliveryAddress || c.addresses?.[0] || c.deliveryAddress || "",
+                    brandId:   f.brandId   || c.brandId   || "",
+                    productId: f.productId || c.productId || "",
+                  }));
+                }}
+                placeholder="ไม่ระบุได้"
+              />
             </div>
             <div style={{ marginBottom: 12 }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>ที่อยู่จัดส่ง *</div>
@@ -771,10 +823,10 @@ export default function Orders() {
                 style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 14, boxSizing: "border-box" }} />
               {createCustAddrs.length > 0 && (
                 <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 4 }}>
-                  {createCustAddrs.map((a, i) => (
-                    <button key={i} onClick={() => setCreateForm(f => ({ ...f, deliveryAddress: a.address }))}
+                  {createCustAddrs.map((addr, i) => (
+                    <button key={i} onClick={() => setCreateForm(f => ({ ...f, deliveryAddress: addr }))}
                       style={{ padding: "6px 10px", borderRadius: 8, border: "2px solid #E5E7EB", background: "#F9FAFB", textAlign: "left", fontSize: 12, color: NAVY, cursor: "pointer" }}>
-                      📍 {a.address}
+                      📍 {addr}
                     </button>
                   ))}
                 </div>
