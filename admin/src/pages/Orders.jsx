@@ -232,7 +232,7 @@ export default function Orders() {
       total += lineTotal;
     }
     if (discount > 0) {
-      itemsHtml += `<tr><td colspan="3" style="font-size:11px; color:#555;">ส่วนลด${o.discountCode ? ` (${o.discountCode})` : ""}</td><td style="text-align:right; color:#059669;">-${discount.toLocaleString()}</td></tr>`;
+      itemsHtml += `<tr><td colspan="3" style="font-size:13px; font-weight:800; color:#000;">ส่วนลด${o.discountCode ? ` (${o.discountCode})` : ""}</td><td style="text-align:right; font-weight:800; color:#000;">-${discount.toLocaleString()}</td></tr>`;
     }
     openReceiptWindow(o, itemsHtml, total, dateStr, timeStr, payLabel);
   }
@@ -280,7 +280,7 @@ export default function Orders() {
       itemsHtml += `<tr><td>${ex.name}</td><td style="text-align:center;">${ex.qty}</td><td style="text-align:right;">${Number(ex.price).toLocaleString()}</td><td style="text-align:right;">${lineTotal.toLocaleString()}</td></tr>`;
     }
     if (discount > 0) {
-      itemsHtml += `<tr><td colspan="3" style="font-size:11px; color:#555;">ส่วนลด${order.discountCode ? ` (${order.discountCode})` : ""}</td><td style="text-align:right; color:#059669;">-${discount.toLocaleString()}</td></tr>`;
+      itemsHtml += `<tr><td colspan="3" style="font-size:13px; font-weight:800; color:#000;">ส่วนลด${order.discountCode ? ` (${order.discountCode})` : ""}</td><td style="text-align:right; font-weight:800; color:#000;">-${discount.toLocaleString()}</td></tr>`;
       total -= discount; // already included in order.total but adding extras so recalc
       total = Number(order.total) + extras.reduce((s, e) => s + Number(e.price) * Number(e.qty), 0);
     }
@@ -293,41 +293,41 @@ export default function Orders() {
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;700;800&display=swap" rel="stylesheet">
 <style>
   * { margin:0; padding:0; box-sizing:border-box; }
-  body { font-family: 'Sarabun', 'TH Sarabun New', sans-serif; width: 80mm; padding: 10px 10px 16px; font-size: 14px; font-weight: 700; color: #000; }
+  body { font-family: 'Sarabun', 'TH Sarabun New', sans-serif; width: 80mm; padding: 10px 10px 16px; font-size: 14px; font-weight: 800; color: #000; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .center { text-align: center; }
   .right  { text-align: right; }
   .bold   { font-weight: 900; }
-  .solid  { border-top: 1.5px solid #000; margin: 8px 0; }
-  .dash   { border-top: 1px dashed #000; margin: 8px 0; }
+  .solid  { border-top: 2px solid #000; margin: 8px 0; }
+  .dash   { border-top: 1.5px dashed #000; margin: 8px 0; }
   .double { border-top: 3px double #000; margin-top: 2px; }
   table { width: 100%; border-collapse: collapse; }
-  td, th { padding: 3px 2px; font-size: 13px; font-weight: 700; }
+  td, th { padding: 3px 2px; font-size: 14px; font-weight: 800; color: #000; }
   @media print { body { margin:0; } @page { margin:0; size:80mm auto; } }
 </style></head><body>
 <div class="center bold" style="font-size:30px; font-weight:900; letter-spacing:2px; margin-bottom:4px;">🔥 สกุณาแก๊ส</div>
-<div class="center" style="font-size:11px; color:#333; margin-bottom:2px;">โทร 097-121-3054 | 092-631-4331 | 02-970-9385</div>
-<div class="center" style="font-size:11px; color:#333; margin-bottom:6px;">39 ซอยพหลโยธิน 48 แขวงท่าแร้ง เขตบางเขน กทม. 10220</div>
+<div class="center" style="font-size:14px; font-weight:800; color:#000; margin-bottom:2px;">โทร 097-121-3054 | 092-631-4331 | 02-970-9385</div>
+<div class="center" style="font-size:13px; font-weight:800; color:#000; margin-bottom:6px;">39 ซอยพหลโยธิน 48 แขวงท่าแร้ง เขตบางเขน กทม. 10220</div>
 <div class="solid"></div>
 <table style="margin-bottom:8px;">
   <tr>
-    <td style="width:55%; font-weight:700;">ลูกค้า: ${order.customerName || "ลูกค้าทั่วไป"}</td>
-    <td style="width:45%; text-align:right; font-size:11px;">วันที่ ${dateStr}</td>
+    <td style="width:55%; font-size:14px; font-weight:800;">ลูกค้า: ${order.customerName || "ลูกค้าทั่วไป"}</td>
+    <td style="width:45%; text-align:right; font-size:13px; font-weight:800;">วันที่ ${dateStr}</td>
   </tr>
   <tr>
-    <td style="font-size:11px; padding-top:2px;">เลขออเดอร์: <b>${order.orderNumber}</b></td>
-    <td style="text-align:right; font-size:11px; padding-top:2px;">เวลา ${timeStr} น.</td>
+    <td style="font-size:13px; font-weight:800; padding-top:2px;">เลขออเดอร์: <b>${order.orderNumber}</b></td>
+    <td style="text-align:right; font-size:13px; font-weight:800; padding-top:2px;">เวลา ${timeStr} น.</td>
   </tr>
-  <tr><td colspan="2" style="padding-top:3px; font-size:11px;">📞 ${order.customerPhone || "-"} &nbsp;|&nbsp; 💳 ${payLabel}</td></tr>
-  <tr><td colspan="2" style="word-break:break-word; font-size:11px; padding-top:2px;">📍 ${order.deliveryAddress || "-"}</td></tr>
+  <tr><td colspan="2" style="padding-top:4px; font-size:14px; font-weight:800;">📞 ${order.customerPhone || "-"} &nbsp;|&nbsp; 💳 ${payLabel}</td></tr>
+  <tr><td colspan="2" style="word-break:break-word; font-size:14px; font-weight:800; padding-top:3px;">📍 ${order.deliveryAddress || "-"}</td></tr>
 </table>
 <div class="dash"></div>
 <table>
   <thead>
-    <tr style="border-bottom:1px solid #000;">
-      <th style="text-align:left; width:40%;">รายการ</th>
-      <th style="text-align:center; width:15%;">จำนวน</th>
-      <th style="text-align:right; width:22%;">ราคา/ชิ้น</th>
-      <th style="text-align:right; width:23%;">รวม</th>
+    <tr style="border-bottom:1.5px solid #000;">
+      <th style="text-align:left; width:40%; font-size:14px;">รายการ</th>
+      <th style="text-align:center; width:15%; font-size:14px;">จำนวน</th>
+      <th style="text-align:right; width:22%; font-size:14px;">ราคา/ชิ้น</th>
+      <th style="text-align:right; width:23%; font-size:14px;">รวม</th>
     </tr>
   </thead>
   <tbody>
@@ -339,21 +339,21 @@ export default function Orders() {
 <div class="solid"></div>
 <table style="margin-bottom:4px;">
   <tr>
-    <td class="bold">รวมทั้งสิ้น</td>
-    <td style="text-align:right;" class="bold">${total.toLocaleString()}</td>
-    <td style="padding-left:4px;" class="bold">บาท</td>
+    <td class="bold" style="font-size:16px;">รวมทั้งสิ้น</td>
+    <td style="text-align:right; font-size:16px;" class="bold">${total.toLocaleString()}</td>
+    <td style="padding-left:4px; font-size:16px;" class="bold">บาท</td>
   </tr>
 </table>
 <div class="double"></div>
 <div class="dash" style="margin-top:6px;"></div>
-<div class="center" style="font-size:12px; margin:6px 0 4px;">สแกนโอนเงิน PromptPay</div>
+<div class="center" style="font-size:13px; font-weight:800; margin:6px 0 4px;">สแกนโอนเงิน PromptPay</div>
 <div class="center"><img src="${qrBase64}" style="width:48mm; height:48mm; object-fit:contain;" /></div>
-<div class="center" style="font-size:12px; margin-top:3px;">สกุณา</div>
+<div class="center" style="font-size:13px; font-weight:800; margin-top:3px;">สกุณา</div>
 <div class="dash" style="margin-top:8px;"></div>
-<div class="center" style="font-size:12px; margin-top:6px;">ขอบคุณที่ใช้บริการค่ะ</div>
-<div class="center" style="font-size:11px; font-weight:700; margin-top:3px;">สแกนโอนเงิน PromptPay</div>
-<div class="center" style="font-size:11px; margin-top:2px;">นาง รุจิรา ดวงเพ็ชรแสง (KBank)</div>
-<div class="center" style="font-size:12px; margin-top:4px;">ขอบคุณที่ใช้บริการค่ะ</div>
+<div class="center" style="font-size:13px; font-weight:800; margin-top:6px;">ขอบคุณที่ใช้บริการค่ะ</div>
+<div class="center" style="font-size:13px; font-weight:800; margin-top:3px;">สแกนโอนเงิน PromptPay</div>
+<div class="center" style="font-size:13px; font-weight:800; margin-top:2px;">นาง รุจิรา ดวงเพ็ชรแสง (KBank)</div>
+<div class="center" style="font-size:13px; font-weight:800; margin-top:4px;">ขอบคุณที่ใช้บริการค่ะ</div>
 <script>window.onload=()=>{ window.print(); window.onafterprint=()=>window.close(); }</script>
 </body></html>`;
     const w = window.open("", "_blank", "width=420,height=700");

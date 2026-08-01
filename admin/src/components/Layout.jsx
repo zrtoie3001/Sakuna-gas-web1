@@ -1,5 +1,5 @@
 import { Outlet, NavLink, useNavigate, useLocation } from "react-router-dom";
-import { useState, createContext, useRef, useEffect } from "react";
+import { useState, createContext, useRef, useEffect, useMemo } from "react";
 
 export const SearchContext = createContext({ q: "", setQ: () => {} });
 import api from "../utils/api.js";
@@ -24,8 +24,6 @@ function playBeep(type = "new") {
   if (!isSoundEnabled()) return;
   try {
     const ctx = getAudioCtx();
-    // "new" = ออเดอร์ใหม่: เสียงกริ่งดัง 3 ครั้ง (square wave, louder)
-    // "update" = ส่งสำเร็จ/รับงาน: เสียงสั้น 2 โน้ต (sine, นุ่มกว่า)
     const sequences = type === "new"
       ? [
           { f: 1047, t: 0,    d: 0.12, wave: "square", vol: 0.3 },
@@ -50,14 +48,7 @@ function playBeep(type = "new") {
   } catch {}
 }
 
-function requestNotifPermission() {
-  if ("Notification" in window && Notification.permission === "default") {
-    Notification.requestPermission();
-  }
-}
-
 function showNotif(title, body) {
-  // OS notification — works even when tab is in background
   if ("Notification" in window && Notification.permission === "granted") {
     try {
       new Notification(title, { body, icon: "/images/Logo Sanuka.png", tag: "order-alert", renotify: true });
@@ -80,31 +71,92 @@ const NAV = [
   { to: "/reports",   icon: "📈", label: "รายงาน" },
   { to: "/stock",     icon: "📦", label: "สต็อก" },
   { to: "/debts",     icon: "💸", label: "ค้างเงิน/ถัง" },
-  { to: "/expenses",  icon: "🧾", label: "เบิกเงิน", roles: ["admin", "finance"] },
+  { to: "/expenses",  icon: "🧾", label: "เบิกเงิน", roles: ["finance"] },
   { to: "/settings",  icon: "⚙️", label: "ตั้งค่า" },
 ];
 
+// Sidebar แยกออกมาเป็น module-level component เพื่อไม่ให้ React remount ทุก render
+function Sidebar({ user, onClose, mobile, onPasswordClick, onLogout }) {
+  const visibleNav = useMemo(
+    () => NAV.filter(item => !item.roles || item.roles.includes(user.role)),
+    [user.role]
+  );
+  return (
+    <div style={{
+      width: mobile ? "100%" : 220, flexShrink: 0,
+      background: `linear-gradient(180deg, ${NAVY2} 0%, ${NAVY} 100%)`,
+      display: "flex", flexDirection: "column",
+      height: mobile ? "auto" : "100vh",
+      position: mobile ? "relative" : "sticky", top: 0,
+    }}>
+      <div style={{ padding: "24px 20px 20px", borderBottom: "1px solid rgba(255,255,255,.1)" }}>
+        <div style={{ fontSize: 26, fontWeight: 900, color: WHITE }}>
+          🔥 สกุณา<span style={{ color: ORANGE }}>แก๊ส</span>
+        </div>
+        <div style={{ fontSize: 11, color: "rgba(255,255,255,.5)", marginTop: 3 }}>Admin Panel</div>
+      </div>
+
+      <nav style={{ flex: 1, padding: "12px 0" }}>
+        {visibleNav.map(item => (
+          <NavLink key={item.to} to={item.to} end={item.to === "/"} onClick={onClose}
+            style={({ isActive }) => ({
+              display: "flex", alignItems: "center", gap: 12,
+              padding: "11px 20px", fontSize: 14, fontWeight: isActive ? 800 : 400,
+              color: isActive ? WHITE : "rgba(255,255,255,.6)",
+              background: isActive ? "rgba(244,123,32,.25)" : "transparent",
+              borderLeft: isActive ? `3px solid ${ORANGE}` : "3px solid transparent",
+              transition: "all .15s",
+            })}>
+            <span style={{ fontSize: 18 }}>{item.icon}</span>
+            {item.label}
+          </NavLink>
+        ))}
+      </nav>
+
+      <div style={{ padding: "16px 20px", borderTop: "1px solid rgba(255,255,255,.1)" }}>
+        <div style={{ fontSize: 13, color: "rgba(255,255,255,.8)", marginBottom: 10 }}>
+          👤 {user.name || "Admin"}
+        </div>
+        <button onClick={onPasswordClick} style={{
+          width: "100%", padding: "7px", borderRadius: 8, border: "1px solid rgba(255,255,255,.2)",
+          background: "transparent", color: "rgba(255,255,255,.7)", fontSize: 12, cursor: "pointer", marginBottom: 6,
+        }}>
+          🔑 เปลี่ยนรหัสผ่าน
+        </button>
+        <button onClick={onLogout} style={{
+          width: "100%", padding: "7px", borderRadius: 8, border: "1px solid rgba(255,255,255,.2)",
+          background: "transparent", color: "rgba(255,255,255,.7)", fontSize: 12, cursor: "pointer",
+        }}>
+          ออกจากระบบ
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function Layout() {
   const navigate  = useNavigate();
-  const location  = useLocation();
-  const user      = JSON.parse(localStorage.getItem("admin_user") || "{}");
+  const user      = useMemo(() => JSON.parse(localStorage.getItem("admin_user") || "{}"), []);
   const [sideOpen, setSideOpen] = useState(false);
   const [pwModal, setPwModal]   = useState(false);
-  const [pwForm, setPwForm]     = useState({ current: "", next: "", confirm: "" });
+  const [pwForm, setPwForm]     = useState({ next: "", confirm: "" });
   const [globalQ, setGlobalQ]   = useState("");
-  const knownOrders = useRef(null);
   const [notifDenied, setNotifDenied] = useState(
     "Notification" in window && Notification.permission === "default"
   );
+  const knownOrders = useRef(null);
 
   useEffect(() => {
     if ("Notification" in window && Notification.permission === "default") {
       Notification.requestPermission().then(p => { if (p === "granted") setNotifDenied(false); });
     }
 
+    let cancelled = false;
+
     async function checkOrders() {
       try {
         const r = await api.get("/api/v1/orders?limit=50");
+        if (cancelled) return;
         const orders = r.data.orders || [];
         if (knownOrders.current === null) {
           knownOrders.current = new Map(orders.map(o => [o.id, o.status]));
@@ -127,9 +179,10 @@ export default function Layout() {
         });
       } catch {}
     }
+
     const id = setInterval(checkOrders, 15000);
     checkOrders();
-    return () => clearInterval(id);
+    return () => { cancelled = true; clearInterval(id); };
   }, []);
 
   async function changeMyPassword() {
@@ -138,7 +191,7 @@ export default function Layout() {
     try {
       await api.put(`/api/v1/drivers/${user.id}`, { password: pwForm.next });
       alert("เปลี่ยนรหัสผ่านเรียบร้อยแล้ว");
-      setPwModal(false); setPwForm({ current: "", next: "", confirm: "" });
+      setPwModal(false); setPwForm({ next: "", confirm: "" });
     } catch (e) { alert(e.response?.data?.error || "เกิดข้อผิดพลาด"); }
   }
 
@@ -148,75 +201,19 @@ export default function Layout() {
     navigate("/login");
   }
 
-  const Sidebar = ({ mobile }) => (
-    <div style={{
-      width: mobile ? "100%" : 220, flexShrink: 0,
-      background: `linear-gradient(180deg, ${NAVY2} 0%, ${NAVY} 100%)`,
-      display: "flex", flexDirection: "column",
-      height: mobile ? "auto" : "100vh",
-      position: mobile ? "relative" : "sticky", top: 0,
-    }}>
-      {/* Brand */}
-      <div style={{ padding: "24px 20px 20px", borderBottom: "1px solid rgba(255,255,255,.1)" }}>
-        <div style={{ fontSize: 26, fontWeight: 900, color: WHITE }}>
-          🔥 สกุณา<span style={{ color: ORANGE }}>แก๊ส</span>
-        </div>
-        <div style={{ fontSize: 11, color: "rgba(255,255,255,.5)", marginTop: 3 }}>Admin Panel</div>
-      </div>
-
-      {/* Nav */}
-      <nav style={{ flex: 1, padding: "12px 0" }}>
-        {NAV.filter(item => !item.roles || item.roles.includes(user.role)).map(item => (
-          <NavLink key={item.to} to={item.to} end={item.to === "/"} onClick={() => setSideOpen(false)}
-            style={({ isActive }) => ({
-              display: "flex", alignItems: "center", gap: 12,
-              padding: "11px 20px", fontSize: 14, fontWeight: isActive ? 800 : 400,
-              color: isActive ? WHITE : "rgba(255,255,255,.6)",
-              background: isActive ? "rgba(244,123,32,.25)" : "transparent",
-              borderLeft: isActive ? `3px solid ${ORANGE}` : "3px solid transparent",
-              transition: "all .15s",
-            })}>
-            <span style={{ fontSize: 18 }}>{item.icon}</span>
-            {item.label}
-          </NavLink>
-        ))}
-      </nav>
-
-      {/* User */}
-      <div style={{ padding: "16px 20px", borderTop: "1px solid rgba(255,255,255,.1)" }}>
-        <div style={{ fontSize: 13, color: "rgba(255,255,255,.8)", marginBottom: 10 }}>
-          👤 {user.name || "Admin"}
-        </div>
-        <button onClick={() => setPwModal(true)} style={{
-          width: "100%", padding: "7px", borderRadius: 8, border: "1px solid rgba(255,255,255,.2)",
-          background: "transparent", color: "rgba(255,255,255,.7)", fontSize: 12, cursor: "pointer", marginBottom: 6,
-        }}>
-          🔑 เปลี่ยนรหัสผ่าน
-        </button>
-        <button onClick={logout} style={{
-          width: "100%", padding: "7px", borderRadius: 8, border: "1px solid rgba(255,255,255,.2)",
-          background: "transparent", color: "rgba(255,255,255,.7)", fontSize: 12, cursor: "pointer",
-        }}>
-          ออกจากระบบ
-        </button>
-      </div>
-    </div>
-  );
-
   return (
     <div style={{ display: "flex", minHeight: "100vh" }} onClick={unlockAudio}>
       {/* Desktop sidebar */}
       <div style={{ display: "none" }} className="desktop-sidebar">
-        <Sidebar />
+        <Sidebar user={user} onClose={() => {}} onPasswordClick={() => setPwModal(true)} onLogout={logout} />
       </div>
 
       {/* Mobile sidebar overlay */}
       {sideOpen && (
-        <div style={{
-          position: "fixed", inset: 0, zIndex: 200,
-          display: "flex",
-        }}>
-          <div style={{ width: 240 }}><Sidebar mobile /></div>
+        <div style={{ position: "fixed", inset: 0, zIndex: 200, display: "flex" }}>
+          <div style={{ width: 240 }}>
+            <Sidebar user={user} mobile onClose={() => setSideOpen(false)} onPasswordClick={() => { setSideOpen(false); setPwModal(true); }} onLogout={logout} />
+          </div>
           <div style={{ flex: 1, background: "rgba(0,0,0,.5)" }} onClick={() => setSideOpen(false)} />
         </div>
       )}
@@ -231,9 +228,7 @@ export default function Layout() {
           position: "sticky", top: 0, zIndex: 100,
           boxShadow: "0 1px 4px rgba(0,0,0,.06)",
         }}>
-          <button onClick={() => setSideOpen(!sideOpen)} style={{
-            background: "none", border: "none", fontSize: 20, color: NAVY, cursor: "pointer",
-          }}>☰</button>
+          <button onClick={() => setSideOpen(!sideOpen)} style={{ background: "none", border: "none", fontSize: 20, color: NAVY, cursor: "pointer" }}>☰</button>
           <span style={{ fontSize: 16, fontWeight: 800, color: NAVY }}>
             🔥 สกุณา<span style={{ color: ORANGE }}>แก๊ส</span>
           </span>
