@@ -28,16 +28,16 @@ router.get("/customer-suggestions", requireAuth, async (req, res) => {
     const { sequelize: seq } = require("../config/database");
     const { QueryTypes } = require("sequelize");
 
-    // Raw SQL — safe parameterized query, search name/phone/address
+    // Raw SQL — search name/phone/address
     const rows = await seq.query(
       `SELECT customer_name, customer_phone, delivery_address, brand_id, product_id, note
        FROM orders
-       WHERE customer_name ILIKE $1
-          OR customer_phone ILIKE $1
-          OR delivery_address ILIKE $1
+       WHERE customer_name ILIKE :q
+          OR customer_phone ILIKE :q
+          OR delivery_address ILIKE :q
        ORDER BY created_at DESC
        LIMIT 300`,
-      { bind: [`%${ql}%`], type: QueryTypes.SELECT }
+      { replacements: { q: `%${ql}%` }, type: QueryTypes.SELECT }
     );
 
     // Fetch brand/product names
