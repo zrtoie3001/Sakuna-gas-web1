@@ -637,6 +637,21 @@ ${noteText ? `<div style="margin-top:8px; padding:6px 8px; border:1.5px dashed #
                 </button>
               ))}
             </div>
+            {selected.status !== "cancelled" && (
+              <button onClick={() => {
+                if (!window.confirm(`ยืนยันยกเลิกออเดอร์ ${selected.orderNumber}?`)) return;
+                updateStatus(selected.id, "cancelled");
+              }} disabled={updating} style={{
+                marginTop: 10, width: "100%", padding: "7px", borderRadius: 8, border: "2px solid #EF4444",
+                background: "#FEF2F2", color: "#DC2626", fontSize: 12, fontWeight: 700, cursor: "pointer",
+                opacity: updating ? 0.6 : 1,
+              }}>🚫 ยกเลิกออเดอร์</button>
+            )}
+            {selected.status === "cancelled" && (
+              <div style={{ marginTop: 10, padding: "7px 12px", borderRadius: 8, background: "#FEE2E2", color: "#991B1B", fontSize: 12, fontWeight: 700, textAlign: "center" }}>
+                ❌ ออเดอร์ถูกยกเลิกแล้ว
+              </div>
+            )}
           </div>
 
           {/* Extra items for bill */}
