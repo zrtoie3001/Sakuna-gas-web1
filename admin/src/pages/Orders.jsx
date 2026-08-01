@@ -61,6 +61,7 @@ function CustomerAutocomplete({ value, onChange, onSelect, placeholder, type = "
               {(c.brandName || c.productName) && (
                 <div style={{ fontSize: 11, color: "#059669", marginTop: 2, fontWeight: 700 }}>
                   ⛽ {c.brandName}{c.weightKg ? ` ${c.weightKg}กก.` : ""}{c.productName && !c.weightKg ? ` · ${c.productName}` : ""}
+                  {c.unitPrice ? <span style={{ color: "#D97706", marginLeft: 6 }}>฿{Number(c.unitPrice).toLocaleString()}</span> : ""}
                 </div>
               )}
               {c.addresses?.[0] && <div style={{ fontSize: 11, color: "#9CA3AF", marginTop: 2 }}>📍 {c.addresses[0]}</div>}
@@ -962,6 +963,7 @@ ${noteText ? `<div style="margin-top:8px; padding:6px 8px; border:1.5px dashed #
                     deliveryAddress: f.deliveryAddress || c.addresses?.[0] || c.deliveryAddress || "",
                     brandId:   f.brandId   || c.brandId   || "",
                     productId: f.productId || c.productId || "",
+                    unitPrice: c.unitPrice ? String(c.unitPrice) : f.unitPrice,
                   }));
                 }}
               />
@@ -981,6 +983,7 @@ ${noteText ? `<div style="margin-top:8px; padding:6px 8px; border:1.5px dashed #
                     deliveryAddress: f.deliveryAddress || c.addresses?.[0] || c.deliveryAddress || "",
                     brandId:   f.brandId   || c.brandId   || "",
                     productId: f.productId || c.productId || "",
+                    unitPrice: c.unitPrice ? String(c.unitPrice) : f.unitPrice,
                   }));
                 }}
                 placeholder="ไม่ระบุได้"
@@ -1000,6 +1003,7 @@ ${noteText ? `<div style="margin-top:8px; padding:6px 8px; border:1.5px dashed #
                     deliveryAddress: c.addresses?.[0]  || c.deliveryAddress || f.deliveryAddress,
                     brandId:   f.brandId   || c.brandId   || "",
                     productId: f.productId || c.productId || "",
+                    unitPrice: c.unitPrice ? String(c.unitPrice) : f.unitPrice,
                   }));
                 }}
                 placeholder="บ้านเลขที่ ซอย..."

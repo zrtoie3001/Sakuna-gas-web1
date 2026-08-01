@@ -30,7 +30,7 @@ router.get("/customer-suggestions", requireAuth, async (req, res) => {
 
     // Raw SQL — search name/phone/address
     const rows = await seq.query(
-      `SELECT customer_name, customer_phone, delivery_address, brand_id, product_id, note
+      `SELECT customer_name, customer_phone, delivery_address, brand_id, product_id, unit_price, note
        FROM orders
        WHERE customer_name ILIKE :q
           OR customer_phone ILIKE :q
@@ -78,6 +78,7 @@ router.get("/customer-suggestions", requireAuth, async (req, res) => {
           brandName:    (r.brand_id ? brandMap.get(r.brand_id) : null) || walkin?.brandName || null,
           productName:  prod?.name || (walkin ? `${walkin.brandName} ${walkin.weightKg}กก.` : null),
           weightKg:     walkin?.weightKg || null,
+          unitPrice:    r.unit_price ? Number(r.unit_price) : (walkin?.unitPrice ? Number(walkin.unitPrice) : null),
         });
       }
       const entry = map.get(key);
