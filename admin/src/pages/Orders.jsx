@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { createPortal } from "react-dom";
 import api from "../utils/api.js";
 import qrBase64 from "../assets/qrBase64.js";
 
@@ -545,8 +546,8 @@ ${noteText ? `<div style="margin-top:8px; padding:6px 8px; border:1.5px dashed #
                 ? `⛽ ${walkinData.brandName} ${walkinData.weightKg}กก. ×${walkinData.qty}`
                 : `อุปกรณ์ ×${selected.qty}`
             : `${selected.product?.name || "-"} ×${selected.qty}`;
-        return (
-        <div style={{ position: "fixed", top: 70, right: 16, width: 320, background: WHITE, borderRadius: 14, padding: 20, boxShadow: "0 4px 24px rgba(0,0,0,.12)", maxHeight: "calc(100vh - 86px)", overflowY: "auto", zIndex: 200 }}>
+        return createPortal(
+        <div style={{ position: "fixed", top: 60, right: 16, width: 320, background: WHITE, borderRadius: 14, padding: 20, boxShadow: "0 4px 24px rgba(0,0,0,.12)", maxHeight: "calc(100vh - 76px)", overflowY: "auto", zIndex: 9999 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
             <h2 style={{ fontSize: 16, fontWeight: 900, color: NAVY }}>{selected.orderNumber}</h2>
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
@@ -657,7 +658,7 @@ ${noteText ? `<div style="margin-top:8px; padding:6px 8px; border:1.5px dashed #
             }))} />
           </div>
         </div>
-        );
+        , document.body);
       })()}
 
       {/* Edit order modal */}
