@@ -50,8 +50,8 @@ router.get("/customer-suggestions", requireAuth, async (req, res) => {
       bs.forEach(b => brandMap.set(b.id, b.name));
     }
     if (productIds.length) {
-      const ps = await Product.findAll({ where: { id: productIds }, attributes: ["id", "name", "price"] });
-      ps.forEach(p => productMap.set(p.id, { name: p.name, price: p.price }));
+      const ps = await Product.findAll({ where: { id: productIds }, attributes: ["id", "name"] });
+      ps.forEach(p => productMap.set(p.id, { name: p.name }));
     }
 
     // Deduplicate by phone/name, collect all addresses
@@ -77,7 +77,6 @@ router.get("/customer-suggestions", requireAuth, async (req, res) => {
           productId:    r.product_id || null,
           brandName:    (r.brand_id ? brandMap.get(r.brand_id) : null) || walkin?.brandName || null,
           productName:  prod?.name || (walkin ? `${walkin.brandName} ${walkin.weightKg}กก.` : null),
-          productPrice: prod?.price || null,
           weightKg:     walkin?.weightKg || null,
         });
       }
