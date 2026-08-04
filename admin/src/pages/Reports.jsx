@@ -12,6 +12,11 @@ export default function Reports() {
   const [topProducts, setTopProducts] = useState([]);
   const [date, setDate]   = useState(now.toISOString().split("T")[0]);
   const [dayOrders, setDayOrders] = useState([]);
+  const [dayExpenses, setDayExpenses] = useState([]);
+  const [dayTotalExpenses, setDayTotalExpenses] = useState(0);
+  const [dayNetRevenue, setDayNetRevenue] = useState(0);
+  const [daySummary, setDaySummary] = useState(null);
+  const [dayUnpaid, setDayUnpaid] = useState([]);
   const [driverStats, setDriverStats] = useState([]);
   const [driverDate, setDriverDate]   = useState(now.toISOString().split("T")[0]);
 
@@ -23,7 +28,14 @@ export default function Reports() {
   }, [year, month]);
 
   useEffect(() => {
-    api.get(`/api/v1/reports/daily?date=${date}`).then(r => setDayOrders(r.data.orders || [])).catch(() => {});
+    api.get(`/api/v1/reports/daily?date=${date}`).then(r => {
+      setDayOrders(r.data.orders || []);
+      setDayExpenses(r.data.expenses || []);
+      setDayTotalExpenses(r.data.totalExpenses || 0);
+      setDayNetRevenue(r.data.netRevenue || 0);
+      setDaySummary(r.data.summary || null);
+      setDayUnpaid(r.data.unpaidOrders || []);
+    }).catch(() => {});
   }, [date]);
 
   useEffect(() => {
@@ -123,11 +135,55 @@ export default function Reports() {
           </button>
         </div>
 
+        {/* Day summary: orders, tanks, revenue, expenses, net */}
+        {daySummary && (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 10, marginBottom: 16 }}>
+            {[
+              { label: "ออเดอร์", value: parseInt(daySummary.count || 0) + " ออเดอร์", color: ORANGE },
+              { label: "จำนวนถัง", value: parseInt(daySummary.units || 0) + " ถัง", color: "#0EA5E9" },
+              { label: "ยอดขายรวม", value: "฿" + Number(daySummary.revenue || 0).toLocaleString(), color: "#10B981" },
+              { label: "ค่าใช้จ่าย", value: "฿" + dayTotalExpenses.toLocaleString(), color: "#EF4444" },
+              { label: "เงินสุทธิ", value: "฿" + dayNetRevenue.toLocaleString(), color: dayNetRevenue >= 0 ? "#059669" : "#EF4444" },
+            ].map(({ label, value, color }) => (
+              <div key={label} style={{ background: "#F8FAFC", borderRadius: 10, padding: "12px 14px", borderLeft: `4px solid ${color}` }}>
+                <div style={{ fontSize: 11, color: GRAY, marginBottom: 4 }}>{label}</div>
+                <div style={{ fontSize: 16, fontWeight: 900, color }}>{value}</div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Expenses breakdown */}
+        {dayExpenses.length > 0 && (
+          <div style={{ background: "#FEF2F2", borderRadius: 10, padding: "12px 14px", marginBottom: 14, border: "1.5px solid #FECACA" }}>
+            <div style={{ fontSize: 13, fontWeight: 800, color: "#991B1B", marginBottom: 8 }}>🧾 ค่าใช้จ่ายวันนี้ — รวม ฿{dayTotalExpenses.toLocaleString()}</div>
+            {dayExpenses.map((e, i) => (
+              <div key={i} style={{ fontSize: 12, color: "#7F1D1D", padding: "2px 0", display: "flex", justifyContent: "space-between" }}>
+                <span>{e.description || e.type}{e.createdByName ? ` (${e.createdByName})` : ""}</span>
+                <span style={{ fontWeight: 700 }}>฿{Number(e.amount).toLocaleString()}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Unpaid orders alert */}
+        {dayUnpaid.length > 0 && (
+          <div style={{ background: "#FEF3C7", borderRadius: 10, padding: "12px 14px", marginBottom: 14, border: "1.5px solid #FCD34D" }}>
+            <div style={{ fontSize: 13, fontWeight: 800, color: "#92400E", marginBottom: 8 }}>⚠️ ออเดอร์ที่ยังค้างเงิน ({dayUnpaid.length} รายการ)</div>
+            {dayUnpaid.map((o, i) => (
+              <div key={i} style={{ fontSize: 12, color: "#78350F", padding: "2px 0", display: "flex", justifyContent: "space-between" }}>
+                <span>{o.orderNumber} · {o.customerName}</span>
+                <span style={{ fontWeight: 700 }}>฿{Number(o.total).toLocaleString()}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
         <div style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
             <thead>
               <tr style={{ background: "#F8FAFC", borderBottom: "2px solid #E5E7EB" }}>
-                {["เลขออเดอร์", "ลูกค้า", "สินค้า", "จำนวน", "ยอดรวม", "สถานะ"].map(h => (
+                {["เลขออเดอร์", "ลูกค้า", "สินค้า", "จำนวน (ถัง)", "ยอดรวม", "สถานะ"].map(h => (
                   <th key={h} style={{ padding: "10px 12px", textAlign: "left", color: GRAY, fontWeight: 700 }}>{h}</th>
                 ))}
               </tr>
@@ -138,7 +194,7 @@ export default function Reports() {
                   <td style={{ padding: "9px 12px", fontWeight: 700, color: ORANGE }}>{o.orderNumber}</td>
                   <td style={{ padding: "9px 12px" }}>{o.customerName}</td>
                   <td style={{ padding: "9px 12px", color: GRAY }}>{o.product?.name}</td>
-                  <td style={{ padding: "9px 12px" }}>{o.qty}</td>
+                  <td style={{ padding: "9px 12px" }}>{o.qty} ถัง</td>
                   <td style={{ padding: "9px 12px", fontWeight: 700 }}>฿{Number(o.total).toLocaleString()}</td>
                   <td style={{ padding: "9px 12px" }}>{o.status}</td>
                 </tr>

@@ -1,12 +1,12 @@
 const { Op, fn, col, literal } = require("sequelize");
-const { Order, Product, Brand, Customer, User, sequelize } = require("../models");
+const { Order, Product, Brand, Customer, User, Expense, sequelize } = require("../models");
 
 async function dailyReport(req, res) {
   const { date = new Date().toISOString().split("T")[0] } = req.query;
   const start = new Date(date); start.setHours(0, 0, 0, 0);
   const end   = new Date(date); end.setHours(23, 59, 59, 999);
 
-  const [orders, summary] = await Promise.all([
+  const [orders, summary, expenseRows] = await Promise.all([
     Order.findAll({
       where: { createdAt: { [Op.between]: [start, end] }, status: { [Op.ne]: "cancelled" } },
       include: [{ model: Brand, as: "brand" }, { model: Product, as: "product" }],
@@ -21,9 +21,17 @@ async function dailyReport(req, res) {
       ],
       raw: true,
     }),
+    Expense ? Expense.findAll({
+      where: { createdAt: { [Op.between]: [start, end] } },
+      attributes: ["amount", "type", "description", "createdByName"],
+      raw: true,
+    }).catch(() => []) : Promise.resolve([]),
   ]);
 
-  res.json({ date, orders, summary });
+  const unpaidOrders = orders.filter(o => !o.isPaid && o.status !== "cancelled");
+  const totalExpenses = expenseRows.reduce((s, e) => s + Number(e.amount || 0), 0);
+  const revenue = Number(summary?.revenue || 0);
+  res.json({ date, orders, summary, expenses: expenseRows, totalExpenses, netRevenue: revenue - totalExpenses, unpaidOrders: unpaidOrders.map(o => ({ id: o.id, orderNumber: o.orderNumber, customerName: o.customerName, total: o.total })) });
 }
 
 async function monthlyReport(req, res) {
@@ -65,7 +73,7 @@ async function dashboardStats(req, res) {
   const [todaySummary, monthRevenue, totalCustomers, pendingOrders, trend7, topProducts, paymentBreakdown, brandBreakdown, todayPayBreakdown, monthPayBreakdown] = await Promise.all([
     Order.findOne({
       where: { createdAt: { [Op.between]: [todayStart, todayEnd] }, status: { [Op.ne]: "cancelled" } },
-      attributes: [[fn("COUNT", col("id")), "count"], [fn("SUM", col("total")), "revenue"]],
+      attributes: [[fn("COUNT", col("id")), "count"], [fn("SUM", col("total")), "revenue"], [fn("SUM", col("qty")), "tanks"]],
       raw: true,
     }),
     Order.findOne({
@@ -78,7 +86,7 @@ async function dashboardStats(req, res) {
     // 7-day trend
     Order.findAll({
       where: { createdAt: { [Op.between]: [day7Start, todayEnd] }, status: { [Op.ne]: "cancelled" } },
-      attributes: [[fn("DATE", col("created_at")), "date"], [fn("COUNT", col("id")), "count"], [fn("SUM", col("total")), "revenue"]],
+      attributes: [[fn("DATE", col("created_at")), "date"], [fn("COUNT", col("id")), "count"], [fn("SUM", col("total")), "revenue"], [fn("SUM", col("qty")), "tanks"]],
       group: [fn("DATE", col("created_at"))],
       order: [[literal("date"), "ASC"]],
       raw: true,
@@ -132,11 +140,11 @@ async function dashboardStats(req, res) {
   for (let i = 6; i >= 0; i--) {
     const d = new Date(); d.setDate(d.getDate() - i);
     const key = d.toISOString().split("T")[0];
-    trendFilled.push({ date: key, count: parseInt(trendMap[key]?.count || 0), revenue: Number(trendMap[key]?.revenue || 0) });
+    trendFilled.push({ date: key, count: parseInt(trendMap[key]?.count || 0), revenue: Number(trendMap[key]?.revenue || 0), tanks: parseInt(trendMap[key]?.tanks || 0) });
   }
 
   res.json({
-    today: { orders: parseInt(todaySummary?.count || 0), revenue: Number(todaySummary?.revenue || 0) },
+    today: { orders: parseInt(todaySummary?.count || 0), revenue: Number(todaySummary?.revenue || 0), tanks: parseInt(todaySummary?.tanks || 0) },
     month: { revenue: Number(monthRevenue?.revenue || 0) },
     totalCustomers,
     pendingOrders,

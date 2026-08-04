@@ -187,9 +187,9 @@ export default function Expenses() {
               <textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} style={{ ...inp, height: 80, resize: "vertical" }} placeholder="เช่น เติมน้ำมันรถส่ง รถทะเบียน..." />
             </div>
 
-            {/* Slip upload */}
+            {/* Slip upload — optional */}
             <div style={{ marginBottom: 18 }}>
-              <label style={{ fontSize: 11, color: GRAY, display: "block", marginBottom: 4, fontWeight: 700 }}>สลิป / รูปถ่าย</label>
+              <label style={{ fontSize: 11, color: GRAY, display: "block", marginBottom: 4, fontWeight: 700 }}>สลิป / รูปถ่าย <span style={{ color: "#9CA3AF", fontWeight: 400 }}>(ไม่บังคับ)</span></label>
               <input ref={fileRef} type="file" accept="image/*" capture="environment" onChange={pickFile} style={{ display: "none" }} />
               {slipPreview ? (
                 <div style={{ position: "relative", display: "inline-block" }}>
@@ -197,8 +197,8 @@ export default function Expenses() {
                   <button onClick={() => { setSlipFile(null); setSlipPreview(null); }} style={{ position: "absolute", top: -6, right: -6, width: 22, height: 22, borderRadius: "50%", background: RED, color: WHITE, border: "none", cursor: "pointer", fontSize: 12, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>×</button>
                 </div>
               ) : (
-                <button onClick={() => fileRef.current.click()} style={{ ...btn("#F3F4F6", GRAY), width: "100%", padding: 12 }}>
-                  📷 ถ่ายรูป / เลือกรูป
+                <button onClick={() => fileRef.current.click()} style={{ ...btn("#F3F4F6", GRAY), padding: "8px 14px", fontSize: 12 }}>
+                  📷 แนบสลิป (ถ้ามี)
                 </button>
               )}
             </div>

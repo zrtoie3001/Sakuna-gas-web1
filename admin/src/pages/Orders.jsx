@@ -121,6 +121,7 @@ export default function Orders() {
   const [gasStocks, setGasStocks]   = useState([]);
   const [equipList, setEquipList]   = useState([]);
   const [extraItems, setExtraItems] = useState({}); // { [orderId]: [{id, name, qty, price}] }
+  const [createCart, setCreateCart]   = useState([]);
   const [createCustAddrs, setCreateCustAddrs] = useState([]); // addresses of selected customer in create modal
   const [editOrder, setEditOrder]     = useState(null);   // order being edited
   const [editForm,  setEditForm]      = useState({});
@@ -148,37 +149,70 @@ export default function Orders() {
     api.get("/api/v1/stock/equipment").then(r => setEquipList(r.data)).catch(() => {});
   }, []);
 
-  async function createOrder() {
+  function addToCreateCart() {
+    if (createForm.orderType === "new_tank") {
+      const stock = gasStocks.find(s => s.id === createForm.newTankStockId);
+      if (!stock) return alert("กรุณาเลือกยี่ห้อและน้ำหนัก");
+      if (!createForm.newTankPrice) return alert("กรุณาใส่ราคา");
+      setCreateCart(c => [...c, {
+        type: "new_tank",
+        brandName: stock.brandName,
+        weightKg: stock.weightKg,
+        stockId: stock.id,
+        qty: Number(createForm.qty || 1),
+        price: Number(createForm.newTankPrice),
+        label: `🆕 ถังใหม่ ${stock.brandName} ${stock.weightKg} กก.`,
+      }]);
+      setCreateForm(f => ({ ...f, ntBrand: "", ntWeight: "", newTankStockId: "", newTankPrice: "", qty: 1 }));
+    } else {
+      if (!createForm.brandId || !createForm.productId) return alert("กรุณาเลือกยี่ห้อและน้ำหนัก");
+      if (!createForm.unitPrice) return alert("กรุณาใส่ราคา");
+      const brand = brands.find(b => b.id === createForm.brandId);
+      const prod = products.find(p => p.id === createForm.productId);
+      setCreateCart(c => [...c, {
+        type: "gas",
+        brandId: createForm.brandId,
+        productId: createForm.productId,
+        brandName: brand?.name || "",
+        productName: prod?.name || "",
+        qty: Number(createForm.qty || 1),
+        price: Number(createForm.unitPrice),
+        label: `⛽ ${brand?.name || ""} ${prod?.name || ""}`,
+      }]);
+      setCreateForm(f => ({ ...f, brandId: "", productId: "", unitPrice: "", qty: 1 }));
+    }
+  }
+
+  async function confirmCreateOrder() {
+    if (createCart.length === 0) return alert("กรุณาเพิ่มสินค้าในตะกร้าก่อน");
+    if (!createForm.deliveryAddress) return alert("กรุณากรอกที่อยู่จัดส่ง");
     setCreating(true);
     try {
-      if (createForm.orderType === "new_tank") {
-        const stock = gasStocks.find(s => s.id === createForm.newTankStockId);
-        if (!stock) return alert("กรุณาเลือกยี่ห้อและน้ำหนัก");
-        if (!createForm.newTankPrice) return alert("กรุณาใส่ราคา");
-        if (!createForm.deliveryAddress) return alert("กรุณากรอกที่อยู่จัดส่ง");
-        await api.post("/api/v1/orders/walkin", {
-          type: "new_tank",
-          customerName: createForm.customerName,
-          customerPhone: createForm.customerPhone,
-          paymentMethod: createForm.paymentMethod,
-          note: createForm.note,
-          brandName: stock.brandName,
-          weightKg: stock.weightKg,
-          qty: Number(createForm.qty || 1),
-          price: Number(createForm.newTankPrice),
-          deliveryAddress: createForm.deliveryAddress,
-          orderStatus: "pending",
-        });
-      } else {
-        if (!createForm.deliveryAddress || !createForm.brandId || !createForm.productId)
-          return alert("กรุณากรอกที่อยู่จัดส่ง ยี่ห้อ และน้ำหนัก");
-        await api.post("/api/v1/orders", {
-          ...createForm,
-          qty: Number(createForm.qty) || 1,
-          ...(createForm.unitPrice ? { unitPrice: Number(createForm.unitPrice) } : {}),
-        });
-      }
-      setShowCreate(false); setCreateForm(EMPTY_ORDER); fetch();
+      const cartItems = createCart.map(it => ({
+        type: it.type,
+        brandName: it.brandName,
+        weightKg: it.weightKg,
+        stockId: it.stockId,
+        brandId: it.brandId,
+        productId: it.productId,
+        qty: it.qty,
+        price: it.price,
+        label: it.label,
+      }));
+      await api.post("/api/v1/orders/walkin", {
+        type: "mixed",
+        cartItems,
+        customerName: createForm.customerName,
+        customerPhone: createForm.customerPhone,
+        paymentMethod: createForm.paymentMethod,
+        note: createForm.note,
+        deliveryAddress: createForm.deliveryAddress,
+        orderStatus: "pending",
+      });
+      setShowCreate(false);
+      setCreateForm(EMPTY_ORDER);
+      setCreateCart([]);
+      fetch();
     } catch (e) { alert(e.response?.data?.error || "เกิดข้อผิดพลาด"); }
     finally { setCreating(false); }
   }
@@ -484,29 +518,43 @@ ${noteText ? `<div style="margin-top:8px; padding:6px 8px; border:1.5px dashed #
           </select>
         </div>
 
+        {/* Unpaid alert */}
+        {(() => {
+          const unpaid = orders.filter(o => !o.isPaid && o.status !== "cancelled");
+          if (!unpaid.length) return null;
+          return (
+            <div style={{ background: "#FEF3C7", border: "1.5px solid #FCD34D", borderRadius: 10, padding: "10px 14px", marginBottom: 12 }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: "#92400E" }}>⚠️ ยังค้างเงิน {unpaid.length} ออเดอร์: </span>
+              <span style={{ fontSize: 12, color: "#78350F" }}>{unpaid.slice(0,3).map(o => o.orderNumber).join(", ")}{unpaid.length > 3 ? ` +${unpaid.length - 3} อีก` : ""}</span>
+            </div>
+          );
+        })()}
+
         {/* Table */}
         <div style={{ background: WHITE, borderRadius: 14, overflow: "hidden", boxShadow: "0 2px 12px rgba(0,0,0,.06)" }}>
           {orders.filter(o => !search || [o.orderNumber, o.customerName, o.customerPhone, o.deliveryAddress, o.product?.name].some(v => String(v||"").toLowerCase().includes(search.toLowerCase()))).map(o => {
             const s = st(o.status);
+            const isCancelled = o.status === "cancelled";
             return (
               <div key={o.id} onClick={() => setSelected(o)} style={{
                 padding: "12px 16px", borderBottom: "1px solid #F3F4F6",
                 cursor: "pointer", display: "flex", alignItems: "center", gap: 12,
-                background: selected?.id === o.id ? "#EEF2FF" : WHITE,
+                background: isCancelled ? "#FFF5F5" : selected?.id === o.id ? "#EEF2FF" : WHITE,
+                opacity: isCancelled ? 0.7 : 1,
                 transition: "background .1s",
               }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 3, flexWrap: "wrap" }}>
-                    <span style={{ fontSize: 13, fontWeight: 800, color: ORANGE }}>{o.orderNumber}</span>
+                    <span style={{ fontSize: 13, fontWeight: 800, color: isCancelled ? "#9CA3AF" : ORANGE, textDecoration: isCancelled ? "line-through" : "none" }}>{o.orderNumber}</span>
                     <span style={{ fontSize: 11, background: s.bg, color: s.color, padding: "2px 6px", borderRadius: 6, fontWeight: 700 }}>{s.label}</span>
-                    <span onClick={e => { e.stopPropagation(); togglePaid(o.id); }} style={{
+                    {!isCancelled && <span onClick={e => { e.stopPropagation(); togglePaid(o.id); }} style={{
                       fontSize: 11, padding: "2px 7px", borderRadius: 6, fontWeight: 700, cursor: "pointer",
                       background: o.isPaid ? "#D1FAE5" : "#FEE2E2",
                       color: o.isPaid ? "#065F46" : "#991B1B",
                     }}>{o.isPaid ? "✅ จ่ายแล้ว" : "⏳ ยังไม่จ่าย"}</span>
                   </div>
-                  <p style={{ fontSize: 12, color: NAVY }}>{o.customerName} · {o.customerPhone}</p>
-                  <p style={{ fontSize: 12, color: GRAY }}>{o.product?.name} ×{o.qty} · ฿{Number(o.total).toLocaleString()}</p>
+                  <p style={{ fontSize: 12, color: isCancelled ? GRAY : NAVY }}>{o.customerName} · {o.customerPhone}</p>
+                  <p style={{ fontSize: 12, color: GRAY, textDecoration: isCancelled ? "line-through" : "none" }}>{o.product?.name} ×{o.qty} · ฿{Number(o.total).toLocaleString()}</p>
                   {o.deliveryAddress && <p style={{ fontSize: 11, color: "#6B7280", marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>📍 {o.deliveryAddress}</p>}
                   {o.driver && <p style={{ fontSize: 11, color: "#059669", fontWeight: 700 }}>🛵 {o.driver.name}</p>}
                 </div>
@@ -981,10 +1029,10 @@ ${noteText ? `<div style="margin-top:8px; padding:6px 8px; border:1.5px dashed #
       {/* Create order modal */}
       {showCreate && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", zIndex: 400, display: "flex", alignItems: "center", justifyContent: "center", padding: 16, overflowY: "auto" }}>
-          <div style={{ background: WHITE, borderRadius: 20, padding: 24, width: "100%", maxWidth: 420, margin: "auto" }}>
+          <div style={{ background: WHITE, borderRadius: 20, padding: 24, width: "100%", maxWidth: 420, margin: "auto", maxHeight: "90vh", overflowY: "auto" }}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
               <h2 style={{ fontSize: 16, fontWeight: 800, color: NAVY }}>📞 เพิ่มออเดอร์ (ลูกค้าโทรสั่ง)</h2>
-              <button onClick={() => setShowCreate(false)} style={{ background: "none", border: "none", fontSize: 20, color: GRAY, cursor: "pointer" }}>✕</button>
+              <button onClick={() => { setShowCreate(false); setCreateCart([]); setCreateForm(EMPTY_ORDER); }} style={{ background: "none", border: "none", fontSize: 20, color: GRAY, cursor: "pointer" }}>✕</button>
             </div>
 
             {/* Type toggle */}
@@ -1148,7 +1196,7 @@ ${noteText ? `<div style="margin-top:8px; padding:6px 8px; border:1.5px dashed #
               );
             })()}
 
-            <div style={{ display: "flex", gap: 12, marginBottom: 16 }}>
+            <div style={{ display: "flex", gap: 12, marginBottom: 12 }}>
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>จำนวน (ถัง)</div>
                 <input type="number" min="1" value={createForm.qty} onChange={e => setCreateForm(f => ({ ...f, qty: e.target.value }))}
@@ -1164,8 +1212,42 @@ ${noteText ? `<div style="margin-top:8px; padding:6px 8px; border:1.5px dashed #
                 </select>
               </div>
             </div>
-            <button onClick={createOrder} disabled={creating} style={{ width: "100%", padding: 13, borderRadius: 12, border: "none", background: ORANGE, color: WHITE, fontWeight: 800, fontSize: 15, cursor: "pointer", opacity: creating ? 0.6 : 1 }}>
-              {creating ? "กำลังสร้าง..." : "✅ สร้างออเดอร์"}
+
+            {/* Add to cart */}
+            <button onClick={addToCreateCart} style={{
+              width: "100%", padding: 11, borderRadius: 10, border: "none",
+              background: ORANGE, color: WHITE, fontWeight: 800, fontSize: 14, cursor: "pointer", marginBottom: 14,
+            }}>➕ เพิ่มใส่ตะกร้า</button>
+
+            {/* Cart */}
+            {createCart.length > 0 && (
+              <div style={{ background: "#F8FAFC", border: "2px solid #E5E7EB", borderRadius: 12, padding: 12, marginBottom: 14 }}>
+                <div style={{ fontSize: 12, fontWeight: 800, color: NAVY, marginBottom: 8 }}>🛒 ตะกร้าสินค้า</div>
+                {createCart.map((it, idx) => (
+                  <div key={idx} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 0", borderBottom: idx < createCart.length - 1 ? "1px solid #E5E7EB" : "none" }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: "#1F2937" }}>{it.label}</div>
+                      <div style={{ fontSize: 12, color: GRAY }}>x{it.qty} × ฿{Number(it.price).toLocaleString()} = <strong>฿{(it.qty * it.price).toLocaleString()}</strong></div>
+                    </div>
+                    <button onClick={() => setCreateCart(c => c.filter((_, i) => i !== idx))}
+                      style={{ background: "none", border: "none", color: "#EF4444", fontSize: 18, cursor: "pointer", padding: "0 4px" }}>✕</button>
+                  </div>
+                ))}
+                <div style={{ display: "flex", justifyContent: "space-between", marginTop: 10, paddingTop: 8, borderTop: "2px solid #D1D5DB" }}>
+                  <span style={{ fontWeight: 800, fontSize: 14, color: NAVY }}>รวมทั้งสิ้น</span>
+                  <span style={{ fontWeight: 900, fontSize: 16, color: "#059669" }}>฿{createCart.reduce((s, i) => s + i.qty * i.price, 0).toLocaleString()}</span>
+                </div>
+              </div>
+            )}
+
+            <button onClick={confirmCreateOrder} disabled={creating || createCart.length === 0} style={{
+              width: "100%", padding: 13, borderRadius: 12, border: "none",
+              background: createCart.length === 0 ? "#9CA3AF" : "#10B981",
+              color: WHITE, fontWeight: 800, fontSize: 15,
+              cursor: createCart.length === 0 ? "not-allowed" : "pointer",
+              opacity: creating ? 0.6 : 1,
+            }}>
+              {creating ? "กำลังสร้าง..." : `✅ ยืนยันออเดอร์${createCart.length > 0 ? ` (${createCart.length} รายการ)` : ""}`}
             </button>
           </div>
         </div>
