@@ -551,7 +551,7 @@ ${noteText ? `<div style="margin-top:8px; padding:6px 8px; border:1.5px dashed #
                       fontSize: 11, padding: "2px 7px", borderRadius: 6, fontWeight: 700, cursor: "pointer",
                       background: o.isPaid ? "#D1FAE5" : "#FEE2E2",
                       color: o.isPaid ? "#065F46" : "#991B1B",
-                    }}>{o.isPaid ? "✅ จ่ายแล้ว" : "⏳ ยังไม่จ่าย"}</span>
+                    }}>{o.isPaid ? "✅ จ่ายแล้ว" : "⏳ ยังไม่จ่าย"}</span>}
                   </div>
                   <p style={{ fontSize: 12, color: isCancelled ? GRAY : NAVY }}>{o.customerName} · {o.customerPhone}</p>
                   <p style={{ fontSize: 12, color: GRAY, textDecoration: isCancelled ? "line-through" : "none" }}>{o.product?.name} ×{o.qty} · ฿{Number(o.total).toLocaleString()}</p>
