@@ -384,10 +384,10 @@ export default function Orders() {
 <div class="solid"></div>
 <table style="margin-bottom:8px;">
   <tr>
-    <td colspan="2" style="font-size:14px; font-weight:800; padding-bottom:3px;">ลูกค้า: ${order.customerName || "ลูกค้าทั่วไป"}</td>
+    <td colspan="2" style="font-size:12px; font-weight:400; padding-bottom:2px;">${order.orderNumber} &nbsp;|&nbsp; ${dateStr} &nbsp;|&nbsp; ${timeStr} น.</td>
   </tr>
   <tr>
-    <td colspan="2" style="font-size:12px; font-weight:400; padding-bottom:2px;">${order.orderNumber} &nbsp;|&nbsp; ${dateStr} &nbsp;|&nbsp; ${timeStr} น.</td>
+    <td colspan="2" style="font-size:14px; font-weight:800; padding-bottom:3px;">ลูกค้า: ${order.customerName || "ลูกค้าทั่วไป"}</td>
   </tr>
   <tr><td colspan="2" style="padding-top:4px; font-size:14px; font-weight:800;">📞 ${order.customerPhone || "-"} &nbsp;|&nbsp; 💳 ${payLabel}</td></tr>
   <tr><td colspan="2" style="word-break:break-word; font-size:14px; font-weight:800; padding-top:3px;">📍 ${order.deliveryAddress || "-"}</td></tr>
@@ -419,8 +419,7 @@ export default function Orders() {
 <div class="double"></div>
 ${noteText ? `<div style="margin-top:8px; padding:6px 8px; border:1.5px dashed #000; border-radius:4px; font-size:13px; font-weight:800;">💬 หมายเหตุ: ${noteText}</div>` : ""}
 <div class="dash" style="margin-top:6px;"></div>
-<div class="center" style="font-size:13px; font-weight:800; margin:6px 0 2px;">สแกนโอนเงิน PromptPay</div>
-<div class="center" style="font-size:12px; font-weight:400; margin-bottom:4px;">นาง รุจิรา ดวงเพ็ชรแสง (KBank)</div>
+<div class="center" style="font-size:13px; font-weight:800; margin:6px 0 4px;">สแกนโอนเงิน PromptPay</div>
 <div class="center"><img src="${qrBase64}" style="width:34mm; height:34mm; object-fit:contain;" /></div>
 <div class="center" style="font-size:13px; font-weight:800; margin-top:4px;">สกุณา</div>
 <div class="dash" style="margin-top:6px;"></div>
