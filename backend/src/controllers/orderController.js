@@ -329,12 +329,16 @@ async function createWalkinOrder(req, res) {
         const q = Number(it.qty) || 1;
         const p = Number(it.price) || 0;
         if (it.type === "gas") {
-          const stock = await GasStock.findOne({ where: { brandName: it.brandName, weightKg: Number(it.weightKg) } });
-          if (!stock) return res.status(400).json({ error: `ไม่พบสต็อก ${it.brandName} ${it.weightKg}กก.` });
-          if (stock.hasGas < q) return res.status(400).json({ error: `สต็อก ${it.brandName} ${it.weightKg}กก. ไม่พอ (มี ${stock.hasGas} ถัง)` });
-          await stock.update({ hasGas: stock.hasGas - q });
+          const wkg = Number(it.weightKg);
+          if (isNaN(wkg)) { /* skip stock deduction — weightKg unknown */ } else {
+            const stock = await GasStock.findOne({ where: { brandName: it.brandName, weightKg: wkg } });
+            if (!stock) return res.status(400).json({ error: `ไม่พบสต็อก ${it.brandName} ${it.weightKg}กก.` });
+            if (stock.hasGas < q) return res.status(400).json({ error: `สต็อก ${it.brandName} ${it.weightKg}กก. ไม่พอ (มี ${stock.hasGas} ถัง)` });
+            await stock.update({ hasGas: stock.hasGas - q });
+          }
         } else if (it.type === "new_tank") {
-          const stock = await GasStock.findOne({ where: { brandName: it.brandName, weightKg: Number(it.weightKg) } });
+          const wkg = Number(it.weightKg);
+          const stock = isNaN(wkg) ? null : await GasStock.findOne({ where: { brandName: it.brandName, weightKg: wkg } });
           if (!stock) return res.status(400).json({ error: `ไม่พบสต็อก ${it.brandName} ${it.weightKg}กก.` });
           if (stock.newTank < q) return res.status(400).json({ error: `ถังใหม่ ${it.brandName} ไม่พอ` });
           await stock.update({ newTank: stock.newTank - q });

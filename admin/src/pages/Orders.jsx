@@ -175,6 +175,7 @@ export default function Orders() {
         productId: createForm.productId,
         brandName: brand?.name || "",
         productName: prod?.name || "",
+        weightKg: prod?.kg != null ? Number(prod.kg) : undefined,
         qty: Number(createForm.qty || 1),
         price: Number(createForm.unitPrice),
         label: `⛽ ${brand?.name || ""} ${prod?.name || ""}`,
