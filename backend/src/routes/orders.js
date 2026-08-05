@@ -28,19 +28,20 @@ router.get("/customer-suggestions", requireAuth, async (req, res) => {
     const { sequelize: seq } = require("../config/database");
     const { QueryTypes } = require("sequelize");
 
-    // Raw SQL — search name/phone/address
+    // Raw SQL — search name/phone/address, exclude cancelled
     const rows = await seq.query(
       `SELECT customer_name, customer_phone, delivery_address, brand_id, product_id, unit_price, note
        FROM orders
-       WHERE customer_name ILIKE :q
+       WHERE status != 'cancelled'
+         AND (customer_name ILIKE :q
           OR customer_phone ILIKE :q
-          OR delivery_address ILIKE :q
+          OR delivery_address ILIKE :q)
        ORDER BY created_at DESC
        LIMIT 300`,
       { replacements: { q: `%${ql}%` }, type: QueryTypes.SELECT }
     );
 
-    // Fetch brand/product names
+    // Fetch brand/product names (including kg for weightKg)
     const brandIds   = [...new Set(rows.map(r => r.brand_id).filter(Boolean))];
     const productIds = [...new Set(rows.map(r => r.product_id).filter(Boolean))];
     const brandMap   = new Map();
@@ -50,8 +51,8 @@ router.get("/customer-suggestions", requireAuth, async (req, res) => {
       bs.forEach(b => brandMap.set(b.id, b.name));
     }
     if (productIds.length) {
-      const ps = await Product.findAll({ where: { id: productIds }, attributes: ["id", "name"] });
-      ps.forEach(p => productMap.set(p.id, { name: p.name }));
+      const ps = await Product.findAll({ where: { id: productIds }, attributes: ["id", "name", "kg"] });
+      ps.forEach(p => productMap.set(p.id, { name: p.name, kg: p.kg }));
     }
 
     // Deduplicate by phone/name, collect all addresses
@@ -67,6 +68,8 @@ router.get("/customer-suggestions", requireAuth, async (req, res) => {
 
       if (!map.has(key)) {
         const prod = r.product_id ? productMap.get(r.product_id) : null;
+        const bName = (r.brand_id ? brandMap.get(r.brand_id) : null) || walkin?.brandName || null;
+        const wKg   = prod?.kg != null ? Number(prod.kg) : (walkin?.weightKg ?? null);
         map.set(key, {
           customerName:    r.customer_name,
           customerPhone:   r.customer_phone,
@@ -75,9 +78,9 @@ router.get("/customer-suggestions", requireAuth, async (req, res) => {
           addrSet:  new Set(),
           brandId:      r.brand_id   || null,
           productId:    r.product_id || null,
-          brandName:    (r.brand_id ? brandMap.get(r.brand_id) : null) || walkin?.brandName || null,
+          brandName:    bName,
           productName:  prod?.name || (walkin ? `${walkin.brandName} ${walkin.weightKg}กก.` : null),
-          weightKg:     walkin?.weightKg || null,
+          weightKg:     wKg,
           unitPrice:    r.unit_price ? Number(r.unit_price) : (walkin?.unitPrice ? Number(walkin.unitPrice) : null),
         });
       }
