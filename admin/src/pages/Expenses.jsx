@@ -30,9 +30,10 @@ export default function Expenses() {
   const [slipFile, setSlipFile] = useState(null);
   const [slipPreview, setSlipPreview] = useState(null);
   const [saving, setSaving] = useState(false);
+  const today = new Date().toISOString().split("T")[0];
   const [filterType, setFilterType] = useState("");
-  const [filterFrom, setFilterFrom] = useState("");
-  const [filterTo, setFilterTo] = useState("");
+  const [filterFrom, setFilterFrom] = useState(today);
+  const [filterTo, setFilterTo] = useState(today);
   const [lightbox, setLightbox] = useState(null);
   const fileRef = useRef();
 
@@ -112,8 +113,9 @@ export default function Expenses() {
         </select>
         <input type="date" value={filterFrom} onChange={e => setFilterFrom(e.target.value)} style={{ ...inp, width: "auto", flex: 1 }} />
         <input type="date" value={filterTo}   onChange={e => setFilterTo(e.target.value)}   style={{ ...inp, width: "auto", flex: 1 }} />
-        {(filterType || filterFrom || filterTo) && (
-          <button onClick={() => { setFilterType(""); setFilterFrom(""); setFilterTo(""); }} style={btn("#F3F4F6", GRAY)}>ล้าง</button>
+        <button onClick={() => { setFilterType(""); setFilterFrom(today); setFilterTo(today); }} style={btn("#EFF6FF", "#1D4ED8")}>วันนี้</button>
+        {(filterType || filterFrom !== today || filterTo !== today) && (
+          <button onClick={() => { setFilterType(""); setFilterFrom(""); setFilterTo(""); }} style={btn("#F3F4F6", GRAY)}>ทั้งหมด</button>
         )}
       </div>
 
