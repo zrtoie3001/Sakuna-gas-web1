@@ -165,6 +165,15 @@ async function createOrder(req, res) { try {
     await discountCodeRecord.increment("usedCount");
   }
 
+  // Deduct gas stock
+  try {
+    const { GasStock } = require("../models");
+    const stock = await GasStock.findOne({ where: { brandName: brand.name, weightKg: Number(product.kg) } });
+    if (stock && stock.hasGas >= qty) {
+      await stock.update({ hasGas: stock.hasGas - qty });
+    }
+  } catch (e) { console.error("Stock deduct error:", e.message); }
+
   // Fetch full order with associations
   const fullOrder = await Order.findByPk(order.id, {
     include: [{ model: Brand, as: "brand" }, { model: Product, as: "product" }],
