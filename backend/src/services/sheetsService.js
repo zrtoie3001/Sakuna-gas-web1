@@ -35,8 +35,8 @@ async function appendOrder(order) {
     const sheets = getClient();
     await ensureHeader(sheets);
     const now = new Date(order.createdAt || new Date());
-    const dateStr = now.toLocaleDateString("th-TH", { dateStyle: "short" });
-    const timeStr = now.toLocaleTimeString("th-TH", { timeStyle: "short" });
+    const dateStr = now.toLocaleDateString("th-TH", { dateStyle: "short", timeZone: "Asia/Bangkok" });
+    const timeStr = now.toLocaleTimeString("th-TH", { timeStyle: "short", timeZone: "Asia/Bangkok" });
     await sheets.spreadsheets.values.append({
       spreadsheetId: SHEET_ID,
       range: "Sheet1!A:L",
@@ -107,8 +107,8 @@ async function appendStockLog(log) {
       spreadsheetId: SHEET_ID, range: "'ประวัติสต็อก'!A:J",
       valueInputOption: "RAW", insertDataOption: "INSERT_ROWS",
       requestBody: { values: [[
-        now.toLocaleDateString("th-TH", { dateStyle: "short" }),
-        now.toLocaleTimeString("th-TH", { timeStyle: "short" }),
+        now.toLocaleDateString("th-TH", { dateStyle: "short", timeZone: "Asia/Bangkok" }),
+        now.toLocaleTimeString("th-TH", { timeStyle: "short", timeZone: "Asia/Bangkok" }),
         log.brandName, Number(log.weightKg),
         FIELD_LABEL[log.field] || log.field,
         log.oldValue, log.newValue, log.delta > 0 ? `+${log.delta}` : log.delta,
