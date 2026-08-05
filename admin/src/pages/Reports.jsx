@@ -19,6 +19,7 @@ export default function Reports() {
   const [dayUnpaid, setDayUnpaid] = useState([]);
   const [driverStats, setDriverStats] = useState([]);
   const [driverDate, setDriverDate]   = useState(now.toISOString().split("T")[0]);
+  const [showUnpaid, setShowUnpaid]   = useState(false);
 
   useEffect(() => {
     api.get(`/api/v1/reports/monthly?year=${year}&month=${month}`).then(r => {
@@ -168,14 +169,22 @@ export default function Reports() {
 
         {/* Unpaid orders alert */}
         {dayUnpaid.length > 0 && (
-          <div style={{ background: "#FEF3C7", borderRadius: 10, padding: "12px 14px", marginBottom: 14, border: "1.5px solid #FCD34D" }}>
-            <div style={{ fontSize: 13, fontWeight: 800, color: "#92400E", marginBottom: 8 }}>⚠️ ออเดอร์ที่ยังค้างเงิน ({dayUnpaid.length} รายการ)</div>
-            {dayUnpaid.map((o, i) => (
-              <div key={i} style={{ fontSize: 12, color: "#78350F", padding: "2px 0", display: "flex", justifyContent: "space-between" }}>
-                <span>{o.orderNumber} · {o.customerName}</span>
-                <span style={{ fontWeight: 700 }}>฿{Number(o.total).toLocaleString()}</span>
+          <div style={{ background: "#FEF3C7", borderRadius: 10, marginBottom: 14, border: "1.5px solid #FCD34D", overflow: "hidden" }}>
+            <div onClick={() => setShowUnpaid(v => !v)} style={{ padding: "12px 14px", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ fontSize: 13, fontWeight: 800, color: "#92400E" }}>⚠️ ออเดอร์ที่ยังค้างเงิน ({dayUnpaid.length} รายการ)</span>
+              <span style={{ fontSize: 12, color: "#92400E" }}>{showUnpaid ? "▲ ซ่อน" : "▼ ดูรายการ"}</span>
+            </div>
+            {showUnpaid && (
+              <div style={{ borderTop: "1px solid #FCD34D", padding: "8px 14px 12px" }}>
+                {dayUnpaid.map((o, i) => (
+                  <div key={i} style={{ fontSize: 12, color: "#78350F", padding: "6px 0", borderBottom: i < dayUnpaid.length - 1 ? "1px solid #FDE68A" : "none", display: "flex", justifyContent: "space-between" }}>
+                    <span style={{ fontWeight: 700 }}>{o.orderNumber}</span>
+                    <span>{o.customerName}</span>
+                    <span style={{ fontWeight: 700 }}>฿{Number(o.total).toLocaleString()}</span>
+                  </div>
+                ))}
               </div>
-            ))}
+            )}
           </div>
         )}
 

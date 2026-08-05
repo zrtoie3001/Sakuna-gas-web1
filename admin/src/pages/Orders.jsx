@@ -126,6 +126,7 @@ export default function Orders() {
   const [editOrder, setEditOrder]     = useState(null);   // order being edited
   const [editForm,  setEditForm]      = useState({});
   const [editSaving, setEditSaving]   = useState(false);
+  const [showUnpaid, setShowUnpaid]   = useState(false);
 
   const fetch = useCallback(async () => {
     const params = new URLSearchParams({ page, limit: 20 });
@@ -519,9 +520,24 @@ ${noteText ? `<div style="margin-top:8px; padding:6px 8px; border:1.5px dashed #
           const unpaid = orders.filter(o => !o.isPaid && o.status !== "cancelled");
           if (!unpaid.length) return null;
           return (
-            <div style={{ background: "#FEF3C7", border: "1.5px solid #FCD34D", borderRadius: 10, padding: "10px 14px", marginBottom: 12 }}>
-              <span style={{ fontSize: 13, fontWeight: 700, color: "#92400E" }}>⚠️ ยังค้างเงิน {unpaid.length} ออเดอร์: </span>
-              <span style={{ fontSize: 12, color: "#78350F" }}>{unpaid.slice(0,3).map(o => o.orderNumber).join(", ")}{unpaid.length > 3 ? ` +${unpaid.length - 3} อีก` : ""}</span>
+            <div style={{ background: "#FEF3C7", border: "1.5px solid #FCD34D", borderRadius: 10, marginBottom: 12, overflow: "hidden" }}>
+              <div onClick={() => setShowUnpaid(v => !v)} style={{ padding: "10px 14px", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontSize: 13, fontWeight: 700, color: "#92400E" }}>⚠️ ยังค้างเงิน {unpaid.length} ออเดอร์</span>
+                <span style={{ fontSize: 12, color: "#92400E" }}>{showUnpaid ? "▲ ซ่อน" : "▼ ดูรายการ"}</span>
+              </div>
+              {showUnpaid && (
+                <div style={{ borderTop: "1px solid #FCD34D", padding: "8px 14px 12px" }}>
+                  {unpaid.map(o => (
+                    <div key={o.id} onClick={() => { setSelected(o); setShowUnpaid(false); }} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 0", borderBottom: "1px solid #FDE68A", cursor: "pointer" }}>
+                      <div>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: "#92400E" }}>{o.orderNumber}</span>
+                        <span style={{ fontSize: 12, color: "#78350F", marginLeft: 8 }}>{o.customerName}</span>
+                      </div>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: "#B45309" }}>฿{Number(o.total).toLocaleString()}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           );
         })()}
