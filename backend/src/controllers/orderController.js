@@ -290,6 +290,25 @@ async function updateStatus(req, res) {
     } catch (e) { console.error("Stock restore error:", e.message); }
   }
 
+  // Auto-create debt when delivered and not yet paid
+  if (status === "delivered" && prevStatus !== "delivered") {
+    try {
+      const { Debt } = require("../models");
+      const alreadyHasDebt = await Debt.findOne({ where: { orderId: order.id } });
+      if (!alreadyHasDebt && !order.isPaid) {
+        await Debt.create({
+          customerName:  order.customerName || "ลูกค้าทั่วไป",
+          customerPhone: order.customerPhone || null,
+          type:          "money",
+          amount:        Number(order.total) || 0,
+          note:          `ออเดอร์ ${order.orderNumber}`,
+          orderId:       order.id,
+          isPaid:        false,
+        });
+      }
+    } catch (e) { console.error("Auto-debt error:", e.message); }
+  }
+
   // LINE notification
   if (order.customer?.lineUserId) {
     sendStatusUpdate(order.customer.lineUserId, order, status).catch(() => {});
