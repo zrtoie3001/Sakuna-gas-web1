@@ -1,10 +1,12 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from "recharts";
 import api from "../utils/api.js";
 
 const NAVY = "#1A2B6B"; const ORANGE = "#F47B20"; const WHITE = "#FFFFFF"; const GRAY = "#6B7280";
 
 export default function Reports() {
+  const navigate = useNavigate();
   const now = new Date();
   const [year, setYear]   = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
@@ -170,9 +172,12 @@ export default function Reports() {
         {/* Unpaid orders alert */}
         {dayUnpaid.length > 0 && (
           <div style={{ background: "#FEF3C7", borderRadius: 10, marginBottom: 14, border: "1.5px solid #FCD34D", overflow: "hidden" }}>
-            <div onClick={() => setShowUnpaid(v => !v)} style={{ padding: "12px 14px", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <span style={{ fontSize: 13, fontWeight: 800, color: "#92400E" }}>⚠️ ออเดอร์ที่ยังค้างเงิน ({dayUnpaid.length} รายการ)</span>
-              <span style={{ fontSize: 12, color: "#92400E" }}>{showUnpaid ? "▲ ซ่อน" : "▼ ดูรายการ"}</span>
+            <div style={{ padding: "12px 14px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span onClick={() => setShowUnpaid(v => !v)} style={{ fontSize: 13, fontWeight: 800, color: "#92400E", cursor: "pointer" }}>⚠️ ออเดอร์ที่ยังค้างเงิน ({dayUnpaid.length} รายการ)</span>
+              <div style={{ display: "flex", gap: 10 }}>
+                <span onClick={() => setShowUnpaid(v => !v)} style={{ fontSize: 12, color: "#92400E", cursor: "pointer" }}>{showUnpaid ? "▲ ซ่อน" : "▼ ดูรายการ"}</span>
+                <span onClick={() => navigate("/debts")} style={{ fontSize: 12, fontWeight: 700, color: "#B45309", cursor: "pointer", textDecoration: "underline" }}>💸 ไปหน้าค้างเงิน</span>
+              </div>
             </div>
             {showUnpaid && (
               <div style={{ borderTop: "1px solid #FCD34D", padding: "8px 14px 12px" }}>

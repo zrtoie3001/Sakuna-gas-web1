@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import api from "../utils/api.js";
 import qrBase64 from "../assets/qrBase64.js";
 
@@ -99,6 +100,7 @@ function ExtraItemPicker({ equipList, onAdd }) {
 }
 
 export default function Orders() {
+  const navigate = useNavigate();
   const [orders, setOrders]     = useState([]);
   const [total, setTotal]       = useState(0);
   const [page, setPage]         = useState(1);
@@ -521,9 +523,12 @@ ${noteText ? `<div style="margin-top:8px; padding:6px 8px; border:1.5px dashed #
           if (!unpaid.length) return null;
           return (
             <div style={{ background: "#FEF3C7", border: "1.5px solid #FCD34D", borderRadius: 10, marginBottom: 12, overflow: "hidden" }}>
-              <div onClick={() => setShowUnpaid(v => !v)} style={{ padding: "10px 14px", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span style={{ fontSize: 13, fontWeight: 700, color: "#92400E" }}>⚠️ ยังค้างเงิน {unpaid.length} ออเดอร์</span>
-                <span style={{ fontSize: 12, color: "#92400E" }}>{showUnpaid ? "▲ ซ่อน" : "▼ ดูรายการ"}</span>
+              <div style={{ padding: "10px 14px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span onClick={() => setShowUnpaid(v => !v)} style={{ fontSize: 13, fontWeight: 700, color: "#92400E", cursor: "pointer" }}>⚠️ ยังค้างเงิน {unpaid.length} ออเดอร์</span>
+                <div style={{ display: "flex", gap: 10 }}>
+                  <span onClick={() => setShowUnpaid(v => !v)} style={{ fontSize: 12, color: "#92400E", cursor: "pointer" }}>{showUnpaid ? "▲ ซ่อน" : "▼ ดูรายการ"}</span>
+                  <span onClick={() => navigate("/debts")} style={{ fontSize: 12, fontWeight: 700, color: "#B45309", cursor: "pointer", textDecoration: "underline" }}>💸 ไปหน้าค้างเงิน</span>
+                </div>
               </div>
               {showUnpaid && (
                 <div style={{ borderTop: "1px solid #FCD34D", padding: "8px 14px 12px" }}>
