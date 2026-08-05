@@ -378,17 +378,15 @@ export default function Orders() {
   @media print { body { margin:0; } @page { margin:0; size:80mm auto; } }
 </style></head><body>
 <div class="center bold" style="font-size:30px; font-weight:900; letter-spacing:2px; margin-bottom:4px;">🔥 สกุณาแก๊ส</div>
-<div class="center" style="font-size:14px; font-weight:800; color:#000; margin-bottom:2px;">โทร 097-121-3054 | 092-631-4331 | 02-970-9385</div>
-<div class="center" style="font-size:13px; font-weight:800; color:#000; margin-bottom:6px;">39 ซอยพหลโยธิน 48 แขวงท่าแร้ง เขตบางเขน กทม. 10220</div>
+<div class="center" style="font-size:12px; font-weight:400; color:#000; margin-bottom:2px;">โทร 097-121-3054 | 092-631-4331 | 02-970-9385</div>
+<div class="center" style="font-size:12px; font-weight:400; color:#000; margin-bottom:6px;">39 ซอยพหลโยธิน 48 แขวงท่าแร้ง เขตบางเขน กทม. 10220</div>
 <div class="solid"></div>
 <table style="margin-bottom:8px;">
   <tr>
-    <td style="width:55%; font-size:14px; font-weight:800;">ลูกค้า: ${order.customerName || "ลูกค้าทั่วไป"}</td>
-    <td style="width:45%; text-align:right; font-size:11px; font-weight:400;">วันที่ ${dateStr}</td>
+    <td colspan="2" style="font-size:14px; font-weight:800; padding-bottom:3px;">ลูกค้า: ${order.customerName || "ลูกค้าทั่วไป"}</td>
   </tr>
   <tr>
-    <td style="font-size:13px; font-weight:800; padding-top:2px;">เลขออเดอร์: <b>${order.orderNumber}</b></td>
-    <td style="text-align:right; font-size:11px; font-weight:400; padding-top:2px;">เวลา ${timeStr} น.</td>
+    <td colspan="2" style="font-size:12px; font-weight:400; padding-bottom:2px;">${order.orderNumber} &nbsp;|&nbsp; ${dateStr} &nbsp;|&nbsp; ${timeStr} น.</td>
   </tr>
   <tr><td colspan="2" style="padding-top:4px; font-size:14px; font-weight:800;">📞 ${order.customerPhone || "-"} &nbsp;|&nbsp; 💳 ${payLabel}</td></tr>
   <tr><td colspan="2" style="word-break:break-word; font-size:14px; font-weight:800; padding-top:3px;">📍 ${order.deliveryAddress || "-"}</td></tr>
@@ -420,13 +418,11 @@ export default function Orders() {
 <div class="double"></div>
 ${noteText ? `<div style="margin-top:8px; padding:6px 8px; border:1.5px dashed #000; border-radius:4px; font-size:13px; font-weight:800;">💬 หมายเหตุ: ${noteText}</div>` : ""}
 <div class="dash" style="margin-top:6px;"></div>
-<div class="center" style="font-size:13px; font-weight:800; margin:6px 0 4px;">สแกนโอนเงิน PromptPay</div>
-<div class="center"><img src="${qrBase64}" style="width:48mm; height:48mm; object-fit:contain;" /></div>
-<div class="center" style="font-size:13px; font-weight:800; margin-top:3px;">สกุณา</div>
-<div class="dash" style="margin-top:8px;"></div>
-<div class="center" style="font-size:13px; font-weight:800; margin-top:6px;">ขอบคุณที่ใช้บริการค่ะ</div>
-<div class="center" style="font-size:13px; font-weight:800; margin-top:3px;">สแกนโอนเงิน PromptPay</div>
-<div class="center" style="font-size:13px; font-weight:800; margin-top:2px;">นาง รุจิรา ดวงเพ็ชรแสง (KBank)</div>
+<div class="center" style="font-size:13px; font-weight:800; margin:6px 0 2px;">สแกนโอนเงิน PromptPay</div>
+<div class="center" style="font-size:12px; font-weight:400; margin-bottom:4px;">นาง รุจิรา ดวงเพ็ชรแสง (KBank)</div>
+<div class="center"><img src="${qrBase64}" style="width:34mm; height:34mm; object-fit:contain;" /></div>
+<div class="center" style="font-size:13px; font-weight:800; margin-top:4px;">สกุณา</div>
+<div class="dash" style="margin-top:6px;"></div>
 <div class="center" style="font-size:13px; font-weight:800; margin-top:4px;">ขอบคุณที่ใช้บริการค่ะ</div>
 <script>window.onload=()=>{ window.print(); window.onafterprint=()=>window.close(); }</script>
 </body></html>`;
