@@ -234,8 +234,49 @@ async function updateStatus(req, res) {
   if (req.user.role === "driver" && !["out_for_delivery", "delivered"].includes(status))
     return res.status(403).json({ error: "Driver cannot set this status" });
 
+  const prevStatus = order.status;
   await order.update({ status });
   await OrderStatusLog.create({ orderId: order.id, status, note, changedBy: req.user.id });
+
+  // คืนสต็อกเมื่อยกเลิกออเดอร์ (และยังไม่เคยยกเลิกมาก่อน)
+  if (status === "cancelled" && prevStatus !== "cancelled") {
+    try {
+      const { GasStock, Equipment } = require("../models");
+      const n = order.note || "";
+      if (n.startsWith("__walkin:")) {
+        const walkin = JSON.parse(n.replace(/^__walkin:/, "").split("\n")[0]);
+        if (walkin.type === "mixed" && Array.isArray(walkin.items)) {
+          for (const it of walkin.items) {
+            const q = Number(it.qty) || 1;
+            if (it.type === "gas") {
+              const stock = await GasStock.findOne({ where: { brandName: it.brandName, weightKg: Number(it.weightKg) } });
+              if (stock) await stock.update({ hasGas: stock.hasGas + q });
+            } else if (it.type === "new_tank") {
+              const stock = await GasStock.findOne({ where: { brandName: it.brandName, weightKg: Number(it.weightKg) } });
+              if (stock) await stock.update({ newTank: stock.newTank + q });
+            } else if (it.type === "equipment" && it.equipId) {
+              const eq = await Equipment.findByPk(it.equipId);
+              if (eq) await eq.update({ qty: eq.qty + q });
+            }
+          }
+        } else if (walkin.type === "gas") {
+          const stock = await GasStock.findOne({ where: { brandName: walkin.brandName, weightKg: Number(walkin.weightKg) } });
+          if (stock) await stock.update({ hasGas: stock.hasGas + (Number(walkin.qty) || 1) });
+        } else if (walkin.type === "new_tank") {
+          const stock = await GasStock.findOne({ where: { brandName: walkin.brandName, weightKg: Number(walkin.weightKg) } });
+          if (stock) await stock.update({ newTank: stock.newTank + (Number(walkin.qty) || 1) });
+        }
+      } else if (order.productId) {
+        // ออเดอร์ปกติ (ลูกค้าโทรสั่ง) — คืน hasGas
+        const { Product: Prod } = require("../models");
+        const prod = await Prod.findByPk(order.productId, { include: [{ model: require("../models").Brand, as: "brand" }] });
+        if (prod) {
+          const stock = await GasStock.findOne({ where: { brandName: prod.brand?.name, weightKg: Number(prod.kg) } });
+          if (stock) await stock.update({ hasGas: stock.hasGas + (Number(order.qty) || 1) });
+        }
+      }
+    } catch (e) { console.error("Stock restore error:", e.message); }
+  }
 
   // LINE notification
   if (order.customer?.lineUserId) {
