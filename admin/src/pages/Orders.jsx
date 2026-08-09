@@ -218,7 +218,7 @@ export default function Orders() {
         price: it.price,
         label: it.label,
       }));
-      await api.post("/api/v1/orders/walkin", {
+      const res = await api.post("/api/v1/orders/walkin", {
         type: "mixed",
         cartItems,
         customerName: createForm.customerName,
@@ -231,7 +231,8 @@ export default function Orders() {
       setShowCreate(false);
       setCreateForm(EMPTY_ORDER);
       setCreateCart([]);
-      fetch();
+      await fetch();
+      setSelected(res.data);
     } catch (e) { alert(e.response?.data?.error || "เกิดข้อผิดพลาด"); }
     finally { setCreating(false); }
   }
