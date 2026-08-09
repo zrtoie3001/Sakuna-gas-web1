@@ -97,7 +97,7 @@ function Sidebar({ user, onClose, mobile, onPasswordClick, onLogout }) {
         <div style={{ fontSize: 11, color: "rgba(255,255,255,.5)", marginTop: 3 }}>Admin Panel</div>
       </div>
 
-      <nav style={{ flex: 1, padding: "12px 0" }}>
+      <nav style={{ flex: 1, padding: "12px 0", overflowY: "auto", minHeight: 0 }}>
         {visibleNav.map(item => (
           <NavLink key={item.to} to={item.to} end={item.to === "/"} onClick={onClose}
             style={({ isActive }) => ({
