@@ -168,6 +168,49 @@ router.patch("/:id/paid", requireAuth, async (req, res) => {
     res.json({ isPaid: order.isPaid });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
+router.post("/:id/extras", requireAuth, async (req, res) => {
+  try {
+    const { items } = req.body; // [{ equipId, name, qty, price }]
+    if (!items?.length) return res.status(400).json({ error: "ไม่มีรายการ" });
+    const order = await Order.findByPk(req.params.id);
+    if (!order) return res.status(404).json({ error: "Not found" });
+
+    const { Equipment, EquipmentSale } = require("../models");
+    let addedTotal = 0;
+    const savedItems = [];
+
+    for (const it of items) {
+      const q = Number(it.qty) || 1;
+      const p = Number(it.price) || 0;
+      const eq = await Equipment.findByPk(it.equipId);
+      if (!eq) return res.status(400).json({ error: `ไม่พบสินค้า: ${it.name}` });
+      if (eq.qty < q) return res.status(400).json({ error: `สต็อก ${eq.name} ไม่พอ (มี ${eq.qty} ชิ้น)` });
+      await eq.update({ qty: eq.qty - q });
+      await EquipmentSale.create({ equipmentId: eq.id, qty: q, salePrice: p, note: `ออเดอร์ ${order.orderNumber}` });
+      addedTotal += p * q;
+      savedItems.push({ equipId: it.equipId, name: eq.name, qty: q, price: p });
+    }
+
+    // Append extras into order note
+    const existingNote = order.note || "";
+    let baseNote = existingNote;
+    let extraNote = "";
+    const extraTag = "__extras:";
+    const extraIdx = existingNote.indexOf(extraTag);
+    if (extraIdx >= 0) {
+      baseNote = existingNote.slice(0, extraIdx).trimEnd();
+      try {
+        const existing = JSON.parse(existingNote.slice(extraIdx + extraTag.length));
+        savedItems.push(...existing);
+      } catch {}
+    }
+    extraNote = `${extraTag}${JSON.stringify(savedItems)}`;
+    const newNote = baseNote ? `${baseNote}\n${extraNote}` : extraNote;
+    await order.update({ note: newNote, total: Number(order.total) + addedTotal });
+
+    res.json({ ok: true, addedTotal, items: savedItems });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
 router.post("/:id/accept", requireAuth, requireRole("driver", "admin"), acceptOrder);
 
 module.exports = router;

@@ -674,10 +674,20 @@ ${noteText ? `<div style="margin-top:8px; padding:6px 8px; border:1.5px dashed #
                 padding: "6px 10px", borderRadius: 8, border: `2px solid ${ORANGE}`,
                 background: WHITE, color: ORANGE, fontSize: 12, fontWeight: 700, cursor: "pointer",
               }}>✏️ แก้ไข</button>
-              <button onClick={() => {
+              <button onClick={async () => {
                 const ex = extraItems[selected.id] || [];
-                if (ex.length) printReceiptWithExtras(selected, ex);
-                else printReceipt(selected);
+                if (ex.length) {
+                  try {
+                    await api.post(`/api/v1/orders/${selected.id}/extras`, { items: ex });
+                    setExtraItems(prev => ({ ...prev, [selected.id]: [] }));
+                    fetch();
+                  } catch (e) {
+                    return alert("บันทึกไม่สำเร็จ: " + (e.response?.data?.error || e.message));
+                  }
+                  printReceiptWithExtras(selected, ex);
+                } else {
+                  printReceipt(selected);
+                }
               }} style={{
                 padding: "6px 12px", borderRadius: 8, border: `2px solid ${NAVY}`,
                 background: WHITE, color: NAVY, fontSize: 12, fontWeight: 700, cursor: "pointer",
