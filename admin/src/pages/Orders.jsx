@@ -360,18 +360,38 @@ export default function Orders() {
     const timeStr = d.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
     const payLabel = order.paymentMethod === "cash" ? "เงินสด" : order.paymentMethod === "qr" ? "QR โอน" : "เก็บปลายทาง";
     const discount = Number(order.discountAmount || 0);
-    const subtotal = Number(order.total) + discount;
-    const unitPrice = order.qty > 0 ? Math.round(subtotal / order.qty) : 0;
     let total = Number(order.total);
-    let itemsHtml = `<tr><td>${(order.brand?.name || "") + " " + (order.product?.name || "")}</td><td style="text-align:center;">${order.qty} ถัง</td><td style="text-align:right;">${unitPrice.toLocaleString()}</td><td style="text-align:right;">${subtotal.toLocaleString()}</td></tr>`;
+    let itemsHtml = "";
+
+    // Parse walkin note (mixed cart orders)
+    let walkinData = null;
+    if (order.note?.startsWith("__walkin:")) {
+      try { walkinData = JSON.parse(order.note.replace(/^__walkin:/, "").split("\n")[0]); } catch {}
+    }
+
+    if (walkinData?.type === "mixed" && Array.isArray(walkinData.items) && walkinData.items.length) {
+      for (const it of walkinData.items) {
+        const q = Number(it.qty) || 1;
+        const p = Number(it.price || it.unitPrice) || 0;
+        const name = it.type === "new_tank" ? `ถังใหม่ ${it.brandName} ${it.weightKg}กก.`
+                   : it.type === "gas" ? `${it.brandName} ${it.weightKg}กก.`
+                   : it.name || it.brandName || "สินค้า";
+        const unit = it.type === "equipment" ? " ชิ้น" : " ถัง";
+        itemsHtml += `<tr><td style="white-space:nowrap; font-size:13px;">${name}</td><td style="text-align:center; white-space:nowrap;">${q}${unit}</td><td style="text-align:right; white-space:nowrap;">${p.toLocaleString()}</td><td style="text-align:right; white-space:nowrap;">${(q*p).toLocaleString()}</td></tr>`;
+      }
+    } else {
+      const subtotal = Number(order.total) + discount;
+      const unitPrice = order.qty > 0 ? Math.round(subtotal / order.qty) : 0;
+      itemsHtml = `<tr><td style="white-space:nowrap; font-size:13px;">${(order.brand?.name || "") + " " + (order.product?.name || "")}</td><td style="text-align:center; white-space:nowrap;">${order.qty} ถัง</td><td style="text-align:right; white-space:nowrap;">${unitPrice.toLocaleString()}</td><td style="text-align:right; white-space:nowrap;">${subtotal.toLocaleString()}</td></tr>`;
+    }
+
     for (const ex of extras) {
       const lineTotal = Number(ex.price) * Number(ex.qty);
       total += lineTotal;
-      itemsHtml += `<tr><td>${ex.name}</td><td style="text-align:center;">${ex.qty} ชิ้น</td><td style="text-align:right;">${Number(ex.price).toLocaleString()}</td><td style="text-align:right;">${lineTotal.toLocaleString()}</td></tr>`;
+      itemsHtml += `<tr><td style="white-space:nowrap; font-size:13px;">${ex.name}</td><td style="text-align:center; white-space:nowrap;">${ex.qty} ชิ้น</td><td style="text-align:right; white-space:nowrap;">${Number(ex.price).toLocaleString()}</td><td style="text-align:right; white-space:nowrap;">${lineTotal.toLocaleString()}</td></tr>`;
     }
     if (discount > 0) {
       itemsHtml += `<tr><td colspan="3" style="font-size:13px; font-weight:800; color:#000;">ส่วนลด${order.discountCode ? ` (${order.discountCode})` : ""}</td><td style="text-align:right; font-weight:800; color:#000;">-${discount.toLocaleString()}</td></tr>`;
-      total -= discount; // already included in order.total but adding extras so recalc
       total = Number(order.total) + extras.reduce((s, e) => s + Number(e.price) * Number(e.qty), 0);
     }
     const extrasNote = (order.note || "").replace(/^__walkin:.*\n?/, "").trim();
