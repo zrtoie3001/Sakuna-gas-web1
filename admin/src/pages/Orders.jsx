@@ -164,9 +164,24 @@ export default function Orders() {
         stockId: stock.id,
         qty: Number(createForm.qty || 1),
         price: Number(createForm.newTankPrice),
-        label: `🆕 ถังใหม่ ${stock.brandName} ${stock.weightKg} กก.`,
+        label: `ถังใหม่ ${stock.brandName} ${stock.weightKg} กก.`,
       }]);
       setCreateForm(f => ({ ...f, ntBrand: "", ntWeight: "", newTankStockId: "", newTankPrice: "", qty: 1 }));
+    } else if (createForm.orderType === "equipment") {
+      const eq = equipList.find(e => e.id === createForm.equipId);
+      if (!eq) return alert("กรุณาเลือกอะไหล่");
+      if (!createForm.unitPrice) return alert("กรุณาใส่ราคา");
+      const q = Number(createForm.qty || 1);
+      if (q > eq.qty) return alert(`สต็อก ${eq.name} มีแค่ ${eq.qty} ชิ้น`);
+      setCreateCart(c => [...c, {
+        type: "equipment",
+        equipId: eq.id,
+        name: eq.name,
+        qty: q,
+        price: Number(createForm.unitPrice),
+        label: eq.name,
+      }]);
+      setCreateForm(f => ({ ...f, equipId: "", unitPrice: "", qty: 1 }));
     } else {
       if (!createForm.brandId || !createForm.productId) return alert("กรุณาเลือกยี่ห้อและน้ำหนัก");
       if (!createForm.unitPrice) return alert("กรุณาใส่ราคา");
@@ -181,7 +196,7 @@ export default function Orders() {
         weightKg: prod?.kg != null ? Number(prod.kg) : undefined,
         qty: Number(createForm.qty || 1),
         price: Number(createForm.unitPrice),
-        label: `⛽ ${brand?.name || ""} ${prod?.name || ""}`,
+        label: `${brand?.name || ""} ${prod?.name || ""}`,
       }]);
       setCreateForm(f => ({ ...f, brandId: "", productId: "", unitPrice: "", qty: 1 }));
     }
@@ -1088,7 +1103,7 @@ ${noteText ? `<div style="margin-top:8px; padding:6px 8px; border:1.5px dashed #
 
             {/* Type toggle */}
             <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-              {[["gas","⛽ ถังแก๊ส"],["new_tank","🆕 ถังใหม่"]].map(([k, label]) => (
+              {[["gas","⛽ ถังแก๊ส"],["new_tank","🆕 ถังใหม่"],["equipment","🔧 อะไหล่"]].map(([k, label]) => (
                 <button key={k} onClick={() => setCreateForm(f => ({ ...f, orderType: k }))} style={{
                   flex: 1, padding: "8px", borderRadius: 8, border: "none", fontSize: 13, fontWeight: 700, cursor: "pointer",
                   background: createForm.orderType === k ? NAVY : "#F3F4F6", color: createForm.orderType === k ? WHITE : GRAY,
@@ -1247,9 +1262,29 @@ ${noteText ? `<div style="margin-top:8px; padding:6px 8px; border:1.5px dashed #
               );
             })()}
 
+            {createForm.orderType === "equipment" && (
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>อะไหล่ *</div>
+                <select value={createForm.equipId || ""} onChange={e => {
+                  const eq = equipList.find(x => x.id === e.target.value);
+                  setCreateForm(f => ({ ...f, equipId: e.target.value, unitPrice: eq?.price ? String(eq.price) : f.unitPrice }));
+                }} style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 14, boxSizing: "border-box" }}>
+                  <option value="">-- เลือกอะไหล่ --</option>
+                  {equipList.map(eq => <option key={eq.id} value={eq.id}>{eq.name} (มี {eq.qty} ชิ้น)</option>)}
+                </select>
+                {createForm.equipId && (
+                  <div style={{ marginTop: 8 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>ราคา (บาท) *</div>
+                    <input type="number" value={createForm.unitPrice || ""} onChange={e => setCreateForm(f => ({ ...f, unitPrice: e.target.value }))}
+                      style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 14, boxSizing: "border-box" }} />
+                  </div>
+                )}
+              </div>
+            )}
+
             <div style={{ display: "flex", gap: 12, marginBottom: 12 }}>
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>จำนวน (ถัง)</div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>{createForm.orderType === "equipment" ? "จำนวน (ชิ้น)" : "จำนวน (ถัง)"}</div>
                 <input type="number" min="1" value={createForm.qty} onChange={e => setCreateForm(f => ({ ...f, qty: e.target.value }))}
                   style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 14, boxSizing: "border-box" }} />
               </div>
