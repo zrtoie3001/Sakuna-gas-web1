@@ -211,7 +211,7 @@ export default function Layout() {
 
       {/* Mobile sidebar overlay */}
       {sideOpen && (
-        <div style={{ position: "fixed", inset: 0, zIndex: 200, display: "flex" }}>
+        <div className="mobile-sidebar-overlay" style={{ position: "fixed", inset: 0, zIndex: 200, display: "flex" }}>
           <div style={{ width: 240 }}>
             <Sidebar user={user} mobile onClose={() => setSideOpen(false)} onPasswordClick={() => { setSideOpen(false); setPwModal(true); }} onLogout={logout} />
           </div>
@@ -229,7 +229,7 @@ export default function Layout() {
           position: "sticky", top: 0, zIndex: 100,
           boxShadow: "0 1px 4px rgba(0,0,0,.06)",
         }}>
-          <button onClick={() => setSideOpen(!sideOpen)} style={{ background: "none", border: "none", fontSize: 20, color: NAVY, cursor: "pointer" }}>☰</button>
+          <button onClick={() => setSideOpen(!sideOpen)} className="mobile-menu-btn" style={{ background: "none", border: "none", fontSize: 20, color: NAVY, cursor: "pointer" }}>☰</button>
           <span style={{ fontSize: 16, fontWeight: 800, color: NAVY }}>
             🔥 สกุณา<span style={{ color: ORANGE }}>แก๊ส</span>
           </span>
@@ -267,6 +267,8 @@ export default function Layout() {
       <style>{`
         @media (min-width: 768px) {
           .desktop-sidebar { display: block !important; }
+          .mobile-menu-btn { display: none !important; }
+          .mobile-sidebar-overlay { display: none !important; }
         }
       `}</style>
 
