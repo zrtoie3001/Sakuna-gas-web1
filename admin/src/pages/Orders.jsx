@@ -288,18 +288,32 @@ export default function Orders() {
     if (o.note?.startsWith("__walkin:")) {
       try { walkinData = JSON.parse(o.note.replace(/^__walkin:/, "").split("\n")[0]); } catch {}
     }
-    let productLabel = ((o.brand?.name || "") + " " + (o.product?.name || "")).trim();
-    if (!productLabel && walkinData) {
-      if (walkinData.type === "new_tank") productLabel = `🆕 ถังใหม่ ${walkinData.brandName} ${walkinData.weightKg}กก.`;
-      else if (walkinData.type === "gas") productLabel = `${walkinData.brandName} ${walkinData.weightKg}กก.`;
-      else if (walkinData.type === "equipment") productLabel = (walkinData.items || []).map(i => i.name).join(", ") || "อุปกรณ์";
-    }
-    const displayQty = walkinData?.qty ?? o.qty ?? 1;
-    const unitPrice = walkinData?.unitPrice ?? (displayQty > 0 ? Math.round(subtotal / displayQty) : 0);
-    const isEquip = walkinData?.type === "equipment";
-    const qtyUnit = isEquip ? " ชิ้น" : " ถัง";
-    let itemsHtml = `<tr><td>${productLabel || "-"}</td><td style="text-align:center;">${displayQty}${qtyUnit}</td><td style="text-align:right;">${Number(unitPrice).toLocaleString()}</td><td style="text-align:right;">${subtotal.toLocaleString()}</td></tr>`;
+    let itemsHtml = "";
     let total = Number(o.total);
+    if (walkinData?.type === "mixed" && Array.isArray(walkinData.items) && walkinData.items.length) {
+      // Cart order — render each item as its own row
+      for (const it of walkinData.items) {
+        const q = Number(it.qty) || 1;
+        const p = Number(it.price || it.unitPrice) || 0;
+        const name = it.label || (it.type === "new_tank" ? `🆕 ถังใหม่ ${it.brandName} ${it.weightKg}กก.`
+                    : it.type === "gas" ? `${it.brandName} ${it.weightKg}กก.`
+                    : it.name || it.brandName || "สินค้า");
+        const unit = it.type === "equipment" ? " ชิ้น" : " ถัง";
+        itemsHtml += `<tr><td>${name}</td><td style="text-align:center;">${q}${unit}</td><td style="text-align:right;">${p.toLocaleString()}</td><td style="text-align:right;">${(q*p).toLocaleString()}</td></tr>`;
+      }
+    } else {
+      let productLabel = ((o.brand?.name || "") + " " + (o.product?.name || "")).trim();
+      if (!productLabel && walkinData) {
+        if (walkinData.type === "new_tank") productLabel = `🆕 ถังใหม่ ${walkinData.brandName} ${walkinData.weightKg}กก.`;
+        else if (walkinData.type === "gas") productLabel = `${walkinData.brandName} ${walkinData.weightKg}กก.`;
+        else if (walkinData.type === "equipment") productLabel = (walkinData.items || []).map(i => i.name).join(", ") || "อุปกรณ์";
+      }
+      const displayQty = walkinData?.qty ?? o.qty ?? 1;
+      const unitPrice = walkinData?.unitPrice ?? (displayQty > 0 ? Math.round(subtotal / displayQty) : 0);
+      const isEquip = walkinData?.type === "equipment";
+      const qtyUnit = isEquip ? " ชิ้น" : " ถัง";
+      itemsHtml = `<tr><td>${productLabel || "-"}</td><td style="text-align:center;">${displayQty}${qtyUnit}</td><td style="text-align:right;">${Number(unitPrice).toLocaleString()}</td><td style="text-align:right;">${subtotal.toLocaleString()}</td></tr>`;
+    }
     for (const ex of extras) {
       const lineTotal = Number(ex.price) * Number(ex.qty);
       itemsHtml += `<tr><td>${ex.name}</td><td style="text-align:center;">${ex.qty} ชิ้น</td><td style="text-align:right;">${Number(ex.price).toLocaleString()}</td><td style="text-align:right;">${lineTotal.toLocaleString()}</td></tr>`;
