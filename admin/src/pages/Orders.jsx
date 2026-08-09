@@ -295,11 +295,11 @@ export default function Orders() {
       for (const it of walkinData.items) {
         const q = Number(it.qty) || 1;
         const p = Number(it.price || it.unitPrice) || 0;
-        const name = it.label || (it.type === "new_tank" ? `🆕 ถังใหม่ ${it.brandName} ${it.weightKg}กก.`
-                    : it.type === "gas" ? `${it.brandName} ${it.weightKg}กก.`
-                    : it.name || it.brandName || "สินค้า");
+        const name = it.type === "new_tank" ? `ถังใหม่ ${it.brandName} ${it.weightKg}กก.`
+                   : it.type === "gas" ? `${it.brandName} ${it.weightKg}กก.`
+                   : it.name || it.brandName || "สินค้า";
         const unit = it.type === "equipment" ? " ชิ้น" : " ถัง";
-        itemsHtml += `<tr><td>${name}</td><td style="text-align:center;">${q}${unit}</td><td style="text-align:right;">${p.toLocaleString()}</td><td style="text-align:right;">${(q*p).toLocaleString()}</td></tr>`;
+        itemsHtml += `<tr><td style="white-space:nowrap; font-size:13px;">${name}</td><td style="text-align:center; white-space:nowrap;">${q}${unit}</td><td style="text-align:right; white-space:nowrap;">${p.toLocaleString()}</td><td style="text-align:right; white-space:nowrap;">${(q*p).toLocaleString()}</td></tr>`;
       }
     } else {
       let productLabel = ((o.brand?.name || "") + " " + (o.product?.name || "")).trim();
