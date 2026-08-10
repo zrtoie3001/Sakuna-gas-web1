@@ -161,7 +161,7 @@ export default function Stock() {
             ))}
           </div>
 
-          <div style={{ overflowX: "auto" }}>
+          <div style={{ overflowX: "auto", overflowY: "auto", maxHeight: "70vh" }}>
             <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 13 }}>
               <thead>
                 <tr style={{ background: NAVY, color: WHITE }}>
