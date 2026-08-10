@@ -165,11 +165,11 @@ export default function Stock() {
             <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 13 }}>
               <thead>
                 <tr style={{ background: NAVY, color: WHITE }}>
-                  <th style={{ padding: "8px 12px", textAlign: "left" }}>ยี่ห้อ</th>
-                  <th style={{ padding: "8px 12px" }}>น้ำหนัก</th>
-                  {FIELDS.map(f => <th key={f.key} style={{ padding: "8px 8px", color: f.color }}>{f.label}</th>)}
-                  <th style={{ padding: "8px 8px" }}>รวม</th>
-                  <th style={{ padding: "8px 8px" }}>แก้ไข</th>
+                  <th style={{ padding: "8px 12px", textAlign: "left", position: "sticky", top: 0, zIndex: 10, background: NAVY }}>ยี่ห้อ</th>
+                  <th style={{ padding: "8px 12px", position: "sticky", top: 0, zIndex: 10, background: NAVY }}>น้ำหนัก</th>
+                  {FIELDS.map(f => <th key={f.key} style={{ padding: "8px 8px", color: f.color, position: "sticky", top: 0, zIndex: 10, background: NAVY }}>{f.label}</th>)}
+                  <th style={{ padding: "8px 8px", position: "sticky", top: 0, zIndex: 10, background: NAVY }}>รวม</th>
+                  <th style={{ padding: "8px 8px", position: "sticky", top: 0, zIndex: 10, background: NAVY }}>แก้ไข</th>
                 </tr>
               </thead>
               <tbody>
