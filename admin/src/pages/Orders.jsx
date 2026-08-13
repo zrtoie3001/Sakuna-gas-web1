@@ -418,7 +418,7 @@ export default function Orders() {
   }
 
   function openReceiptWindow(order, itemsHtml, total, dateStr, timeStr, payLabel, noteText) {
-    const PROMPTPAY_PHONE = "0971213054"; // เบอร์ PromptPay สกุณาแก๊ส
+    const PROMPTPAY_PHONE = "0849747151"; // เบอร์ PromptPay สกุณาแก๊ส
     const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
 <title>ใบเสร็จ ${order.orderNumber}</title>
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;700;800&display=swap" rel="stylesheet">
