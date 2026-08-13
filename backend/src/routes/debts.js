@@ -10,7 +10,11 @@ router.get("/", async (req, res) => {
     const { unpaid, type, search } = req.query;
     const where = {};
     if (type) where.type = type;
-    if (unpaid === "1") where[Op.or] = [{ isPaid: false }, { tankReturned: false }];
+    if (unpaid === "1") where[Op.or] = [
+      { type: "money", isPaid: false },
+      { type: "tank",  tankReturned: false },
+      { type: "both",  [Op.or]: [{ isPaid: false }, { tankReturned: false }] },
+    ];
     if (search) where[Op.or] = [
       { customerName: { [Op.iLike]: `%${search}%` } },
       { customerPhone: { [Op.iLike]: `%${search}%` } },
