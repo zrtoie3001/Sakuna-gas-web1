@@ -6,14 +6,14 @@ async function dailyReport(req, res) {
   const start = new Date(date); start.setHours(0, 0, 0, 0);
   const end   = new Date(date); end.setHours(23, 59, 59, 999);
 
-  const [orders, summary, expenseRows] = await Promise.all([
+  const [orders, summary, expenseRows, payBreakdown] = await Promise.all([
     Order.findAll({
       where: { createdAt: { [Op.between]: [start, end] }, status: { [Op.ne]: "cancelled" } },
       include: [{ model: Brand, as: "brand" }, { model: Product, as: "product" }],
       order: [["createdAt", "DESC"]],
     }),
     Order.findOne({
-      where: { createdAt: { [Op.between]: [start, end] }, status: { [Op.ne]: "cancelled" } },
+      where: { createdAt: { [Op.between]: [start, end] }, status: { [Op.ne]: "cancelled" }, isPaid: true },
       attributes: [
         [fn("COUNT", col("id")), "count"],
         [fn("SUM", col("total")), "revenue"],
@@ -26,12 +26,18 @@ async function dailyReport(req, res) {
       attributes: ["amount", "type", "description", "createdByName"],
       raw: true,
     }).catch(() => []) : Promise.resolve([]),
+    Order.findAll({
+      where: { createdAt: { [Op.between]: [start, end] }, status: { [Op.ne]: "cancelled" } },
+      attributes: ["paymentMethod", [fn("COUNT", col("id")), "count"], [fn("SUM", col("total")), "revenue"]],
+      group: ["paymentMethod"],
+      raw: true,
+    }),
   ]);
 
   const unpaidOrders = orders.filter(o => !o.isPaid && o.status !== "cancelled");
   const totalExpenses = expenseRows.reduce((s, e) => s + Number(e.amount || 0), 0);
   const revenue = Number(summary?.revenue || 0);
-  res.json({ date, orders, summary, expenses: expenseRows, totalExpenses, netRevenue: revenue - totalExpenses, unpaidOrders: unpaidOrders.map(o => ({ id: o.id, orderNumber: o.orderNumber, customerName: o.customerName, total: o.total })) });
+  res.json({ date, orders, summary, expenses: expenseRows, totalExpenses, netRevenue: revenue - totalExpenses, unpaidOrders: unpaidOrders.map(o => ({ id: o.id, orderNumber: o.orderNumber, customerName: o.customerName, total: o.total })), payBreakdown: payBreakdown.map(p => ({ method: p.paymentMethod, count: parseInt(p.count), revenue: Number(p.revenue) })) });
 }
 
 async function monthlyReport(req, res) {
@@ -40,7 +46,7 @@ async function monthlyReport(req, res) {
   const end   = new Date(year, month, 0, 23, 59, 59, 999);
 
   const daily = await Order.findAll({
-    where: { createdAt: { [Op.between]: [start, end] }, status: { [Op.ne]: "cancelled" } },
+    where: { createdAt: { [Op.between]: [start, end] }, status: { [Op.ne]: "cancelled" }, isPaid: true },
     attributes: [
       [fn("DATE", col("created_at")), "date"],
       [fn("COUNT", col("id")), "count"],

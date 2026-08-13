@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
 import api from "../utils/api.js";
 
 const NAVY = "#1A2B6B"; const ORANGE = "#F47B20"; const WHITE = "#FFFFFF"; const GRAY = "#6B7280";
@@ -19,6 +19,7 @@ export default function Reports() {
   const [dayNetRevenue, setDayNetRevenue] = useState(0);
   const [daySummary, setDaySummary] = useState(null);
   const [dayUnpaid, setDayUnpaid] = useState([]);
+  const [dayPayBreakdown, setDayPayBreakdown] = useState([]);
   const [driverStats, setDriverStats] = useState([]);
   const [driverDate, setDriverDate]   = useState(now.toISOString().split("T")[0]);
   const [showUnpaid, setShowUnpaid]   = useState(false);
@@ -38,6 +39,7 @@ export default function Reports() {
       setDayNetRevenue(r.data.netRevenue || 0);
       setDaySummary(r.data.summary || null);
       setDayUnpaid(r.data.unpaidOrders || []);
+      setDayPayBreakdown(r.data.payBreakdown || []);
     }).catch(() => {});
   }, [date]);
 
@@ -166,6 +168,38 @@ export default function Reports() {
                 <span style={{ fontWeight: 700 }}>฿{Number(e.amount).toLocaleString()}</span>
               </div>
             ))}
+          </div>
+        )}
+
+        {/* Payment method breakdown */}
+        {dayPayBreakdown.length > 0 && (
+          <div style={{ background: "#F8FAFC", borderRadius: 10, padding: "12px 14px", marginBottom: 14, border: "1.5px solid #E5E7EB" }}>
+            <div style={{ fontSize: 13, fontWeight: 800, color: NAVY, marginBottom: 10 }}>💳 ช่องทางชำระเงิน</div>
+            <div style={{ display: "flex", gap: 16, flexWrap: "wrap", alignItems: "center" }}>
+              <PieChart width={120} height={120}>
+                <Pie data={dayPayBreakdown.map(p => ({ name: p.method === "cash" ? "เงินสด" : p.method === "qr" ? "QR โอน" : "เก็บปลายทาง", value: p.revenue }))} cx={55} cy={55} innerRadius={30} outerRadius={55} dataKey="value">
+                  {dayPayBreakdown.map((p, i) => (
+                    <Cell key={i} fill={p.method === "cash" ? "#10B981" : p.method === "qr" ? "#3B82F6" : "#F59E0B"} />
+                  ))}
+                </Pie>
+                <Tooltip formatter={v => `฿${Number(v).toLocaleString()}`} />
+              </PieChart>
+              <div style={{ flex: 1 }}>
+                {dayPayBreakdown.map((p, i) => {
+                  const label = p.method === "cash" ? "เงินสด" : p.method === "qr" ? "QR โอน" : "เก็บปลายทาง";
+                  const color = p.method === "cash" ? "#10B981" : p.method === "qr" ? "#3B82F6" : "#F59E0B";
+                  return (
+                    <div key={i} style={{ display: "flex", justifyContent: "space-between", fontSize: 12, padding: "4px 0", borderBottom: "1px solid #F3F4F6" }}>
+                      <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        <span style={{ width: 10, height: 10, borderRadius: 2, background: color, display: "inline-block" }} />
+                        {label} ({p.count} ออเดอร์)
+                      </span>
+                      <span style={{ fontWeight: 700, color }}> ฿{Number(p.revenue).toLocaleString()}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
           </div>
         )}
 

@@ -7,7 +7,9 @@ const WHITE = "#FFFFFF";
 const GRAY = "#6B7280";
 const LIGHT = "#F8F9FF";
 
-const BRANDS = ["ปตท", "PAP", "เวิลด์", "สยาม", "ยูนิค"];
+const BRANDS = ["ปตท", "PAP", "เวิลด์", "ยูนิค", "สยาม"];
+const MERGED_BRANDS = { "ยูนิค/สยาม": ["ยูนิค", "สยาม"] };
+const BRAND_GROUPS = ["ปตท", "PAP", "เวิลด์", "ยูนิค/สยาม"];
 const WEIGHTS = [4, 7, 8, 11.5, 13.5, 15, 48];
 const FIELDS = [
   { key: "hasGas",      label: "มีแก๊ส",    color: "#22C55E" },
@@ -123,6 +125,20 @@ export default function Stock() {
     }, {});
   }
 
+  function mergedCell(brands, weight) {
+    return FIELDS.reduce((acc, f) => {
+      acc[f.key] = brands.reduce((s, b) => s + Number(getCell(b, weight)[f.key] || 0), 0);
+      return acc;
+    }, { brandName: brands.join("/"), weightKg: weight });
+  }
+
+  function mergedBrandTotal(brands) {
+    return FIELDS.reduce((acc, f) => {
+      acc[f.key] = WEIGHTS.reduce((s, w) => s + brands.reduce((ss, b) => ss + Number(getCell(b, w)[f.key] || 0), 0), 0);
+      return acc;
+    }, {});
+  }
+
   return (
     <div style={{ padding: 16, maxWidth: 1200, margin: "0 auto" }}>
       <h2 style={{ color: NAVY, margin: "0 0 16px" }}>📦 สต็อกสินค้า</h2>
@@ -173,53 +189,110 @@ export default function Stock() {
                 </tr>
               </thead>
               <tbody>
-                {BRANDS.map((brand, bi) => (
-                  <>
-                    {WEIGHTS.map((w, wi) => {
-                      const row = getCell(brand, w);
-                      const total = totalRow(row);
-                      return (
-                        <tr key={`${brand}-${w}`} style={{ background: (bi + wi) % 2 === 0 ? WHITE : LIGHT }}>
-                          {wi === 0 && <td rowSpan={WEIGHTS.length} style={{ padding: "8px 12px", fontWeight: 700, color: NAVY, verticalAlign: "middle", borderRight: "2px solid #E5E7EB" }}>{brand}</td>}
-                          <td style={{ padding: "6px 8px", textAlign: "center", color: GRAY }}>{w} kg</td>
-                          {FIELDS.map(f => (
-                            <td key={f.key} style={{ padding: "4px 6px", textAlign: "center" }}>
-                              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 3 }}>
-                                <button onClick={() => adjust(brand, w, f.key, -1)} style={{ width: 22, height: 22, borderRadius: 4, border: "none", background: "#EF4444", color: WHITE, cursor: "pointer", fontSize: 13, lineHeight: 1, flexShrink: 0 }}>−</button>
-                                <input
-                                  type="number" min="0"
-                                  defaultValue={row[f.key] || 0}
-                                  key={`${brand}-${w}-${f.key}-${row[f.key] || 0}`}
-                                  onBlur={async e => {
-                                    const val = Math.max(0, parseInt(e.target.value) || 0);
-                                    const old = Number(row[f.key] || 0);
-                                    if (val === old) return;
-                                    await api.post("/api/v1/stock/gas", { brandName: brand, weightKg: w, ...getCell(brand, w), [f.key]: val });
-                                    fetchStock();
-                                  }}
-                                  onKeyDown={e => { if (e.key === "Enter") e.target.blur(); }}
-                                  style={{ width: 40, textAlign: "center", fontWeight: 700, color: Number(row[f.key]) > 0 ? f.color : GRAY, border: "1px solid #E5E7EB", borderRadius: 4, padding: "2px 4px", fontSize: 13 }}
-                                />
-                                <button onClick={() => adjust(brand, w, f.key, 1)} style={{ width: 22, height: 22, borderRadius: 4, border: "none", background: "#22C55E", color: WHITE, cursor: "pointer", fontSize: 13, lineHeight: 1, flexShrink: 0 }}>+</button>
-                              </div>
+                {BRAND_GROUPS.map((groupName, bi) => {
+                  const subBrands = MERGED_BRANDS[groupName] || [groupName];
+                  const isMerged = subBrands.length > 1;
+                  return (
+                    <>
+                      {WEIGHTS.map((w, wi) => {
+                        if (isMerged) {
+                          const merged = mergedCell(subBrands, w);
+                          const total = totalRow(merged);
+                          return (
+                            <tr key={`${groupName}-${w}`} style={{ background: wi % 2 === 0 ? WHITE : LIGHT }}>
+                              {wi === 0 && <td rowSpan={WEIGHTS.length} style={{ padding: "8px 12px", fontWeight: 700, color: NAVY, verticalAlign: "middle", borderRight: "2px solid #E5E7EB" }}>{groupName}</td>}
+                              <td style={{ padding: "6px 8px", textAlign: "center", color: GRAY }}>{w} kg</td>
+                              {FIELDS.map(f => (
+                                <td key={f.key} style={{ padding: "4px 6px", textAlign: "center" }}>
+                                  <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                                    {subBrands.map(brand => {
+                                      const row = getCell(brand, w);
+                                      return (
+                                        <div key={brand} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 2 }}>
+                                          <button onClick={() => adjust(brand, w, f.key, -1)} style={{ width: 18, height: 18, borderRadius: 3, border: "none", background: "#EF4444", color: WHITE, cursor: "pointer", fontSize: 11, lineHeight: 1, flexShrink: 0 }}>−</button>
+                                          <span style={{ fontSize: 11, color: GRAY, minWidth: 14, textAlign: "center" }}>{brand === "ยูนิค" ? "ย" : "ส"}</span>
+                                          <input
+                                            type="number" min="0"
+                                            defaultValue={row[f.key] || 0}
+                                            key={`${brand}-${w}-${f.key}-${row[f.key] || 0}`}
+                                            onBlur={async e => {
+                                              const val = Math.max(0, parseInt(e.target.value) || 0);
+                                              const old = Number(row[f.key] || 0);
+                                              if (val === old) return;
+                                              await api.post("/api/v1/stock/gas", { brandName: brand, weightKg: w, ...getCell(brand, w), [f.key]: val });
+                                              fetchStock();
+                                            }}
+                                            onKeyDown={e => { if (e.key === "Enter") e.target.blur(); }}
+                                            style={{ width: 36, textAlign: "center", fontWeight: 700, color: Number(row[f.key]) > 0 ? f.color : GRAY, border: "1px solid #E5E7EB", borderRadius: 3, padding: "1px 2px", fontSize: 11 }}
+                                          />
+                                          <button onClick={() => adjust(brand, w, f.key, 1)} style={{ width: 18, height: 18, borderRadius: 3, border: "none", background: "#22C55E", color: WHITE, cursor: "pointer", fontSize: 11, lineHeight: 1, flexShrink: 0 }}>+</button>
+                                        </div>
+                                      );
+                                    })}
+                                    <div style={{ fontSize: 11, fontWeight: 700, color: Number(merged[f.key]) > 0 ? f.color : GRAY, borderTop: "1px dashed #E5E7EB", paddingTop: 1 }}>={merged[f.key]}</div>
+                                  </div>
+                                </td>
+                              ))}
+                              <td style={{ padding: "6px 8px", textAlign: "center", fontWeight: 700 }}>{total}</td>
+                              <td style={{ padding: "4px 8px", textAlign: "center" }}>
+                                {subBrands.map(brand => (
+                                  <button key={brand} onClick={() => setEditCell({ ...getCell(brand, w) })} style={{ ...btn("#E5E7EB", NAVY), fontSize: 10, padding: "2px 6px", marginBottom: 2, display: "block", width: "100%" }}>{brand.charAt(0)}✏️</button>
+                                ))}
+                              </td>
+                            </tr>
+                          );
+                        }
+                        const brand = subBrands[0];
+                        const row = getCell(brand, w);
+                        const total = totalRow(row);
+                        return (
+                          <tr key={`${brand}-${w}`} style={{ background: (bi + wi) % 2 === 0 ? WHITE : LIGHT }}>
+                            {wi === 0 && <td rowSpan={WEIGHTS.length} style={{ padding: "8px 12px", fontWeight: 700, color: NAVY, verticalAlign: "middle", borderRight: "2px solid #E5E7EB" }}>{brand}</td>}
+                            <td style={{ padding: "6px 8px", textAlign: "center", color: GRAY }}>{w} kg</td>
+                            {FIELDS.map(f => (
+                              <td key={f.key} style={{ padding: "4px 6px", textAlign: "center" }}>
+                                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 3 }}>
+                                  <button onClick={() => adjust(brand, w, f.key, -1)} style={{ width: 22, height: 22, borderRadius: 4, border: "none", background: "#EF4444", color: WHITE, cursor: "pointer", fontSize: 13, lineHeight: 1, flexShrink: 0 }}>−</button>
+                                  <input
+                                    type="number" min="0"
+                                    defaultValue={row[f.key] || 0}
+                                    key={`${brand}-${w}-${f.key}-${row[f.key] || 0}`}
+                                    onBlur={async e => {
+                                      const val = Math.max(0, parseInt(e.target.value) || 0);
+                                      const old = Number(row[f.key] || 0);
+                                      if (val === old) return;
+                                      await api.post("/api/v1/stock/gas", { brandName: brand, weightKg: w, ...getCell(brand, w), [f.key]: val });
+                                      fetchStock();
+                                    }}
+                                    onKeyDown={e => { if (e.key === "Enter") e.target.blur(); }}
+                                    style={{ width: 40, textAlign: "center", fontWeight: 700, color: Number(row[f.key]) > 0 ? f.color : GRAY, border: "1px solid #E5E7EB", borderRadius: 4, padding: "2px 4px", fontSize: 13 }}
+                                  />
+                                  <button onClick={() => adjust(brand, w, f.key, 1)} style={{ width: 22, height: 22, borderRadius: 4, border: "none", background: "#22C55E", color: WHITE, cursor: "pointer", fontSize: 13, lineHeight: 1, flexShrink: 0 }}>+</button>
+                                </div>
+                              </td>
+                            ))}
+                            <td style={{ padding: "6px 8px", textAlign: "center", fontWeight: 700 }}>{total}</td>
+                            <td style={{ padding: "4px 8px", textAlign: "center" }}>
+                              <button onClick={() => setEditCell({ ...row })} style={btn("#E5E7EB", NAVY)}>✏️</button>
                             </td>
-                          ))}
-                          <td style={{ padding: "6px 8px", textAlign: "center", fontWeight: 700 }}>{total}</td>
-                          <td style={{ padding: "4px 8px", textAlign: "center" }}>
-                            <button onClick={() => setEditCell({ ...row })} style={btn("#E5E7EB", NAVY)}>✏️</button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                    {/* brand subtotal */}
-                    <tr style={{ background: "#EEF2FF", borderTop: "2px solid " + NAVY }}>
-                      <td colSpan={2} style={{ padding: "6px 12px", fontWeight: 700, color: NAVY }}>รวม {brand}</td>
-                      {FIELDS.map(f => { const bt = brandTotal(brand); return <td key={f.key} style={{ padding: "6px 8px", textAlign: "center", fontWeight: 700, color: f.color }}>{bt[f.key]}</td>; })}
-                      <td style={{ padding: "6px 8px", textAlign: "center", fontWeight: 700 }}>{Object.values(brandTotal(brand)).reduce((a,b) => a+b, 0)}</td>
-                      <td />
-                    </tr>
-                  </>
-                ))}
+                          </tr>
+                        );
+                      })}
+                      {/* brand/group subtotal */}
+                      <tr style={{ background: "#EEF2FF", borderTop: "2px solid " + NAVY }}>
+                        <td colSpan={2} style={{ padding: "6px 12px", fontWeight: 700, color: NAVY }}>รวม {groupName}</td>
+                        {FIELDS.map(f => {
+                          const bt = isMerged ? mergedBrandTotal(subBrands) : brandTotal(subBrands[0]);
+                          return <td key={f.key} style={{ padding: "6px 8px", textAlign: "center", fontWeight: 700, color: f.color }}>{bt[f.key]}</td>;
+                        })}
+                        <td style={{ padding: "6px 8px", textAlign: "center", fontWeight: 700 }}>
+                          {(() => { const bt = isMerged ? mergedBrandTotal(subBrands) : brandTotal(subBrands[0]); return Object.values(bt).reduce((a,b) => a+b, 0); })()}
+                        </td>
+                        <td />
+                      </tr>
+                    </>
+                  );
+                })}
                 {/* Grand total */}
                 <tr style={{ background: NAVY, color: WHITE }}>
                   <td colSpan={2} style={{ padding: "8px 12px", fontWeight: 700 }}>รวมทั้งหมด</td>

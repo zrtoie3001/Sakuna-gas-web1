@@ -20,12 +20,13 @@ const STATUSES = [
 
 const EMPTY_ORDER = { customerName: "", customerPhone: "", brandId: "", productId: "", qty: 1, unitPrice: "", paymentMethod: "cash", deliveryAddress: "", note: "", orderType: "gas" };
 
-function CustomerAutocomplete({ value, onChange, onSelect, placeholder, type = "text" }) {
+function CustomerAutocomplete({ value, onChange, onSelect, placeholder, type = "text", disabled = false }) {
   const [open, setOpen] = useState(false);
   const [suggestions, setSuggestions] = useState([]);
   const timer = useRef(null);
 
   function search(q) {
+    if (disabled) return;
     clearTimeout(timer.current);
     if (!q || q.length < 1) { setSuggestions([]); setOpen(false); return; }
     timer.current = setTimeout(async () => {
@@ -125,6 +126,7 @@ export default function Orders() {
   const [extraItems, setExtraItems] = useState({}); // { [orderId]: [{id, name, qty, price}] }
   const [createCart, setCreateCart]   = useState([]);
   const [createCustAddrs, setCreateCustAddrs] = useState([]); // addresses of selected customer in create modal
+  const [createCustKnown, setCreateCustKnown] = useState(false); // true when customer selected from autocomplete
   const [editOrder, setEditOrder]     = useState(null);   // order being edited
   const [editForm,  setEditForm]      = useState({});
   const [editSaving, setEditSaving]   = useState(false);
@@ -439,11 +441,11 @@ export default function Orders() {
   <tr>
     <td colspan="2" style="font-size:12px; font-weight:400; padding-bottom:2px;">${order.orderNumber} &nbsp;|&nbsp; ${dateStr} &nbsp;|&nbsp; ${timeStr} น.</td>
   </tr>
+  <tr><td colspan="2" style="word-break:break-word; font-size:14px; font-weight:800; padding-bottom:3px;">📍 ${order.deliveryAddress || "-"}</td></tr>
   <tr>
-    <td colspan="2" style="font-size:14px; font-weight:800; padding-bottom:3px;">ลูกค้า: ${order.customerName || "ลูกค้าทั่วไป"}</td>
+    <td colspan="2" style="font-size:14px; font-weight:800; padding-bottom:3px;">ลูกค้า: ${order.customerName || "-"}</td>
   </tr>
   <tr><td colspan="2" style="padding-top:4px; font-size:14px; font-weight:800;">📞 ${order.customerPhone || "-"} &nbsp;|&nbsp; 💳 ${payLabel}</td></tr>
-  <tr><td colspan="2" style="word-break:break-word; font-size:14px; font-weight:800; padding-top:3px;">📍 ${order.deliveryAddress || "-"}</td></tr>
 </table>
 <div class="dash"></div>
 <table>
@@ -565,6 +567,10 @@ ${noteText ? `<div style="margin-top:8px; padding:6px 8px; border:1.5px dashed #
             style={{ padding: "8px 10px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 13 }}>
             {STATUSES.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
           </select>
+          <button onClick={() => { setStatus("pending"); setDate(""); setPage(1); }}
+            style={{ padding: "8px 12px", borderRadius: 8, border: "2px solid #F59E0B", background: statusFilter === "pending" && !date ? "#FEF3C7" : WHITE, color: "#92400E", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+            รอดำเนินการ ทั้งวัน
+          </button>
         </div>
 
         {/* Unpaid alert */}
@@ -1109,7 +1115,7 @@ ${noteText ? `<div style="margin-top:8px; padding:6px 8px; border:1.5px dashed #
           <div style={{ background: WHITE, borderRadius: 20, padding: 24, width: "100%", maxWidth: 420, margin: "auto", maxHeight: "90vh", overflowY: "auto" }}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
               <h2 style={{ fontSize: 16, fontWeight: 800, color: NAVY }}>📞 เพิ่มออเดอร์ (ลูกค้าโทรสั่ง)</h2>
-              <button onClick={() => { setShowCreate(false); setCreateCart([]); setCreateForm(EMPTY_ORDER); }} style={{ background: "none", border: "none", fontSize: 20, color: GRAY, cursor: "pointer" }}>✕</button>
+              <button onClick={() => { setShowCreate(false); setCreateCart([]); setCreateForm(EMPTY_ORDER); setCreateCustKnown(false); setCreateCustAddrs([]); }} style={{ background: "none", border: "none", fontSize: 20, color: GRAY, cursor: "pointer" }}>✕</button>
             </div>
 
             {/* Type toggle */}
@@ -1126,8 +1132,9 @@ ${noteText ? `<div style="margin-top:8px; padding:6px 8px; border:1.5px dashed #
               <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>ชื่อลูกค้า</div>
               <CustomerAutocomplete
                 value={createForm.customerName}
-                onChange={v => setCreateForm(f => ({ ...f, customerName: v }))}
+                onChange={v => { setCreateForm(f => ({ ...f, customerName: v })); setCreateCustKnown(false); setCreateCustAddrs([]); }}
                 onSelect={c => {
+                  setCreateCustKnown(true);
                   setCreateCustAddrs(c.addresses || []);
                   setCreateForm(f => ({
                     ...f,
@@ -1148,6 +1155,7 @@ ${noteText ? `<div style="margin-top:8px; padding:6px 8px; border:1.5px dashed #
                 value={createForm.customerPhone}
                 onChange={v => setCreateForm(f => ({ ...f, customerPhone: v }))}
                 onSelect={c => {
+                  setCreateCustKnown(true);
                   setCreateCustAddrs(c.addresses || []);
                   setCreateForm(f => ({
                     ...f,
@@ -1160,6 +1168,7 @@ ${noteText ? `<div style="margin-top:8px; padding:6px 8px; border:1.5px dashed #
                   }));
                 }}
                 placeholder="ไม่ระบุได้"
+                disabled={!createCustKnown}
               />
             </div>
             <div style={{ marginBottom: 12 }}>

@@ -237,7 +237,7 @@ EquipmentSale.belongsTo(Equipment, { foreignKey: "equipmentId", as: "equipment" 
 // ── Expense (เบิกเงิน) ────────────────────────────────────────────────────────
 const Expense = sequelize.define("Expense", {
   id:          { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
-  type:        { type: DataTypes.ENUM("fuel", "repair", "other"), allowNull: false, defaultValue: "other" },
+  type:        { type: DataTypes.STRING(20), allowNull: false, defaultValue: "other" },
   amount:      { type: DataTypes.DECIMAL(10, 2), allowNull: false },
   description: { type: DataTypes.TEXT },
   slipUrl:         { type: DataTypes.TEXT },
