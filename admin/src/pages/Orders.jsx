@@ -93,7 +93,7 @@ function ExtraItemPicker({ equipList, onAdd }) {
         style={{ width: 72, padding: "7px 8px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 12 }} />
       <button onClick={() => {
         if (!item || !price) return;
-        onAdd({ id: item.id, name: item.name, qty, price: Number(price) });
+        onAdd({ equipId: item.id, name: item.name, qty, price: Number(price) });
         setId(""); setQty(1); setPrice("");
       }} style={{ padding: "7px 12px", borderRadius: 8, border: "none", background: "#10B981", color: "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer" }}>+ เพิ่ม</button>
     </div>
