@@ -216,6 +216,8 @@ export default function Orders() {
         stockId: it.stockId,
         brandId: it.brandId,
         productId: it.productId,
+        equipId: it.equipId,
+        name: it.name,
         qty: it.qty,
         price: it.price,
         label: it.label,
