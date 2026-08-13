@@ -443,7 +443,7 @@ export default function Orders() {
   </tr>
   <tr><td colspan="2" style="word-break:break-word; font-size:14px; font-weight:800; padding-bottom:3px;">📍 ${order.deliveryAddress || "-"}</td></tr>
   <tr>
-    <td colspan="2" style="font-size:14px; font-weight:800; padding-bottom:3px;">ลูกค้า: ${order.customerName || "-"}</td>
+    <td colspan="2" style="font-size:14px; font-weight:800; padding-bottom:3px;">ลูกค้า: ${(order.customerName && order.customerName !== "ลูกค้าหน้าร้าน") ? order.customerName : "-"}</td>
   </tr>
   <tr><td colspan="2" style="padding-top:4px; font-size:14px; font-weight:800;">📞 ${order.customerPhone || "-"} &nbsp;|&nbsp; 💳 ${payLabel}</td></tr>
 </table>
