@@ -296,7 +296,11 @@ export default function Orders() {
     finally { setWalkinSaving(false); }
   }
 
-  function printReceipt(o, extras = []) {
+  async function printReceipt(o, extras = []) {
+    // Refresh order to get brand/product relations
+    if (!o.brand || !o.product) {
+      try { const r = await api.get(`/api/v1/orders/${o.id}`); o = { ...r.data, ...o, brand: r.data.brand, product: r.data.product }; } catch {}
+    }
     const d = new Date(o.createdAt);
     const dateStr = d.toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" });
     const timeStr = d.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
