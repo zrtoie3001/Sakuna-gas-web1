@@ -68,8 +68,14 @@ router.get("/customer-suggestions", requireAuth, async (req, res) => {
 
       if (!map.has(key)) {
         const prod = r.product_id ? productMap.get(r.product_id) : null;
-        const bName = (r.brand_id ? brandMap.get(r.brand_id) : null) || walkin?.brandName || null;
-        const wKg   = prod?.kg != null ? Number(prod.kg) : (walkin?.weightKg ?? null);
+        const isMixed = walkin?.type === "mixed";
+        const bName = (r.brand_id ? brandMap.get(r.brand_id) : null) || (!isMixed ? walkin?.brandName : null) || null;
+        const wKg   = prod?.kg != null ? Number(prod.kg) : (!isMixed ? (walkin?.weightKg ?? null) : null);
+        let pName = prod?.name || null;
+        if (!pName && walkin) {
+          if (isMixed) pName = (walkin.items || []).map(i => i.brandName || i.name).filter(Boolean).join(", ") || "หลายรายการ";
+          else if (walkin.brandName && walkin.weightKg) pName = `${walkin.brandName} ${walkin.weightKg}กก.`;
+        }
         map.set(key, {
           customerName:    r.customer_name,
           customerPhone:   r.customer_phone,
@@ -79,9 +85,9 @@ router.get("/customer-suggestions", requireAuth, async (req, res) => {
           brandId:      r.brand_id   || null,
           productId:    r.product_id || null,
           brandName:    bName,
-          productName:  prod?.name || (walkin ? `${walkin.brandName} ${walkin.weightKg}กก.` : null),
+          productName:  pName,
           weightKg:     wKg,
-          unitPrice:    r.unit_price ? Number(r.unit_price) : (walkin?.unitPrice ? Number(walkin.unitPrice) : null),
+          unitPrice:    r.unit_price ? Number(r.unit_price) : (!isMixed && walkin?.unitPrice ? Number(walkin.unitPrice) : null),
         });
       }
       const entry = map.get(key);
@@ -89,8 +95,8 @@ router.get("/customer-suggestions", requireAuth, async (req, res) => {
         entry.addrSet.add(r.delivery_address);
         entry.addresses.push(r.delivery_address);
       }
-      if (!entry.brandName && walkin?.brandName) entry.brandName = walkin.brandName;
-      if (!entry.weightKg  && walkin?.weightKg)  entry.weightKg  = walkin.weightKg;
+      if (!entry.brandName && walkin?.brandName && walkin?.type !== "mixed") entry.brandName = walkin.brandName;
+      if (!entry.weightKg  && walkin?.weightKg  && walkin?.type !== "mixed") entry.weightKg  = walkin.weightKg;
     }
 
     const result = [];

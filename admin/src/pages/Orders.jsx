@@ -635,7 +635,13 @@ window.onload = function() { window.print(); window.onafterprint = () => window.
                     }}>{o.isPaid ? "✅ จ่ายแล้ว" : "⏳ ยังไม่จ่าย"}</span>}
                   </div>
                   <p style={{ fontSize: 12, color: isCancelled ? GRAY : NAVY }}>{o.customerName} · {o.customerPhone}</p>
-                  <p style={{ fontSize: 12, color: GRAY, textDecoration: isCancelled ? "line-through" : "none" }}>{o.product?.name} ×{o.qty} · ฿{Number(o.total).toLocaleString()}</p>
+                  <p style={{ fontSize: 12, color: GRAY, textDecoration: isCancelled ? "line-through" : "none" }}>{(() => {
+                    let wd = null;
+                    if (o.note?.startsWith("__walkin:")) { try { wd = JSON.parse(o.note.replace(/^__walkin:/, "").split("\n")[0]); } catch {} }
+                    if (wd?.type === "mixed") return (wd.items || []).map(i => i.brandName || i.name).filter(Boolean).join(", ") || "หลายรายการ";
+                    if (wd?.brandName && wd?.weightKg) return `${wd.brandName} ${wd.weightKg}กก. ×${wd.qty || o.qty}`;
+                    return `${o.brand?.name || ""} ${o.product?.name || ""}`.trim() || "-";
+                  })()} · ฿{Number(o.total).toLocaleString()}</p>
                   {o.deliveryAddress && <p style={{ fontSize: 11, color: "#6B7280", marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>📍 {o.deliveryAddress}</p>}
                   {o.driver && <p style={{ fontSize: 11, color: "#059669", fontWeight: 700 }}>🛵 {o.driver.name}</p>}
                 </div>
