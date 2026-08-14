@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import QRCode from "qrcode";
 import { useNavigate } from "react-router-dom";
 import api from "../utils/api.js";
 
@@ -295,7 +296,7 @@ export default function Orders() {
     finally { setWalkinSaving(false); }
   }
 
-  function printReceipt(o, extras = []) {
+  async function printReceipt(o, extras = []) {
     const d = new Date(o.createdAt);
     const dateStr = d.toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" });
     const timeStr = d.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
@@ -346,10 +347,10 @@ export default function Orders() {
       if (!n || n.startsWith("__walkin:")) return n.split("\n").slice(1).join("\n").trim();
       return n.trim();
     })();
-    openReceiptWindow(o, itemsHtml, total, dateStr, timeStr, payLabel, displayNote);
+    await openReceiptWindow(o, itemsHtml, total, dateStr, timeStr, payLabel, displayNote);
   }
 
-  function printWalkinReceipt(order, cart) {
+  async function printWalkinReceipt(order, cart) {
     const d = new Date(order.createdAt);
     const dateStr = d.toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" });
     const timeStr = d.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
@@ -370,10 +371,10 @@ export default function Orders() {
       if (n.startsWith("__walkin:")) return n.split("\n").slice(1).join("\n").trim();
       return n.trim();
     })();
-    openReceiptWindow(order, itemsHtml, total, dateStr, timeStr, payLabel, walkinNote);
+    await openReceiptWindow(order, itemsHtml, total, dateStr, timeStr, payLabel, walkinNote);
   }
 
-  function printReceiptWithExtras(order, extras) {
+  async function printReceiptWithExtras(order, extras) {
     const d = new Date(order.createdAt);
     const dateStr = d.toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" });
     const timeStr = d.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
@@ -414,15 +415,35 @@ export default function Orders() {
       total = Number(order.total) + extras.reduce((s, e) => s + Number(e.price) * Number(e.qty), 0);
     }
     const extrasNote = (order.note || "").replace(/^__walkin:.*\n?/, "").trim();
-    openReceiptWindow(order, itemsHtml, total, dateStr, timeStr, payLabel, extrasNote);
+    await openReceiptWindow(order, itemsHtml, total, dateStr, timeStr, payLabel, extrasNote);
   }
 
-  function openReceiptWindow(order, itemsHtml, total, dateStr, timeStr, payLabel, noteText) {
+  async function openReceiptWindow(order, itemsHtml, total, dateStr, timeStr, payLabel, noteText) {
     const PROMPTPAY_PHONE = "0849747151";
+    function crc16(str) {
+      let crc = 0xFFFF;
+      for (let i = 0; i < str.length; i++) {
+        crc ^= str.charCodeAt(i) << 8;
+        for (let j = 0; j < 8; j++) { crc = (crc & 0x8000) ? (crc << 1) ^ 0x1021 : crc << 1; }
+      }
+      return (crc & 0xFFFF).toString(16).toUpperCase().padStart(4, "0");
+    }
+    function promptPayPayload(phone, amount) {
+      const p = phone.replace(/\D/g, "");
+      const target = "0066" + p.slice(1);
+      const targetF = "01" + String(target.length).padStart(2, "0") + target;
+      const acct = "0016A000000677010111" + targetF;
+      const acctF = "29" + String(acct.length).padStart(2, "0") + acct;
+      const amt = amount.toFixed(2);
+      const amtF = "54" + String(amt.length).padStart(2, "0") + amt;
+      const raw = "000201010212" + acctF + "5303764" + amtF + "5802TH6304";
+      return raw + crc16(raw);
+    }
+    const payload = promptPayPayload(PROMPTPAY_PHONE, total);
+    const qrDataUrl = await QRCode.toDataURL(payload, { width: 200, margin: 1, color: { dark: "#000000", light: "#ffffff" } });
     const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
 <title>ใบเสร็จ ${order.orderNumber}</title>
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;700;800&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"><\/script>
 <style>
   * { margin:0; padding:0; box-sizing:border-box; }
   body { font-family: 'Sarabun', 'TH Sarabun New', sans-serif; width: 80mm; padding: 10px 10px 16px; font-size: 14px; font-weight: 800; color: #000; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
@@ -477,39 +498,13 @@ export default function Orders() {
 <div class="double"></div>
 ${noteText ? `<div style="margin-top:8px; padding:6px 8px; border:1.5px dashed #000; border-radius:4px; font-size:13px; font-weight:800;">💬 หมายเหตุ: ${noteText}</div>` : ""}
 <div class="dash" style="margin-top:6px;"></div>
-<div class="center" style="font-size:13px; font-weight:800; margin:6px 0 2px;">สแกนโอนเงิน PromptPay</div>
-<div class="center" style="font-size:12px; font-weight:400; margin-bottom:4px; color:#333;">ยอด ฿${total.toLocaleString()}</div>
-<div class="center"><canvas id="pp-qr"></canvas></div>
+<div class="center" style="font-size:13px; font-weight:800; margin:6px 0 4px;">สแกนโอนเงิน PromptPay</div>
+<div class="center"><img src="${qrDataUrl}" style="width:34mm; height:34mm; object-fit:contain;" /></div>
 <div class="center" style="font-size:13px; font-weight:800; margin-top:4px;">สกุณา</div>
 <div class="dash" style="margin-top:6px;"></div>
 <div class="center" style="font-size:13px; font-weight:800; margin-top:4px;">ขอบคุณที่ใช้บริการค่ะ</div>
 <script>
-function crc16(str) {
-  let crc = 0xFFFF;
-  for (let i = 0; i < str.length; i++) {
-    crc ^= str.charCodeAt(i) << 8;
-    for (let j = 0; j < 8; j++) { crc = (crc & 0x8000) ? (crc << 1) ^ 0x1021 : crc << 1; }
-  }
-  return (crc & 0xFFFF).toString(16).toUpperCase().padStart(4, '0');
-}
-function promptPayPayload(phone, amount) {
-  const p = phone.replace(/\\D/g, '');
-  const target = '0066' + p.slice(1);
-  const targetF = '01' + String(target.length).padStart(2,'0') + target;
-  const acct = '0016A000000677010111' + targetF;
-  const acctF = '29' + String(acct.length).padStart(2,'0') + acct;
-  const amt = amount.toFixed(2);
-  const amtF = '54' + String(amt.length).padStart(2,'0') + amt;
-  const raw = '000201010212' + acctF + '5303764' + amtF + '5802TH6304';
-  return raw + crc16(raw);
-}
-window.onload = function() {
-  const payload = promptPayPayload('${PROMPTPAY_PHONE}', ${total});
-  QRCode.toCanvas(document.getElementById('pp-qr'), payload, { width: 128, margin: 1, color: { dark: '#000', light: '#fff' } }, function() {
-    window.print();
-    window.onafterprint = () => window.close();
-  });
-};
+window.onload = function() { window.print(); window.onafterprint = () => window.close(); };
 <\/script>
 </body></html>`;
     const w = window.open("", "_blank", "width=420,height=700");
