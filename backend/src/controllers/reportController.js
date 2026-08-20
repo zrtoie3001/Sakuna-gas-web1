@@ -45,8 +45,8 @@ async function dailyReport(req, res) {
   const totalExpenses = expenseRows.reduce((s, e) => s + Number(e.amount || 0), 0);
   const revenue = Number(summary?.revenue || 0);
 
-  // Count only gas tanks (exclude equipment) from paid orders
-  const gasTanks = orders.filter(o => o.isPaid).reduce((sum, o) => {
+  // Count gas tanks from all non-cancelled orders (exclude equipment)
+  const gasTanks = orders.reduce((sum, o) => {
     const n = o.note || "";
     if (n.startsWith("__walkin:")) {
       try {
@@ -105,7 +105,7 @@ async function dashboardStats(req, res) {
       raw: true,
     }),
     Order.findAll({
-      where: { createdAt: { [Op.between]: [todayStart, todayEnd] }, status: { [Op.ne]: "cancelled" }, isPaid: true },
+      where: { createdAt: { [Op.between]: [todayStart, todayEnd] }, status: { [Op.ne]: "cancelled" } },
       attributes: ["note", "qty", "productId"],
       raw: true,
     }),
@@ -166,7 +166,7 @@ async function dashboardStats(req, res) {
     }),
   ]);
 
-  // Compute today's gas tank count (paid only, exclude equipment)
+  // Compute today's gas tank count (all orders, exclude equipment)
   const todayGasTanks = todayPaidOrders.reduce((sum, o) => {
     const n = o.note || "";
     if (n.startsWith("__walkin:")) {
