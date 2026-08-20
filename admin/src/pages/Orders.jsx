@@ -519,8 +519,9 @@ window.onload = function() { window.print(); window.onafterprint = () => window.
       unitPrice:       order.unitPrice       ?? order.total ?? 0,
       total:           order.total           ?? 0,
       paymentMethod:   order.paymentMethod   || "cash",
+      brandId:         order.brandId         || order.brand?.id || "",
+      productId:       order.productId       || order.product?.id || "",
       note:            (() => {
-        // strip __walkin: prefix from note for display
         const n = order.note || "";
         if (n.startsWith("__walkin:")) return n.split("\n").slice(1).join("\n").trim();
         return n;
@@ -541,6 +542,8 @@ window.onload = function() { window.print(); window.onafterprint = () => window.
         unitPrice: price,
         total:     qty * price,
         paymentMethod: editForm.paymentMethod,
+        brandId:   editForm.brandId   || null,
+        productId: editForm.productId || null,
         note: editForm.note,
       };
       const { data: updated } = await api.put(`/api/v1/orders/${editOrder.id}`, payload);
@@ -876,6 +879,27 @@ window.onload = function() { window.print(); window.onafterprint = () => window.
                   style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 14, boxSizing: "border-box" }} />
               </div>
             ))}
+
+            <div style={{ display: "flex", gap: 12, marginBottom: 12 }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>ยี่ห้อ</div>
+                <select value={editForm.brandId || ""} onChange={e => setEditForm(f => ({ ...f, brandId: e.target.value, productId: "" }))}
+                  style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 14, boxSizing: "border-box" }}>
+                  <option value="">-- ยี่ห้อ --</option>
+                  {brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                </select>
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>น้ำหนัก</div>
+                <select value={editForm.productId || ""} onChange={e => setEditForm(f => ({ ...f, productId: e.target.value }))}
+                  style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 14, boxSizing: "border-box" }}>
+                  <option value="">-- น้ำหนัก --</option>
+                  {products.filter(p => !editForm.brandId || p.brandId === editForm.brandId || p.brand_id === editForm.brandId).map(p => (
+                    <option key={p.id} value={p.id}>{p.kg != null ? `${p.kg} กก.` : p.name}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
 
             <div style={{ display: "flex", gap: 12, marginBottom: 12 }}>
               <div style={{ flex: 1 }}>
