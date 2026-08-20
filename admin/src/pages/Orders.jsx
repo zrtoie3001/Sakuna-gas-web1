@@ -127,7 +127,8 @@ export default function Orders() {
   const [createCart, setCreateCart]   = useState([]);
   const [createCustAddrs, setCreateCustAddrs] = useState([]); // addresses of selected customer in create modal
   const [createCustKnown, setCreateCustKnown] = useState(false); // true when customer selected from autocomplete
-  const [custHistory, setCustHistory] = useState([]); // order history of selected customer
+  const [custHistory, setCustHistory] = useState([]);
+  const [historyKey, setHistoryKey] = useState(""); // phone|name used to fetch history
   const [editOrder, setEditOrder]     = useState(null);   // order being edited
   const [editForm,  setEditForm]      = useState({});
   const [editSaving, setEditSaving]   = useState(false);
@@ -154,6 +155,19 @@ export default function Orders() {
     api.get("/api/v1/stock/gas").then(r => setGasStocks(r.data)).catch(() => {});
     api.get("/api/v1/stock/equipment").then(r => setEquipList(r.data)).catch(() => {});
   }, []);
+
+  // Fetch customer history whenever phone or name changes (after autocomplete select)
+  useEffect(() => {
+    const phone = createForm.customerPhone?.trim();
+    const name  = createForm.customerName?.trim();
+    const k = `${phone}|${name}`;
+    if (k === historyKey) return;
+    if (!phone && !name) { setCustHistory([]); setHistoryKey(""); return; }
+    setHistoryKey(k);
+    api.get(`/api/v1/orders/customer-history?phone=${encodeURIComponent(phone || "")}&name=${encodeURIComponent(name || "")}`)
+      .then(r => setCustHistory(r.data || []))
+      .catch(() => {});
+  }, [createForm.customerPhone, createForm.customerName]);
 
   function addToCreateCart() {
     if (createForm.orderType === "new_tank") {
@@ -1155,7 +1169,7 @@ window.onload = function() { window.print(); window.onafterprint = () => window.
           <div style={{ background: WHITE, borderRadius: 20, padding: 24, width: "100%", maxWidth: 420, margin: "auto", maxHeight: "90vh", overflowY: "auto" }}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
               <h2 style={{ fontSize: 16, fontWeight: 800, color: NAVY }}>📞 เพิ่มออเดอร์ (ลูกค้าโทรสั่ง)</h2>
-              <button onClick={() => { setShowCreate(false); setCreateCart([]); setCreateForm(EMPTY_ORDER); setCreateCustKnown(false); setCreateCustAddrs([]); setCustHistory([]); }} style={{ background: "none", border: "none", fontSize: 20, color: GRAY, cursor: "pointer" }}>✕</button>
+              <button onClick={() => { setShowCreate(false); setCreateCart([]); setCreateForm(EMPTY_ORDER); setCreateCustKnown(false); setCreateCustAddrs([]); setCustHistory([]); setHistoryKey(""); }} style={{ background: "none", border: "none", fontSize: 20, color: GRAY, cursor: "pointer" }}>✕</button>
             </div>
 
             {/* Type toggle */}
@@ -1176,7 +1190,6 @@ window.onload = function() { window.print(); window.onafterprint = () => window.
                 onSelect={c => {
                   setCreateCustKnown(true);
                   setCreateCustAddrs(c.addresses || []);
-                  api.get(`/api/v1/orders/customer-history?phone=${encodeURIComponent(c.customerPhone || "")}&name=${encodeURIComponent(c.customerName || "")}`).then(r => { console.log("history result:", r.data); setCustHistory(r.data || []); }).catch(e => console.error("history error:", e));
                   setCreateForm(f => ({
                     ...f,
                     customerName:    c.customerName || "",
@@ -1198,7 +1211,6 @@ window.onload = function() { window.print(); window.onafterprint = () => window.
                 onSelect={c => {
                   setCreateCustKnown(true);
                   setCreateCustAddrs(c.addresses || []);
-                  api.get(`/api/v1/orders/customer-history?phone=${encodeURIComponent(c.customerPhone || "")}&name=${encodeURIComponent(c.customerName || "")}`).then(r => { console.log("history result:", r.data); setCustHistory(r.data || []); }).catch(e => console.error("history error:", e));
                   setCreateForm(f => ({
                     ...f,
                     customerName:    f.customerName    || c.customerName || "",
