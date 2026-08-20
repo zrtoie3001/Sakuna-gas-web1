@@ -647,6 +647,7 @@ window.onload = function() { window.print(); window.onafterprint = () => window.
                   {o.driver && <p style={{ fontSize: 11, color: "#059669", fontWeight: 700 }}>🛵 {o.driver.name}</p>}
                 </div>
                 <div style={{ fontSize: 11, color: GRAY, textAlign: "right", flexShrink: 0 }}>
+                  {!date && <div>{new Date(o.createdAt).toLocaleDateString("th-TH", { day: "numeric", month: "short" })}</div>}
                   {new Date(o.createdAt).toLocaleTimeString("th-TH", { timeStyle: "short" })}
                 </div>
               </div>

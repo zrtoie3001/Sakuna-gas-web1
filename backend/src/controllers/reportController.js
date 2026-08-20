@@ -6,7 +6,7 @@ async function dailyReport(req, res) {
   const start = new Date(date); start.setHours(0, 0, 0, 0);
   const end   = new Date(date); end.setHours(23, 59, 59, 999);
 
-  const [orders, summary, expenseRows, payBreakdown] = await Promise.all([
+  const [orders, summary, expenseRows, payBreakdown, overdueOrders] = await Promise.all([
     Order.findAll({
       where: { createdAt: { [Op.between]: [start, end] }, status: { [Op.ne]: "cancelled" } },
       include: [{ model: Brand, as: "brand" }, { model: Product, as: "product" }],
@@ -32,12 +32,19 @@ async function dailyReport(req, res) {
       group: ["paymentMethod"],
       raw: true,
     }),
+    // ออเดอร์ค้างจากวันอื่น (ก่อนวันนี้ ยังไม่จ่าย ไม่ยกเลิก)
+    Order.findAll({
+      where: { createdAt: { [Op.lt]: start }, status: { [Op.ne]: "cancelled" }, isPaid: false },
+      attributes: ["id", "orderNumber", "customerName", "total", "createdAt"],
+      order: [["createdAt", "DESC"]],
+      raw: true,
+    }),
   ]);
 
   const unpaidOrders = orders.filter(o => !o.isPaid && o.status !== "cancelled");
   const totalExpenses = expenseRows.reduce((s, e) => s + Number(e.amount || 0), 0);
   const revenue = Number(summary?.revenue || 0);
-  res.json({ date, orders, summary, expenses: expenseRows, totalExpenses, netRevenue: revenue - totalExpenses, unpaidOrders: unpaidOrders.map(o => ({ id: o.id, orderNumber: o.orderNumber, customerName: o.customerName, total: o.total })), payBreakdown: payBreakdown.map(p => ({ method: p.paymentMethod, count: parseInt(p.count), revenue: Number(p.revenue) })) });
+  res.json({ date, orders, summary, expenses: expenseRows, totalExpenses, netRevenue: revenue - totalExpenses, unpaidOrders: unpaidOrders.map(o => ({ id: o.id, orderNumber: o.orderNumber, customerName: o.customerName, total: o.total })), overdueOrders: overdueOrders.map(o => ({ id: o.id, orderNumber: o.orderNumber, customerName: o.customerName, total: Number(o.total), createdAt: o.createdAt })), payBreakdown: payBreakdown.map(p => ({ method: p.paymentMethod, count: parseInt(p.count), revenue: Number(p.revenue) })) });
 }
 
 async function monthlyReport(req, res) {

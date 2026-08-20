@@ -19,6 +19,7 @@ export default function Reports() {
   const [dayNetRevenue, setDayNetRevenue] = useState(0);
   const [daySummary, setDaySummary] = useState(null);
   const [dayUnpaid, setDayUnpaid] = useState([]);
+  const [dayOverdue, setDayOverdue] = useState([]);
   const [dayPayBreakdown, setDayPayBreakdown] = useState([]);
   const [driverStats, setDriverStats] = useState([]);
   const [driverDate, setDriverDate]   = useState(now.toISOString().split("T")[0]);
@@ -39,6 +40,7 @@ export default function Reports() {
       setDayNetRevenue(r.data.netRevenue || 0);
       setDaySummary(r.data.summary || null);
       setDayUnpaid(r.data.unpaidOrders || []);
+      setDayOverdue(r.data.overdueOrders || []);
       setDayPayBreakdown(r.data.payBreakdown || []);
     }).catch(() => {});
   }, [date]);
@@ -203,11 +205,11 @@ export default function Reports() {
           </div>
         )}
 
-        {/* Unpaid orders alert */}
+        {/* Unpaid orders (today) */}
         {dayUnpaid.length > 0 && (
           <div style={{ background: "#FEF3C7", borderRadius: 10, marginBottom: 14, border: "1.5px solid #FCD34D", overflow: "hidden" }}>
             <div style={{ padding: "12px 14px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <span onClick={() => setShowUnpaid(v => !v)} style={{ fontSize: 13, fontWeight: 800, color: "#92400E", cursor: "pointer" }}>⚠️ ออเดอร์ที่ยังค้างเงิน ({dayUnpaid.length} รายการ)</span>
+              <span onClick={() => setShowUnpaid(v => !v)} style={{ fontSize: 13, fontWeight: 800, color: "#92400E", cursor: "pointer" }}>⚠️ ค้างเงินวันนี้ ({dayUnpaid.length} รายการ)</span>
               <div style={{ display: "flex", gap: 10 }}>
                 <span onClick={() => setShowUnpaid(v => !v)} style={{ fontSize: 12, color: "#92400E", cursor: "pointer" }}>{showUnpaid ? "▲ ซ่อน" : "▼ ดูรายการ"}</span>
                 <span onClick={() => navigate("/debts")} style={{ fontSize: 12, fontWeight: 700, color: "#B45309", cursor: "pointer", textDecoration: "underline" }}>💸 ไปหน้าค้างเงิน</span>
@@ -224,6 +226,29 @@ export default function Reports() {
                 ))}
               </div>
             )}
+          </div>
+        )}
+
+        {/* Overdue orders (from previous days) */}
+        {dayOverdue.length > 0 && (
+          <div style={{ background: "#FFF1F2", borderRadius: 10, marginBottom: 14, border: "1.5px solid #FECDD3", overflow: "hidden" }}>
+            <div style={{ padding: "12px 14px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ fontSize: 13, fontWeight: 800, color: "#9F1239" }}>🔴 ค้างจากวันก่อน ({dayOverdue.length} รายการ) — ไม่รวมในยอดวันนี้</span>
+              <span onClick={() => navigate("/debts")} style={{ fontSize: 12, fontWeight: 700, color: "#BE123C", cursor: "pointer", textDecoration: "underline" }}>💸 ไปหน้าค้างเงิน</span>
+            </div>
+            <div style={{ borderTop: "1px solid #FECDD3", padding: "8px 14px 12px" }}>
+              {dayOverdue.map((o, i) => (
+                <div key={i} style={{ fontSize: 12, color: "#9F1239", padding: "6px 0", borderBottom: i < dayOverdue.length - 1 ? "1px solid #FFE4E6" : "none", display: "flex", justifyContent: "space-between" }}>
+                  <span style={{ fontWeight: 700 }}>{o.orderNumber}</span>
+                  <span>{o.customerName}</span>
+                  <span style={{ color: "#6B7280" }}>{new Date(o.createdAt).toLocaleDateString("th-TH", { day: "numeric", month: "short" })}</span>
+                  <span style={{ fontWeight: 700 }}>฿{Number(o.total).toLocaleString()}</span>
+                </div>
+              ))}
+              <div style={{ marginTop: 8, fontSize: 12, fontWeight: 800, color: "#9F1239", textAlign: "right" }}>
+                รวมค้าง: ฿{dayOverdue.reduce((s, o) => s + Number(o.total), 0).toLocaleString()}
+              </div>
+            </div>
           </div>
         )}
 
