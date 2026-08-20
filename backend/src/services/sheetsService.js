@@ -145,7 +145,7 @@ async function syncStockToSheet() {
 
     // write data
     await sheets.spreadsheets.values.update({
-      spreadsheetId: SHEET_ID, range: "'สต็อก'!A1",
+      spreadsheetId: SHEET_ID, range: "Stock!A1",
       valueInputOption: "RAW",
       requestBody: { values: [header, ...data] },
     });
