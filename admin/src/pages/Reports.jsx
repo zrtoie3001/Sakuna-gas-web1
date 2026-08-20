@@ -147,7 +147,7 @@ export default function Reports() {
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 10, marginBottom: 16 }}>
             {[
               { label: "ออเดอร์", value: parseInt(daySummary.count || 0) + " ออเดอร์", color: ORANGE },
-              { label: "จำนวนถัง", value: parseInt(daySummary.units || 0) + " ถัง", color: "#0EA5E9" },
+              { label: "จำนวนถัง", value: parseInt(daySummary.gasTanks ?? daySummary.units ?? 0) + " ถัง", color: "#0EA5E9" },
               { label: "ยอดขายรวม", value: "฿" + Number(daySummary.revenue || 0).toLocaleString(), color: "#10B981" },
               { label: "ค่าใช้จ่าย", value: "฿" + dayTotalExpenses.toLocaleString(), color: "#EF4444" },
               { label: "เงินสุทธิ", value: "฿" + dayNetRevenue.toLocaleString(), color: dayNetRevenue >= 0 ? "#059669" : "#EF4444" },
