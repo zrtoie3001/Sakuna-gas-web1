@@ -127,6 +127,7 @@ export default function Orders() {
   const [createCart, setCreateCart]   = useState([]);
   const [createCustAddrs, setCreateCustAddrs] = useState([]); // addresses of selected customer in create modal
   const [createCustKnown, setCreateCustKnown] = useState(false); // true when customer selected from autocomplete
+  const [custHistory, setCustHistory] = useState([]); // order history of selected customer
   const [editOrder, setEditOrder]     = useState(null);   // order being edited
   const [editForm,  setEditForm]      = useState({});
   const [editSaving, setEditSaving]   = useState(false);
@@ -1129,7 +1130,7 @@ window.onload = function() { window.print(); window.onafterprint = () => window.
           <div style={{ background: WHITE, borderRadius: 20, padding: 24, width: "100%", maxWidth: 420, margin: "auto", maxHeight: "90vh", overflowY: "auto" }}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
               <h2 style={{ fontSize: 16, fontWeight: 800, color: NAVY }}>📞 เพิ่มออเดอร์ (ลูกค้าโทรสั่ง)</h2>
-              <button onClick={() => { setShowCreate(false); setCreateCart([]); setCreateForm(EMPTY_ORDER); setCreateCustKnown(false); setCreateCustAddrs([]); }} style={{ background: "none", border: "none", fontSize: 20, color: GRAY, cursor: "pointer" }}>✕</button>
+              <button onClick={() => { setShowCreate(false); setCreateCart([]); setCreateForm(EMPTY_ORDER); setCreateCustKnown(false); setCreateCustAddrs([]); setCustHistory([]); }} style={{ background: "none", border: "none", fontSize: 20, color: GRAY, cursor: "pointer" }}>✕</button>
             </div>
 
             {/* Type toggle */}
@@ -1146,10 +1147,11 @@ window.onload = function() { window.print(); window.onafterprint = () => window.
               <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>ชื่อลูกค้า</div>
               <CustomerAutocomplete
                 value={createForm.customerName}
-                onChange={v => { setCreateForm(f => ({ ...f, customerName: v })); setCreateCustKnown(false); setCreateCustAddrs([]); }}
+                onChange={v => { setCreateForm(f => ({ ...f, customerName: v })); setCreateCustKnown(false); setCreateCustAddrs([]); setCustHistory([]); }}
                 onSelect={c => {
                   setCreateCustKnown(true);
                   setCreateCustAddrs(c.addresses || []);
+                  api.get(`/api/v1/orders/customer-history?phone=${encodeURIComponent(c.customerPhone || "")}&name=${encodeURIComponent(c.customerName || "")}`).then(r => setCustHistory(r.data || [])).catch(() => {});
                   setCreateForm(f => ({
                     ...f,
                     customerName:    c.customerName || "",
@@ -1215,6 +1217,38 @@ window.onload = function() { window.print(); window.onafterprint = () => window.
                 </div>
               )}
             </div>
+            {custHistory.length > 0 && (
+              <div style={{ marginBottom: 14, background: "#F0F9FF", borderRadius: 10, padding: "10px 12px" }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "#0369A1", marginBottom: 8 }}>⏱ ประวัติการสั่งซื้อ — กดเพื่อเพิ่มลงตะกร้า</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {custHistory.map((h, i) => {
+                    const label = h.type === "new_tank"
+                      ? `🆕 ถังใหม่ ${h.brandName} ${h.weightKg}กก.`
+                      : `⛽ ${h.brandName} ${h.weightKg ? h.weightKg + "กก." : ""}`;
+                    return (
+                      <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: WHITE, borderRadius: 8, padding: "8px 10px", border: "1.5px solid #BAE6FD" }}>
+                        <div>
+                          <span style={{ fontSize: 13, fontWeight: 700, color: NAVY }}>{label}</span>
+                          <span style={{ fontSize: 12, color: ORANGE, fontWeight: 700, marginLeft: 8 }}>฿{Number(h.unitPrice).toLocaleString()}</span>
+                          {h.count > 1 && <span style={{ fontSize: 11, color: GRAY, marginLeft: 6 }}>({h.count} ครั้ง)</span>}
+                        </div>
+                        <button onClick={() => {
+                          const stock = gasStocks.find(s => s.brandName === h.brandName && Number(s.weightKg) === Number(h.weightKg));
+                          if (h.type === "new_tank") {
+                            setCreateCart(c => [...c, { type: "new_tank", stockId: stock?.id, brandName: h.brandName, weightKg: h.weightKg, label, qty: 1, price: h.unitPrice, equipId: null, name: label }]);
+                          } else {
+                            const brand = brands.find(b => b.name === h.brandName);
+                            const prod = products.find(p => Number(p.kg) === Number(h.weightKg));
+                            setCreateCart(c => [...c, { type: "gas", brandId: brand?.id, productId: prod?.id, brandName: h.brandName, weightKg: h.weightKg, label, qty: 1, price: h.unitPrice, equipId: null, name: label }]);
+                          }
+                        }} style={{ padding: "5px 12px", borderRadius: 7, border: "none", background: NAVY, color: WHITE, fontSize: 12, fontWeight: 700, cursor: "pointer", flexShrink: 0 }}>+ เพิ่ม</button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             <div style={{ marginBottom: 12 }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>หมายเหตุ</div>
               <input type="text" value={createForm.note} onChange={e => setCreateForm(f => ({ ...f, note: e.target.value }))}

@@ -109,6 +109,78 @@ router.get("/customer-suggestions", requireAuth, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// Customer order history (for quick re-order)
+router.get("/customer-history", requireAuth, async (req, res) => {
+  try {
+    const { phone, name } = req.query;
+    if (!phone && !name) return res.json([]);
+    const { sequelize: seq } = require("../config/database");
+    const { QueryTypes } = require("sequelize");
+
+    const where = phone
+      ? `customer_phone = :val`
+      : `customer_name ILIKE :val`;
+    const rows = await seq.query(
+      `SELECT note, unit_price, brand_id, product_id, qty FROM orders
+       WHERE status != 'cancelled' AND (${where})
+       ORDER BY created_at DESC LIMIT 200`,
+      { replacements: { val: phone || name }, type: QueryTypes.SELECT }
+    );
+
+    const brandIds   = [...new Set(rows.map(r => r.brand_id).filter(Boolean))];
+    const productIds = [...new Set(rows.map(r => r.product_id).filter(Boolean))];
+    const brandMap   = new Map();
+    const productMap = new Map();
+    if (brandIds.length) {
+      const bs = await Brand.findAll({ where: { id: brandIds }, attributes: ["id", "name"] });
+      bs.forEach(b => brandMap.set(b.id, b.name));
+    }
+    if (productIds.length) {
+      const ps = await Product.findAll({ where: { id: productIds }, attributes: ["id", "name", "kg"] });
+      ps.forEach(p => productMap.set(p.id, { name: p.name, kg: p.kg }));
+    }
+
+    // Collect all individual items
+    const itemMap = new Map();
+    const key = (type, brandName, weightKg, unitPrice) =>
+      `${type}|${brandName}|${weightKg}|${unitPrice}`;
+
+    for (const r of rows) {
+      let walkin = null;
+      if (r.note?.startsWith("__walkin:")) {
+        try { walkin = JSON.parse(r.note.replace(/^__walkin:/, "").split("\n")[0]); } catch {}
+      }
+
+      if (walkin?.type === "mixed" && Array.isArray(walkin.items)) {
+        for (const it of walkin.items) {
+          if (!it.brandName || !it.weightKg) continue;
+          const k = key(it.type || "gas", it.brandName, it.weightKg, it.price || it.unitPrice);
+          const entry = itemMap.get(k);
+          if (entry) { entry.count++; }
+          else itemMap.set(k, { type: it.type || "gas", brandName: it.brandName, weightKg: Number(it.weightKg), unitPrice: Number(it.price || it.unitPrice || 0), count: 1 });
+        }
+      } else if (walkin && walkin.brandName && walkin.weightKg) {
+        const k = key(walkin.type || "gas", walkin.brandName, walkin.weightKg, walkin.unitPrice || r.unit_price);
+        const entry = itemMap.get(k);
+        if (entry) { entry.count++; }
+        else itemMap.set(k, { type: walkin.type || "gas", brandName: walkin.brandName, weightKg: Number(walkin.weightKg), unitPrice: Number(walkin.unitPrice || r.unit_price || 0), count: 1 });
+      } else if (r.brand_id) {
+        const bName = brandMap.get(r.brand_id);
+        const prod  = r.product_id ? productMap.get(r.product_id) : null;
+        if (!bName) continue;
+        const k = key("gas", bName, prod?.kg, r.unit_price);
+        const entry = itemMap.get(k);
+        if (entry) { entry.count++; }
+        else itemMap.set(k, { type: "gas", brandName: bName, weightKg: prod?.kg != null ? Number(prod.kg) : null, unitPrice: Number(r.unit_price || 0), count: 1 });
+      }
+    }
+
+    // Sort by frequency desc, return top 10
+    const result = [...itemMap.values()].sort((a, b) => b.count - a.count).slice(0, 10);
+    res.json(result);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // Staff list
 router.get("/", requireAuth, listOrders);
 
