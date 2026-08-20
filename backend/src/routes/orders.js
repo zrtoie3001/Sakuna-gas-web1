@@ -117,14 +117,22 @@ router.get("/customer-history", requireAuth, async (req, res) => {
     const { sequelize: seq } = require("../config/database");
     const { QueryTypes } = require("sequelize");
 
-    const where = phone
-      ? `customer_phone = :val`
-      : `customer_name ILIKE :val`;
+    let whereSql, replacements;
+    if (phone && name) {
+      whereSql = `(customer_phone = :phone OR customer_name ILIKE :name)`;
+      replacements = { phone, name };
+    } else if (phone) {
+      whereSql = `customer_phone = :phone`;
+      replacements = { phone };
+    } else {
+      whereSql = `customer_name ILIKE :name`;
+      replacements = { name };
+    }
     const rows = await seq.query(
       `SELECT note, unit_price, brand_id, product_id, qty FROM orders
-       WHERE status != 'cancelled' AND (${where})
+       WHERE status != 'cancelled' AND (${whereSql})
        ORDER BY created_at DESC LIMIT 200`,
-      { replacements: { val: phone || name }, type: QueryTypes.SELECT }
+      { replacements, type: QueryTypes.SELECT }
     );
 
     const brandIds   = [...new Set(rows.map(r => r.brand_id).filter(Boolean))];

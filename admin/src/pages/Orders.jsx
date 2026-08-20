@@ -1174,6 +1174,7 @@ window.onload = function() { window.print(); window.onafterprint = () => window.
                 onSelect={c => {
                   setCreateCustKnown(true);
                   setCreateCustAddrs(c.addresses || []);
+                  api.get(`/api/v1/orders/customer-history?phone=${encodeURIComponent(c.customerPhone || "")}&name=${encodeURIComponent(c.customerName || "")}`).then(r => setCustHistory(r.data || [])).catch(() => {});
                   setCreateForm(f => ({
                     ...f,
                     customerName:    f.customerName    || c.customerName || "",
