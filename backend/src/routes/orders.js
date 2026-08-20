@@ -91,9 +91,11 @@ router.get("/customer-suggestions", requireAuth, async (req, res) => {
         });
       }
       const entry = map.get(key);
-      if (r.delivery_address && !entry.addrSet.has(r.delivery_address)) {
-        entry.addrSet.add(r.delivery_address);
-        entry.addresses.push(r.delivery_address);
+      const normAddr = (r.delivery_address || "").replace(/\s+/g, " ").trim();
+      const normKey = normAddr.toLowerCase();
+      if (normAddr && !entry.addrSet.has(normKey)) {
+        entry.addrSet.add(normKey);
+        entry.addresses.push(normAddr);
       }
       if (!entry.brandName && walkin?.brandName && walkin?.type !== "mixed") entry.brandName = walkin.brandName;
       if (!entry.weightKg  && walkin?.weightKg  && walkin?.type !== "mixed") entry.weightKg  = walkin.weightKg;
@@ -151,7 +153,7 @@ router.get("/customer-history", requireAuth, async (req, res) => {
     // Collect all individual items
     const itemMap = new Map();
     const key = (type, brandName, weightKg, unitPrice) =>
-      `${type}|${brandName}|${weightKg}|${unitPrice}`;
+      `${type}|${(brandName||"").trim()}|${Number(weightKg)||0}|${Math.round(Number(unitPrice)||0)}`;
 
     for (const r of rows) {
       let walkin = null;
