@@ -1152,7 +1152,7 @@ window.onload = function() { window.print(); window.onafterprint = () => window.
                 onSelect={c => {
                   setCreateCustKnown(true);
                   setCreateCustAddrs(c.addresses || []);
-                  api.get(`/api/v1/orders/customer-history?phone=${encodeURIComponent(c.customerPhone || "")}&name=${encodeURIComponent(c.customerName || "")}`).then(r => setCustHistory(r.data || [])).catch(() => {});
+                  api.get(`/api/v1/orders/customer-history?phone=${encodeURIComponent(c.customerPhone || "")}&name=${encodeURIComponent(c.customerName || "")}`).then(r => { console.log("history result:", r.data); setCustHistory(r.data || []); }).catch(e => console.error("history error:", e));
                   setCreateForm(f => ({
                     ...f,
                     customerName:    c.customerName || "",
@@ -1174,7 +1174,7 @@ window.onload = function() { window.print(); window.onafterprint = () => window.
                 onSelect={c => {
                   setCreateCustKnown(true);
                   setCreateCustAddrs(c.addresses || []);
-                  api.get(`/api/v1/orders/customer-history?phone=${encodeURIComponent(c.customerPhone || "")}&name=${encodeURIComponent(c.customerName || "")}`).then(r => setCustHistory(r.data || [])).catch(() => {});
+                  api.get(`/api/v1/orders/customer-history?phone=${encodeURIComponent(c.customerPhone || "")}&name=${encodeURIComponent(c.customerName || "")}`).then(r => { console.log("history result:", r.data); setCustHistory(r.data || []); }).catch(e => console.error("history error:", e));
                   setCreateForm(f => ({
                     ...f,
                     customerName:    f.customerName    || c.customerName || "",
