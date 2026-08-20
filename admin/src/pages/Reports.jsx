@@ -24,6 +24,7 @@ export default function Reports() {
   const [driverStats, setDriverStats] = useState([]);
   const [driverDate, setDriverDate]   = useState(now.toISOString().split("T")[0]);
   const [showUnpaid, setShowUnpaid]   = useState(false);
+  const [payFilterMethod, setPayFilterMethod] = useState(null); // "cash"|"qr"|"cod"|null
 
   useEffect(() => {
     api.get(`/api/v1/reports/monthly?year=${year}&month=${month}`).then(r => {
@@ -191,12 +192,12 @@ export default function Reports() {
                   const label = p.method === "cash" ? "เงินสด" : p.method === "qr" ? "QR โอน" : "เก็บปลายทาง";
                   const color = p.method === "cash" ? "#10B981" : p.method === "qr" ? "#3B82F6" : "#F59E0B";
                   return (
-                    <div key={i} style={{ display: "flex", justifyContent: "space-between", fontSize: 12, padding: "4px 0", borderBottom: "1px solid #F3F4F6" }}>
+                    <div key={i} onClick={() => setPayFilterMethod(p.method)} style={{ display: "flex", justifyContent: "space-between", fontSize: 12, padding: "6px 8px", marginBottom: 4, borderRadius: 8, cursor: "pointer", background: "#F0F9FF", border: "1.5px solid #E0F2FE" }}>
                       <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
                         <span style={{ width: 10, height: 10, borderRadius: 2, background: color, display: "inline-block" }} />
                         {label} ({p.count} ออเดอร์)
                       </span>
-                      <span style={{ fontWeight: 700, color }}> ฿{Number(p.revenue).toLocaleString()}</span>
+                      <span style={{ fontWeight: 700, color }}>฿{Number(p.revenue).toLocaleString()} ▶</span>
                     </div>
                   );
                 })}
@@ -261,6 +262,40 @@ export default function Reports() {
           {!dayOrders.length && <p style={{ textAlign: "center", color: GRAY, padding: 20 }}>ไม่มีออเดอร์วันนี้</p>}
         </div>
       </div>
+
+      {/* Payment method order list modal */}
+      {payFilterMethod && (() => {
+        const label = payFilterMethod === "cash" ? "เงินสด" : payFilterMethod === "qr" ? "QR โอน" : "เก็บปลายทาง";
+        const color = payFilterMethod === "cash" ? "#10B981" : payFilterMethod === "qr" ? "#3B82F6" : "#F59E0B";
+        const filtered = dayOrders.filter(o => o.paymentMethod === payFilterMethod && o.status !== "cancelled");
+        return (
+          <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", zIndex: 500, display: "flex", alignItems: "flex-end", justifyContent: "center" }}
+            onClick={() => setPayFilterMethod(null)}>
+            <div style={{ background: WHITE, borderRadius: "20px 20px 0 0", width: "100%", maxWidth: 480, maxHeight: "75vh", display: "flex", flexDirection: "column" }}
+              onClick={e => e.stopPropagation()}>
+              <div style={{ padding: "16px 18px 10px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #F3F4F6" }}>
+                <span style={{ fontWeight: 800, fontSize: 15, color: NAVY }}>💳 {label} — {filtered.length} ออเดอร์</span>
+                <button onClick={() => setPayFilterMethod(null)} style={{ background: "none", border: "none", fontSize: 20, color: GRAY, cursor: "pointer" }}>✕</button>
+              </div>
+              <div style={{ overflowY: "auto", padding: "10px 18px 24px" }}>
+                {filtered.length === 0 && <p style={{ textAlign: "center", color: GRAY, padding: 20 }}>ไม่มีออเดอร์</p>}
+                {filtered.map((o, i) => (
+                  <div key={o.id} style={{ padding: "10px 0", borderBottom: i < filtered.length - 1 ? "1px solid #F3F4F6" : "none", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: 13, color: NAVY }}>{o.orderNumber}</div>
+                      <div style={{ fontSize: 12, color: GRAY }}>{o.customerName || "-"}</div>
+                    </div>
+                    <div style={{ textAlign: "right" }}>
+                      <div style={{ fontWeight: 800, fontSize: 14, color }}> ฿{Number(o.total).toLocaleString()}</div>
+                      <div style={{ fontSize: 11, color: o.isPaid ? "#10B981" : "#EF4444" }}>{o.isPaid ? "จ่ายแล้ว" : "ยังไม่จ่าย"}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
