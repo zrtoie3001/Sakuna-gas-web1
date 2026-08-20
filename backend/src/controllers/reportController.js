@@ -27,7 +27,7 @@ async function dailyReport(req, res) {
       raw: true,
     }).catch(() => []) : Promise.resolve([]),
     Order.findAll({
-      where: { createdAt: { [Op.between]: [start, end] }, status: { [Op.ne]: "cancelled" } },
+      where: { createdAt: { [Op.between]: [start, end] }, status: { [Op.ne]: "cancelled" }, isPaid: true },
       attributes: ["paymentMethod", [fn("COUNT", col("id")), "count"], [fn("SUM", col("total")), "revenue"]],
       group: ["paymentMethod"],
       raw: true,
@@ -134,9 +134,9 @@ async function dashboardStats(req, res) {
       limit: 5,
       raw: false,
     }),
-    // Payment method breakdown (this month)
+    // Payment method breakdown (this month) — paid only
     Order.findAll({
-      where: { createdAt: { [Op.gte]: monthStart }, status: { [Op.ne]: "cancelled" } },
+      where: { createdAt: { [Op.gte]: monthStart }, status: { [Op.ne]: "cancelled" }, isPaid: true },
       attributes: ["paymentMethod", [fn("COUNT", col("id")), "count"], [fn("SUM", col("total")), "revenue"]],
       group: ["paymentMethod"],
       raw: true,
@@ -150,16 +150,16 @@ async function dashboardStats(req, res) {
       order: [[literal("count"), "DESC"]],
       raw: false,
     }),
-    // Today payment breakdown (cash vs transfer)
+    // Today payment breakdown (cash vs transfer) — paid only
     Order.findAll({
-      where: { createdAt: { [Op.between]: [todayStart, todayEnd] }, status: { [Op.ne]: "cancelled" } },
+      where: { createdAt: { [Op.between]: [todayStart, todayEnd] }, status: { [Op.ne]: "cancelled" }, isPaid: true },
       attributes: ["paymentMethod", [fn("COUNT", col("id")), "count"], [fn("SUM", col("total")), "revenue"]],
       group: ["paymentMethod"],
       raw: true,
     }),
-    // Month payment breakdown
+    // Month payment breakdown — paid only
     Order.findAll({
-      where: { createdAt: { [Op.gte]: monthStart }, status: { [Op.ne]: "cancelled" } },
+      where: { createdAt: { [Op.gte]: monthStart }, status: { [Op.ne]: "cancelled" }, isPaid: true },
       attributes: ["paymentMethod", [fn("COUNT", col("id")), "count"], [fn("SUM", col("total")), "revenue"]],
       group: ["paymentMethod"],
       raw: true,
