@@ -98,10 +98,15 @@ async function dashboardStats(req, res) {
   const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
   const day7Start  = new Date(); day7Start.setDate(day7Start.getDate() - 6); day7Start.setHours(0,0,0,0);
 
-  const [todaySummary, monthRevenue, totalCustomers, pendingOrders, trend7, topProducts, paymentBreakdown, brandBreakdown, todayPayBreakdown, monthPayBreakdown] = await Promise.all([
+  const [todaySummary, todayPaidOrders, monthRevenue, totalCustomers, pendingOrders, trend7, topProducts, paymentBreakdown, brandBreakdown, todayPayBreakdown, monthPayBreakdown] = await Promise.all([
     Order.findOne({
       where: { createdAt: { [Op.between]: [todayStart, todayEnd] }, status: { [Op.ne]: "cancelled" } },
-      attributes: [[fn("COUNT", col("id")), "count"], [fn("SUM", col("total")), "revenue"], [fn("SUM", col("qty")), "tanks"]],
+      attributes: [[fn("COUNT", col("id")), "count"], [fn("SUM", col("total")), "revenue"]],
+      raw: true,
+    }),
+    Order.findAll({
+      where: { createdAt: { [Op.between]: [todayStart, todayEnd] }, status: { [Op.ne]: "cancelled" }, isPaid: true },
+      attributes: ["note", "qty", "productId"],
       raw: true,
     }),
     Order.findOne({
@@ -161,6 +166,20 @@ async function dashboardStats(req, res) {
     }),
   ]);
 
+  // Compute today's gas tank count (paid only, exclude equipment)
+  const todayGasTanks = todayPaidOrders.reduce((sum, o) => {
+    const n = o.note || "";
+    if (n.startsWith("__walkin:")) {
+      try {
+        const w = JSON.parse(n.replace(/^__walkin:/, "").split("\n")[0]);
+        if (w.type === "mixed") return sum + (w.items || []).filter(i => i.type === "gas" || i.type === "new_tank").reduce((s, i) => s + (Number(i.qty) || 1), 0);
+        if (w.type === "gas" || w.type === "new_tank") return sum + (Number(w.qty) || 1);
+        return sum;
+      } catch { return sum; }
+    }
+    return o.productId ? sum + (Number(o.qty) || 0) : sum;
+  }, 0);
+
   // Fill missing days in trend
   const trendMap = {};
   trend7.forEach(r => { trendMap[r.date] = r; });
@@ -172,7 +191,7 @@ async function dashboardStats(req, res) {
   }
 
   res.json({
-    today: { orders: parseInt(todaySummary?.count || 0), revenue: Number(todaySummary?.revenue || 0), tanks: parseInt(todaySummary?.tanks || 0) },
+    today: { orders: parseInt(todaySummary?.count || 0), revenue: Number(todaySummary?.revenue || 0), tanks: todayGasTanks },
     month: { revenue: Number(monthRevenue?.revenue || 0) },
     totalCustomers,
     pendingOrders,
