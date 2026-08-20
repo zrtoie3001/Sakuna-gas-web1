@@ -229,26 +229,10 @@ export default function Reports() {
           </div>
         )}
 
-        {/* Overdue orders (from previous days) */}
         {dayOverdue.length > 0 && (
-          <div style={{ background: "#FFF1F2", borderRadius: 10, marginBottom: 14, border: "1.5px solid #FECDD3", overflow: "hidden" }}>
-            <div style={{ padding: "12px 14px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <span style={{ fontSize: 13, fontWeight: 800, color: "#9F1239" }}>🔴 ค้างจากวันก่อน ({dayOverdue.length} รายการ) — ไม่รวมในยอดวันนี้</span>
-              <span onClick={() => navigate("/debts")} style={{ fontSize: 12, fontWeight: 700, color: "#BE123C", cursor: "pointer", textDecoration: "underline" }}>💸 ไปหน้าค้างเงิน</span>
-            </div>
-            <div style={{ borderTop: "1px solid #FECDD3", padding: "8px 14px 12px" }}>
-              {dayOverdue.map((o, i) => (
-                <div key={i} style={{ fontSize: 12, color: "#9F1239", padding: "6px 0", borderBottom: i < dayOverdue.length - 1 ? "1px solid #FFE4E6" : "none", display: "flex", justifyContent: "space-between" }}>
-                  <span style={{ fontWeight: 700 }}>{o.orderNumber}</span>
-                  <span>{o.customerName}</span>
-                  <span style={{ color: "#6B7280" }}>{new Date(o.createdAt).toLocaleDateString("th-TH", { day: "numeric", month: "short" })}</span>
-                  <span style={{ fontWeight: 700 }}>฿{Number(o.total).toLocaleString()}</span>
-                </div>
-              ))}
-              <div style={{ marginTop: 8, fontSize: 12, fontWeight: 800, color: "#9F1239", textAlign: "right" }}>
-                รวมค้าง: ฿{dayOverdue.reduce((s, o) => s + Number(o.total), 0).toLocaleString()}
-              </div>
-            </div>
+          <div style={{ background: "#FFF1F2", borderRadius: 10, marginBottom: 14, border: "1.5px solid #FECDD3", padding: "10px 14px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ fontSize: 13, fontWeight: 800, color: "#9F1239" }}>🔴 ค้างจากวันก่อน {dayOverdue.length} รายการ — ไม่รวมในยอดวันนี้</span>
+            <span onClick={() => navigate("/debts")} style={{ fontSize: 12, fontWeight: 700, color: "#BE123C", cursor: "pointer", textDecoration: "underline" }}>💸 ดูรายการ</span>
           </div>
         )}
 
