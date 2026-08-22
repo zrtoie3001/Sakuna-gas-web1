@@ -44,22 +44,20 @@ async function listCustomers(req, res) {
     const { QueryTypes } = require("sequelize");
     const offset = (parseInt(page) - 1) * parseInt(limit);
 
-    const searchSql = search
-      ? `AND (customer_name ILIKE :q OR customer_phone ILIKE :q)`
-      : "";
     const replacements = { limit: parseInt(limit), offset };
-    if (search) replacements.q = `%${search}%`;
-
-    // Group by normalized address — each unique address = one customer row
-    const addrKey = `LOWER(REGEXP_REPLACE(TRIM(delivery_address), '\\s+', ' ', 'g'))`;
     const searchSqlAddr = search
       ? `AND (customer_name ILIKE :q OR customer_phone ILIKE :q OR delivery_address ILIKE :q)`
       : "";
     if (search) replacements.q = `%${search}%`;
 
+    // Group by (address, phone) — same address + different phone = different customer
+    const addrKey = `LOWER(REGEXP_REPLACE(TRIM(delivery_address), '\\s+', ' ', 'g'))`;
+    const phoneKey = `COALESCE(NULLIF(TRIM(customer_phone),''), '')`;
+    const groupKey = `${addrKey} || '|' || ${phoneKey}`;
+
     const rows = await seq.query(
       `SELECT
-         ${addrKey} AS id,
+         ${groupKey} AS id,
          MAX(TRIM(delivery_address)) AS "lastAddress",
          MAX(NULLIF(NULLIF(TRIM(customer_name),''),'ลูกค้าหน้าร้าน')) AS name,
          MAX(NULLIF(TRIM(customer_phone),'')) AS phone,
@@ -69,18 +67,21 @@ async function listCustomers(req, res) {
        WHERE status != 'cancelled'
          AND NULLIF(TRIM(delivery_address),'') IS NOT NULL
          ${searchSqlAddr}
-       GROUP BY ${addrKey}
+       GROUP BY ${addrKey}, ${phoneKey}
        ORDER BY MAX(created_at) DESC
        LIMIT :limit OFFSET :offset`,
       { replacements, type: QueryTypes.SELECT }
     );
 
     const [countRow] = await seq.query(
-      `SELECT COUNT(DISTINCT ${addrKey}) AS total
-       FROM orders
-       WHERE status != 'cancelled'
-         AND NULLIF(TRIM(delivery_address),'') IS NOT NULL
-         ${searchSqlAddr}`,
+      `SELECT COUNT(*) AS total FROM (
+         SELECT ${addrKey}, ${phoneKey}
+         FROM orders
+         WHERE status != 'cancelled'
+           AND NULLIF(TRIM(delivery_address),'') IS NOT NULL
+           ${searchSqlAddr}
+         GROUP BY ${addrKey}, ${phoneKey}
+       ) sub`,
       { replacements: search ? { q: `%${search}%` } : {}, type: QueryTypes.SELECT }
     );
 

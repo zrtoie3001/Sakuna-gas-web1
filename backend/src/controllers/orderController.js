@@ -424,7 +424,7 @@ async function createWalkinOrder(req, res) {
 
     const order = await Order.create({
       orderNumber: await generateUniqueOrderNumber(),
-      customerName: customerName || "ลูกค้าหน้าร้าน",
+      customerName: customerName || null,
       customerPhone: customerPhone || null,
       deliveryAddress: customAddress || "หน้าร้าน",
       paymentMethod: paymentMethod || "cash",
