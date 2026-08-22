@@ -459,18 +459,19 @@ export default function Orders() {
 <div class="center bold" style="font-size:30px; font-weight:900; letter-spacing:2px; margin-bottom:4px;">🔥 สกุณาแก๊ส</div>
 <div class="center" style="font-size:12px; font-weight:400; color:#000; margin-bottom:2px;">โทร 097-121-3054 | 092-631-4331 | 02-970-9385</div>
 <div class="center" style="font-size:12px; font-weight:400; color:#000; margin-bottom:6px;">39 ซอยพหลโยธิน 48 แขวงท่าแร้ง เขตบางเขน กทม. 10220</div>
-<div class="solid"></div>
-<table style="margin-bottom:8px;">
+<table style="margin-bottom:4px;">
   <tr>
     <td colspan="2" style="font-size:12px; font-weight:400; padding-bottom:2px;">${order.orderNumber} &nbsp;|&nbsp; ${dateStr} &nbsp;|&nbsp; ${timeStr} น.</td>
   </tr>
+</table>
+<div class="solid"></div>
+<table style="margin-bottom:8px;">
   <tr><td colspan="2" style="word-break:break-word; font-size:14px; font-weight:800; padding-bottom:3px;">📍 ${order.deliveryAddress || "-"}</td></tr>
   <tr>
     <td colspan="2" style="font-size:14px; font-weight:800; padding-bottom:3px;">ลูกค้า: ${(order.customerName && order.customerName !== "ลูกค้าหน้าร้าน") ? order.customerName : "-"}</td>
   </tr>
-  <tr><td colspan="2" style="padding-top:4px; font-size:14px; font-weight:800;">📞 ${order.customerPhone || "-"} &nbsp;|&nbsp; 💳 ${payLabel}</td></tr>
+  <tr><td colspan="2" style="padding-top:4px; font-size:14px; font-weight:800;">📞 ${order.customerPhone || "-"}</td></tr>
 </table>
-<div class="dash"></div>
 <table>
   <thead>
     <tr style="border-bottom:1.5px solid #000;">
