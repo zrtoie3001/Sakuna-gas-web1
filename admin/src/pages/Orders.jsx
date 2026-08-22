@@ -472,12 +472,13 @@ export default function Orders() {
   </tr>
   <tr><td colspan="2" style="padding-top:4px; font-size:14px; font-weight:800;">📞 ${order.customerPhone || "-"}</td></tr>
 </table>
+<div class="dash"></div>
 <table>
   <thead>
     <tr style="border-bottom:1.5px solid #000;">
       <th style="text-align:left; width:36%; font-size:14px; padding-right:4px;">รายการ</th>
       <th style="text-align:center; width:22%; font-size:14px; padding:0 4px;">จำนวน</th>
-      <th style="text-align:right; width:20%; font-size:14px; padding:0 4px;">ราคา/ชิ้น</th>
+      <th style="text-align:right; width:20%; font-size:14px; padding:0 4px; white-space:nowrap;">ราคา/ชิ้น</th>
       <th style="text-align:right; width:22%; font-size:14px;">รวม</th>
     </tr>
   </thead>
