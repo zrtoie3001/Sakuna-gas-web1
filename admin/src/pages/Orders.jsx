@@ -1249,10 +1249,14 @@ window.onload = function() { window.print(); window.onafterprint = () => window.
               {createCustAddrs.length > 1 && (
                 <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 4 }}>
                   {createCustAddrs.map((addr, i) => (
-                    <button key={i} onClick={() => setCreateForm(f => ({ ...f, deliveryAddress: addr }))}
-                      style={{ padding: "6px 10px", borderRadius: 8, border: "2px solid #E5E7EB", background: "#F9FAFB", textAlign: "left", fontSize: 12, color: NAVY, cursor: "pointer" }}>
-                      📍 {addr}
-                    </button>
+                    <div key={i} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                      <button onClick={() => setCreateForm(f => ({ ...f, deliveryAddress: addr }))}
+                        style={{ flex: 1, padding: "6px 10px", borderRadius: 8, border: "2px solid #E5E7EB", background: "#F9FAFB", textAlign: "left", fontSize: 12, color: NAVY, cursor: "pointer" }}>
+                        📍 {addr}
+                      </button>
+                      <button onClick={() => setCreateCustAddrs(a => a.filter((_, j) => j !== i))}
+                        style={{ padding: "5px 8px", borderRadius: 7, border: "1.5px solid #E5E7EB", background: WHITE, color: GRAY, fontSize: 13, fontWeight: 700, cursor: "pointer", flexShrink: 0, lineHeight: 1 }}>×</button>
+                    </div>
                   ))}
                 </div>
               )}
