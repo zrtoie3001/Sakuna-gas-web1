@@ -1,5 +1,6 @@
 const router = require("express").Router();
 const ctrl = require("../controllers/customerController");
+
 const { requireAuth, requireRole } = require("../middleware/auth");
 
 // Customer self-service (by lineUserId)
@@ -9,6 +10,7 @@ router.post("/line/:lineUserId/addresses", ctrl.addAddress);
 
 // Admin
 router.get("/",        requireAuth, requireRole("admin"), ctrl.listCustomers);
+router.get("/orders-by-contact", requireAuth, requireRole("admin"), ctrl.getCustomerOrdersByPhone);
 router.get("/:id/orders", requireAuth, requireRole("admin"), ctrl.getCustomerOrders);
 
 module.exports = router;

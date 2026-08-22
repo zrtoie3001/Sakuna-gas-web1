@@ -36,24 +36,80 @@ async function getAddresses(req, res) {
   res.json(addresses);
 }
 
-// Admin: list customers
+// Admin: list customers — aggregated from orders table
 async function listCustomers(req, res) {
-  const { page = 1, limit = 20, search } = req.query;
-  const { Op } = require("sequelize");
-  const where = search ? {
-    [Op.or]: [
-      { name: { [Op.iLike]: `%${search}%` } },
-      { phone: { [Op.iLike]: `%${search}%` } },
-    ],
-  } : {};
-  const { rows, count } = await Customer.findAndCountAll({
-    where,
-    include: [{ model: DeliveryAddress, as: "addresses" }],
-    order: [["totalOrders", "DESC"]],
-    limit: parseInt(limit),
-    offset: (page - 1) * parseInt(limit),
-  });
-  res.json({ customers: rows, total: count });
+  try {
+    const { page = 1, limit = 20, search } = req.query;
+    const { sequelize: seq } = require("../config/database");
+    const { QueryTypes } = require("sequelize");
+    const offset = (parseInt(page) - 1) * parseInt(limit);
+
+    const searchSql = search
+      ? `AND (customer_name ILIKE :q OR customer_phone ILIKE :q)`
+      : "";
+    const replacements = { limit: parseInt(limit), offset };
+    if (search) replacements.q = `%${search}%`;
+
+    const rows = await seq.query(
+      `SELECT
+         COALESCE(NULLIF(customer_phone,''), customer_name) AS id,
+         customer_name AS name,
+         customer_phone AS phone,
+         COUNT(id) AS "totalOrders",
+         MAX(created_at) AS "lastOrderAt",
+         MAX(delivery_address) AS "lastAddress"
+       FROM orders
+       WHERE status != 'cancelled'
+         AND (customer_name IS NOT NULL OR customer_phone IS NOT NULL)
+         ${searchSql}
+       GROUP BY customer_phone, customer_name
+       ORDER BY MAX(created_at) DESC
+       LIMIT :limit OFFSET :offset`,
+      { replacements, type: QueryTypes.SELECT }
+    );
+
+    const [countRow] = await seq.query(
+      `SELECT COUNT(DISTINCT COALESCE(NULLIF(customer_phone,''), customer_name)) AS total
+       FROM orders
+       WHERE status != 'cancelled'
+         AND (customer_name IS NOT NULL OR customer_phone IS NOT NULL)
+         ${searchSql}`,
+      { replacements: search ? { q: `%${search}%` } : {}, type: QueryTypes.SELECT }
+    );
+
+    res.json({
+      customers: rows.map(r => ({
+        id: r.id,
+        name: r.name,
+        phone: r.phone,
+        totalOrders: parseInt(r.totalOrders),
+        lastOrderAt: r.lastOrderAt,
+        lastAddress: r.lastAddress,
+        addresses: [],
+        pictureUrl: null,
+      })),
+      total: parseInt(countRow?.total || 0),
+    });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+}
+
+// Admin: orders for a customer looked up by phone or name (from orders table)
+async function getCustomerOrdersByPhone(req, res) {
+  try {
+    const { phone, name } = req.query;
+    if (!phone && !name) return res.json({ customer: null, orders: [] });
+    const { Op } = require("sequelize");
+    const where = phone
+      ? { customerPhone: phone }
+      : { customerName: { [Op.iLike]: name } };
+    const orders = await Order.findAll({
+      where: { ...where, status: { [Op.ne]: "cancelled" } },
+      include: [{ model: Brand, as: "brand" }, { model: Product, as: "product" }],
+      order: [["createdAt", "DESC"]],
+      limit: 50,
+    });
+    res.json({ orders });
+  } catch (e) { res.status(500).json({ error: e.message }); }
 }
 
 async function getCustomerOrders(req, res) {
@@ -67,4 +123,4 @@ async function getCustomerOrders(req, res) {
   res.json({ customer, orders });
 }
 
-module.exports = { getOrCreateCustomer, addAddress, getAddresses, listCustomers, getCustomerOrders };
+module.exports = { getOrCreateCustomer, addAddress, getAddresses, listCustomers, getCustomerOrders, getCustomerOrdersByPhone };

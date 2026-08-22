@@ -22,8 +22,11 @@ export default function Customers() {
 
   async function selectCustomer(c) {
     setSelected(c);
-    const r = await api.get(`/api/v1/customers/${c.id}/orders`);
-    setOrders(r.data.orders);
+    const params = new URLSearchParams();
+    if (c.phone) params.set("phone", c.phone);
+    else if (c.name) params.set("name", c.name);
+    const r = await api.get(`/api/v1/customers/orders-by-contact?${params}`);
+    setOrders(r.data.orders || []);
   }
 
   return (
@@ -66,15 +69,14 @@ export default function Customers() {
           </div>
           <p style={{ fontSize: 13, color: GRAY, marginBottom: 12 }}>📞 {selected.phone} · สั่ง {selected.totalOrders} ครั้ง</p>
 
-          <div style={{ marginBottom: 12 }}>
-            <p style={{ fontSize: 12, fontWeight: 700, color: NAVY, marginBottom: 6 }}>ที่อยู่ที่บันทึก</p>
-            {selected.addresses?.map(a => (
-              <div key={a.id} style={{ padding: "8px 10px", background: "#F8FAFC", borderRadius: 8, marginBottom: 6, fontSize: 12 }}>
-                <span style={{ fontWeight: 700, color: NAVY }}>{a.label} {a.isDefault ? "⭐" : ""}</span>
-                <p style={{ color: GRAY, marginTop: 2 }}>{a.address?.slice(0, 60)}...</p>
+          {selected.lastAddress && (
+            <div style={{ marginBottom: 12 }}>
+              <p style={{ fontSize: 12, fontWeight: 700, color: NAVY, marginBottom: 4 }}>ที่อยู่ล่าสุด</p>
+              <div style={{ padding: "8px 10px", background: "#F8FAFC", borderRadius: 8, fontSize: 12, color: GRAY }}>
+                📍 {selected.lastAddress}
               </div>
-            ))}
-          </div>
+            </div>
+          )}
 
           <p style={{ fontSize: 12, fontWeight: 700, color: NAVY, marginBottom: 6 }}>ประวัติออเดอร์</p>
           {orders.slice(0, 5).map(o => (
