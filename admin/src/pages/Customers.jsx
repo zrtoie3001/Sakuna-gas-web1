@@ -4,10 +4,10 @@ import api from "../utils/api.js";
 const NAVY = "#1A2B6B"; const ORANGE = "#F47B20"; const WHITE = "#FFFFFF"; const GRAY = "#6B7280";
 
 function displayName(c) {
-  if (c.name && c.name !== "ลูกค้าหน้าร้าน") return c.name;
   if (c.lastAddress) return c.lastAddress;
+  if (c.name && c.name !== "ลูกค้าหน้าร้าน") return c.name;
   if (c.phone) return c.phone;
-  return "ไม่ระบุชื่อ";
+  return "ไม่ระบุ";
 }
 
 export default function Customers() {
@@ -31,6 +31,7 @@ export default function Customers() {
     setSelected(c);
     const params = new URLSearchParams();
     if (c.phone) params.set("phone", c.phone);
+    else if (c.lastAddress) params.set("address", c.lastAddress);
     else if (c.name) params.set("name", c.name);
     const r = await api.get(`/api/v1/customers/orders-by-contact?${params}`);
     setOrders(r.data.orders || []);

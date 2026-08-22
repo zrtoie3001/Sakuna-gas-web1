@@ -50,36 +50,37 @@ async function listCustomers(req, res) {
     const replacements = { limit: parseInt(limit), offset };
     if (search) replacements.q = `%${search}%`;
 
-    // Treat blank / "ลูกค้าหน้าร้าน" as no-name so they don't merge across customers
-    const nameExpr = `NULLIF(NULLIF(TRIM(customer_name),''), 'ลูกค้าหน้าร้าน')`;
-    const phoneExpr = `NULLIF(TRIM(customer_phone),'')`;
-    // group key: phone if present, else name — rows with neither are excluded
-    const keyExpr = `COALESCE(${phoneExpr}, LOWER(${nameExpr}))`;
+    // Group by normalized address — each unique address = one customer row
+    const addrKey = `LOWER(REGEXP_REPLACE(TRIM(delivery_address), '\\s+', ' ', 'g'))`;
+    const searchSqlAddr = search
+      ? `AND (customer_name ILIKE :q OR customer_phone ILIKE :q OR delivery_address ILIKE :q)`
+      : "";
+    if (search) replacements.q = `%${search}%`;
 
     const rows = await seq.query(
       `SELECT
-         ${keyExpr} AS id,
-         MAX(${nameExpr}) AS name,
-         MAX(${phoneExpr}) AS phone,
+         ${addrKey} AS id,
+         MAX(TRIM(delivery_address)) AS "lastAddress",
+         MAX(NULLIF(NULLIF(TRIM(customer_name),''),'ลูกค้าหน้าร้าน')) AS name,
+         MAX(NULLIF(TRIM(customer_phone),'')) AS phone,
          COUNT(id) AS "totalOrders",
-         MAX(created_at) AS "lastOrderAt",
-         MAX(delivery_address) AS "lastAddress"
+         MAX(created_at) AS "lastOrderAt"
        FROM orders
        WHERE status != 'cancelled'
-         AND ${keyExpr} IS NOT NULL
-         ${searchSql}
-       GROUP BY ${keyExpr}
+         AND NULLIF(TRIM(delivery_address),'') IS NOT NULL
+         ${searchSqlAddr}
+       GROUP BY ${addrKey}
        ORDER BY MAX(created_at) DESC
        LIMIT :limit OFFSET :offset`,
       { replacements, type: QueryTypes.SELECT }
     );
 
     const [countRow] = await seq.query(
-      `SELECT COUNT(DISTINCT COALESCE(NULLIF(TRIM(customer_phone),''), LOWER(NULLIF(NULLIF(TRIM(customer_name),''),'ลูกค้าหน้าร้าน')))) AS total
+      `SELECT COUNT(DISTINCT ${addrKey}) AS total
        FROM orders
        WHERE status != 'cancelled'
-         AND COALESCE(NULLIF(TRIM(customer_phone),''), LOWER(NULLIF(NULLIF(TRIM(customer_name),''),'ลูกค้าหน้าร้าน'))) IS NOT NULL
-         ${searchSql}`,
+         AND NULLIF(TRIM(delivery_address),'') IS NOT NULL
+         ${searchSqlAddr}`,
       { replacements: search ? { q: `%${search}%` } : {}, type: QueryTypes.SELECT }
     );
 
@@ -99,15 +100,17 @@ async function listCustomers(req, res) {
   } catch (e) { res.status(500).json({ error: e.message }); }
 }
 
-// Admin: orders for a customer looked up by phone or name (from orders table)
+// Admin: orders for a customer looked up by phone, name, or address (from orders table)
 async function getCustomerOrdersByPhone(req, res) {
   try {
-    const { phone, name } = req.query;
-    if (!phone && !name) return res.json({ customer: null, orders: [] });
+    const { phone, name, address } = req.query;
+    if (!phone && !name && !address) return res.json({ customer: null, orders: [] });
     const { Op } = require("sequelize");
     const where = phone
       ? { customerPhone: phone }
-      : { customerName: { [Op.iLike]: name } };
+      : address
+        ? { deliveryAddress: { [Op.iLike]: `%${address}%` } }
+        : { customerName: { [Op.iLike]: name } };
     const orders = await Order.findAll({
       where: { ...where, status: { [Op.ne]: "cancelled" } },
       include: [{ model: Brand, as: "brand" }, { model: Product, as: "product" }],
