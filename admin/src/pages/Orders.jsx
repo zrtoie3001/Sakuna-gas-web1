@@ -124,6 +124,7 @@ export default function Orders() {
   const [walkinCart, setWalkinCart]     = useState([]); // cart items before save
   const [gasStocks, setGasStocks]   = useState([]);
   const [equipList, setEquipList]   = useState([]);
+  const [drivers, setDrivers]       = useState([]);
   const [extraItems, setExtraItems] = useState({}); // { [orderId]: [{id, name, qty, price}] }
   const [createCart, setCreateCart]   = useState([]);
   const [createCustAddrs, setCreateCustAddrs] = useState([]); // addresses of selected customer in create modal
@@ -156,6 +157,7 @@ export default function Orders() {
     api.get("/api/v1/products?limit=100").then(r => setProducts(Array.isArray(r.data) ? r.data : r.data.products || [])).catch(() => {});
     api.get("/api/v1/stock/gas").then(r => setGasStocks(r.data)).catch(() => {});
     api.get("/api/v1/stock/equipment").then(r => setEquipList(r.data)).catch(() => {});
+    api.get("/api/v1/drivers").then(r => setDrivers(Array.isArray(r.data) ? r.data : [])).catch(() => {});
   }, []);
 
   // Fetch customer history whenever phone or name changes (after autocomplete select)
@@ -750,13 +752,25 @@ window.onload = function() { window.print(); window.onafterprint = () => window.
             ["💰 ยอดรวม",  `฿${Number(selected.total).toLocaleString()}`],
             ["💳 ชำระ",    selected.paymentMethod === "cash" ? "เงินสด" : selected.paymentMethod === "qr" ? "QR โอน" : "เก็บปลายทาง"],
             ["📏 ระยะทาง", selected.distanceKm ? `${Number(selected.distanceKm).toFixed(1)} กม.` : "-"],
-            ["🛵 คนส่ง",   selected.driver?.name || "ยังไม่มีคนรับงาน"],
           ].map(([k, v]) => (
             <div key={k} style={{ display: "flex", gap: 8, padding: "7px 0", borderBottom: "1px solid #F3F4F6", fontSize: 13 }}>
               <span style={{ color: GRAY, flexShrink: 0, width: 80 }}>{k}</span>
               <span style={{ color: NAVY, wordBreak: "break-word" }}>{v || "-"}</span>
             </div>
           ))}
+
+          <div style={{ display: "flex", gap: 8, padding: "7px 0", borderBottom: "1px solid #F3F4F6", fontSize: 13, alignItems: "center" }}>
+            <span style={{ color: GRAY, flexShrink: 0, width: 80 }}>🛵 คนส่ง</span>
+            <select value={selected.driverId || ""} onChange={async e => {
+              const driverId = e.target.value || null;
+              await api.put(`/api/v1/orders/${selected.id}/driver`, { driverId });
+              setSelected(s => ({ ...s, driverId, driver: drivers.find(d => d.id === driverId) || null }));
+              fetch();
+            }} style={{ flex: 1, padding: "4px 8px", borderRadius: 6, border: "1.5px solid #E5E7EB", fontSize: 13, color: NAVY }}>
+              <option value="">-- ยังไม่มีคนรับงาน --</option>
+              {drivers.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+            </select>
+          </div>
 
           {(() => {
             const n = selected.note || "";

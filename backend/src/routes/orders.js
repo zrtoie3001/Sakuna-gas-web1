@@ -299,6 +299,15 @@ router.post("/:id/extras", requireAuth, async (req, res) => {
     res.json({ ok: true, addedTotal, items: savedItems });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
+router.put("/:id/driver", requireAuth, requireRole("admin"), async (req, res) => {
+  try {
+    const { driverId } = req.body;
+    const order = await Order.findByPk(req.params.id);
+    if (!order) return res.status(404).json({ error: "Not found" });
+    await order.update({ driverId: driverId || null });
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
 router.post("/:id/accept", requireAuth, requireRole("driver", "admin"), acceptOrder);
 
 module.exports = router;

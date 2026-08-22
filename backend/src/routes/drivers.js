@@ -9,7 +9,7 @@ router.get("/route",       requireAuth, requireRole("driver"), ctrl.getOptimized
 router.put("/location",    requireAuth, requireRole("driver"), ctrl.updateLocation);
 
 // Finance only (finance role inherits admin via middleware)
-router.get("/",            requireAuth, requireRole("finance"), ctrl.listDrivers);
+router.get("/",            requireAuth, requireRole("admin", "finance"), ctrl.listDrivers);
 router.get("/locations",   requireAuth, requireRole("admin"),   ctrl.getDriverLocations);
 router.post("/",           requireAuth, requireRole("finance"), ctrl.createDriver);
 router.put("/:id",         requireAuth, requireRole("finance"), ctrl.updateDriver);
