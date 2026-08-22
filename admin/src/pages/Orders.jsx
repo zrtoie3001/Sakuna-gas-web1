@@ -129,6 +129,7 @@ export default function Orders() {
   const [createCustKnown, setCreateCustKnown] = useState(false); // true when customer selected from autocomplete
   const [custHistory, setCustHistory] = useState([]);
   const [historyKey, setHistoryKey] = useState(""); // phone|name used to fetch history
+  const [hiddenHistKeys, setHiddenHistKeys] = useState(new Set()); // keys hidden by user for current customer
   const [editOrder, setEditOrder]     = useState(null);   // order being edited
   const [editForm,  setEditForm]      = useState({});
   const [editSaving, setEditSaving]   = useState(false);
@@ -162,8 +163,9 @@ export default function Orders() {
     const name  = createForm.customerName?.trim();
     const k = `${phone}|${name}`;
     if (k === historyKey) return;
-    if (!phone && !name) { setCustHistory([]); setHistoryKey(""); return; }
+    if (!phone && !name) { setCustHistory([]); setHistoryKey(""); setHiddenHistKeys(new Set()); return; }
     setHistoryKey(k);
+    setHiddenHistKeys(new Set());
     api.get(`/api/v1/orders/customer-history?phone=${encodeURIComponent(phone || "")}&name=${encodeURIComponent(name || "")}`)
       .then(r => setCustHistory(r.data || []))
       .catch(() => {});
@@ -1259,7 +1261,11 @@ window.onload = function() { window.print(); window.onafterprint = () => window.
               <div style={{ marginBottom: 14, background: "#F0F9FF", borderRadius: 10, padding: "10px 12px" }}>
                 <div style={{ fontSize: 11, fontWeight: 700, color: "#0369A1", marginBottom: 8 }}>⏱ ประวัติการสั่งซื้อ — กดเพื่อเพิ่มลงตะกร้า</div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                  {custHistory.map((h, i) => {
+                  {custHistory.filter(h => {
+                    const hk = `${h.type}|${h.brandName}|${h.weightKg}|${Math.round(h.unitPrice)}`;
+                    return !hiddenHistKeys.has(hk);
+                  }).map((h, i) => {
+                    const hk = `${h.type}|${h.brandName}|${h.weightKg}|${Math.round(h.unitPrice)}`;
                     const label = h.type === "new_tank"
                       ? `🆕 ถังใหม่ ${h.brandName} ${h.weightKg}กก.`
                       : `⛽ ${h.brandName} ${h.weightKg ? h.weightKg + "กก." : ""}`;
@@ -1270,16 +1276,20 @@ window.onload = function() { window.print(); window.onafterprint = () => window.
                           <span style={{ fontSize: 12, color: ORANGE, fontWeight: 700, marginLeft: 8 }}>฿{Number(h.unitPrice).toLocaleString()}</span>
                           {h.count > 1 && <span style={{ fontSize: 11, color: GRAY, marginLeft: 6 }}>({h.count} ครั้ง)</span>}
                         </div>
-                        <button onClick={() => {
-                          const stock = gasStocks.find(s => s.brandName === h.brandName && Number(s.weightKg) === Number(h.weightKg));
-                          if (h.type === "new_tank") {
-                            setCreateCart(c => [...c, { type: "new_tank", stockId: stock?.id, brandName: h.brandName, weightKg: h.weightKg, label, qty: 1, price: h.unitPrice, equipId: null, name: label }]);
-                          } else {
-                            const brand = brands.find(b => b.name === h.brandName);
-                            const prod = products.find(p => Number(p.kg) === Number(h.weightKg));
-                            setCreateCart(c => [...c, { type: "gas", brandId: brand?.id, productId: prod?.id, brandName: h.brandName, weightKg: h.weightKg, label, qty: 1, price: h.unitPrice, equipId: null, name: label }]);
-                          }
-                        }} style={{ padding: "5px 12px", borderRadius: 7, border: "none", background: NAVY, color: WHITE, fontSize: 12, fontWeight: 700, cursor: "pointer", flexShrink: 0 }}>+ เพิ่ม</button>
+                        <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                          <button onClick={() => {
+                            const stock = gasStocks.find(s => s.brandName === h.brandName && Number(s.weightKg) === Number(h.weightKg));
+                            if (h.type === "new_tank") {
+                              setCreateCart(c => [...c, { type: "new_tank", stockId: stock?.id, brandName: h.brandName, weightKg: h.weightKg, label, qty: 1, price: h.unitPrice, equipId: null, name: label }]);
+                            } else {
+                              const brand = brands.find(b => b.name === h.brandName);
+                              const prod = products.find(p => Number(p.kg) === Number(h.weightKg));
+                              setCreateCart(c => [...c, { type: "gas", brandId: brand?.id, productId: prod?.id, brandName: h.brandName, weightKg: h.weightKg, label, qty: 1, price: h.unitPrice, equipId: null, name: label }]);
+                            }
+                          }} style={{ padding: "5px 12px", borderRadius: 7, border: "none", background: NAVY, color: WHITE, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>+ เพิ่ม</button>
+                          <button onClick={() => setHiddenHistKeys(s => new Set([...s, hk]))}
+                            style={{ padding: "5px 8px", borderRadius: 7, border: "1.5px solid #E5E7EB", background: WHITE, color: GRAY, fontSize: 13, fontWeight: 700, cursor: "pointer", lineHeight: 1 }}>×</button>
+                        </div>
                       </div>
                     );
                   })}
