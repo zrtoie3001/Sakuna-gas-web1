@@ -240,7 +240,10 @@ router.patch("/:id/paid", requireAuth, async (req, res) => {
   try {
     const order = await Order.findByPk(req.params.id);
     if (!order) return res.status(404).json({ error: "Not found" });
-    await order.update({ isPaid: !order.isPaid });
+    const newIsPaid = !order.isPaid;
+    const updates = { isPaid: newIsPaid };
+    if (newIsPaid && order.status !== "cancelled") updates.status = "delivered";
+    await order.update(updates);
     // Sync linked debt record
     try {
       const { Debt } = require("../models");
@@ -253,7 +256,7 @@ router.patch("/:id/paid", requireAuth, async (req, res) => {
         }
       }
     } catch (e) { console.error("Debt sync error:", e.message); }
-    res.json({ isPaid: order.isPaid });
+    res.json({ isPaid: order.isPaid, status: order.status });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 router.post("/:id/extras", requireAuth, async (req, res) => {

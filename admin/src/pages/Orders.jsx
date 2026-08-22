@@ -526,8 +526,8 @@ window.onload = function() { window.print(); window.onafterprint = () => window.
 
   async function togglePaid(orderId) {
     const { data } = await api.patch(`/api/v1/orders/${orderId}/paid`);
-    setOrders(prev => prev.map(o => o.id === orderId ? { ...o, isPaid: data.isPaid } : o));
-    if (selected?.id === orderId) setSelected(s => ({ ...s, isPaid: data.isPaid }));
+    setOrders(prev => prev.map(o => o.id === orderId ? { ...o, isPaid: data.isPaid, status: data.status ?? o.status } : o));
+    if (selected?.id === orderId) setSelected(s => ({ ...s, isPaid: data.isPaid, status: data.status ?? s.status }));
   }
 
   function openEdit(order) {
