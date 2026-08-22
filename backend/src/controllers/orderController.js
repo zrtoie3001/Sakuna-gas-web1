@@ -26,7 +26,18 @@ function pointInPolygon(lat, lng, coords) {
 function generateOrderNumber() {
   const d = new Date();
   const pad = n => String(n).padStart(2, "0");
-  return `SKG${d.getFullYear().toString().slice(-2)}${pad(d.getMonth()+1)}${pad(d.getDate())}${String(Date.now()).slice(-4)}`;
+  const rand = String(Math.floor(Math.random() * 9000) + 1000);
+  return `SKG${d.getFullYear().toString().slice(-2)}${pad(d.getMonth()+1)}${pad(d.getDate())}${rand}`;
+}
+
+async function generateUniqueOrderNumber() {
+  const { Order } = require("../models");
+  for (let i = 0; i < 10; i++) {
+    const num = generateOrderNumber();
+    const exists = await Order.findOne({ where: { orderNumber: num }, attributes: ["id"] });
+    if (!exists) return num;
+  }
+  throw new Error("ไม่สามารถสร้างเลขออเดอร์ได้ กรุณาลองใหม่");
 }
 
 // ── Customer: create order ────────────────────────────────────────────────────
@@ -138,7 +149,7 @@ async function createOrder(req, res) { try {
   const offHours = !isOpen();
 
   const order = await Order.create({
-    orderNumber: generateOrderNumber(),
+    orderNumber: await generateUniqueOrderNumber(),
     customerId: customer?.id || null,
     brandId,
     productId,
@@ -412,7 +423,7 @@ async function createWalkinOrder(req, res) {
     }
 
     const order = await Order.create({
-      orderNumber: generateOrderNumber(),
+      orderNumber: await generateUniqueOrderNumber(),
       customerName: customerName || "ลูกค้าหน้าร้าน",
       customerPhone: customerPhone || null,
       deliveryAddress: customAddress || "หน้าร้าน",
