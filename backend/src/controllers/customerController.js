@@ -52,27 +52,27 @@ async function listCustomers(req, res) {
 
     const rows = await seq.query(
       `SELECT
-         COALESCE(NULLIF(customer_phone,''), customer_name) AS id,
-         customer_name AS name,
-         customer_phone AS phone,
+         COALESCE(NULLIF(TRIM(customer_phone),''), LOWER(TRIM(customer_name))) AS id,
+         MAX(NULLIF(TRIM(customer_name),'')) AS name,
+         MAX(NULLIF(TRIM(customer_phone),'')) AS phone,
          COUNT(id) AS "totalOrders",
          MAX(created_at) AS "lastOrderAt",
          MAX(delivery_address) AS "lastAddress"
        FROM orders
        WHERE status != 'cancelled'
-         AND (customer_name IS NOT NULL OR customer_phone IS NOT NULL)
+         AND (NULLIF(TRIM(customer_name),'') IS NOT NULL OR NULLIF(TRIM(customer_phone),'') IS NOT NULL)
          ${searchSql}
-       GROUP BY customer_phone, customer_name
+       GROUP BY COALESCE(NULLIF(TRIM(customer_phone),''), LOWER(TRIM(customer_name)))
        ORDER BY MAX(created_at) DESC
        LIMIT :limit OFFSET :offset`,
       { replacements, type: QueryTypes.SELECT }
     );
 
     const [countRow] = await seq.query(
-      `SELECT COUNT(DISTINCT COALESCE(NULLIF(customer_phone,''), customer_name)) AS total
+      `SELECT COUNT(DISTINCT COALESCE(NULLIF(TRIM(customer_phone),''), LOWER(TRIM(customer_name)))) AS total
        FROM orders
        WHERE status != 'cancelled'
-         AND (customer_name IS NOT NULL OR customer_phone IS NOT NULL)
+         AND (NULLIF(TRIM(customer_name),'') IS NOT NULL OR NULLIF(TRIM(customer_phone),'') IS NOT NULL)
          ${searchSql}`,
       { replacements: search ? { q: `%${search}%` } : {}, type: QueryTypes.SELECT }
     );
