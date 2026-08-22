@@ -160,19 +160,26 @@ export default function Orders() {
     api.get("/api/v1/drivers?role=driver").then(r => setDrivers(Array.isArray(r.data) ? r.data : [])).catch(() => {});
   }, []);
 
-  // Fetch customer history whenever phone or name changes (after autocomplete select)
+  // Fetch customer history whenever phone/name/address changes
   useEffect(() => {
-    const phone = createForm.customerPhone?.trim();
-    const name  = createForm.customerName?.trim();
-    const k = `${phone}|${name}`;
+    const phone   = createForm.customerPhone?.trim();
+    const rawName = createForm.customerName?.trim();
+    const name    = (rawName && rawName !== "ลูกค้าหน้าร้าน") ? rawName : "";
+    const address = createForm.deliveryAddress?.trim();
+    const k = `${phone}|${name}|${address}`;
     if (k === historyKey) return;
-    if (!phone && !name) { setCustHistory([]); setHistoryKey(""); setHiddenHistKeys(new Set()); return; }
+    if (!phone && !name && !address) { setCustHistory([]); setHistoryKey(""); setHiddenHistKeys(new Set()); return; }
     setHistoryKey(k);
     setHiddenHistKeys(new Set());
-    api.get(`/api/v1/orders/customer-history?phone=${encodeURIComponent(phone || "")}&name=${encodeURIComponent(name || "")}`)
+    const params = new URLSearchParams();
+    if (phone) params.set("phone", phone);
+    else if (address) params.set("address", address);
+    else if (name) params.set("name", name);
+    else return;
+    api.get(`/api/v1/orders/customer-history?${params}`)
       .then(r => setCustHistory(r.data || []))
       .catch(() => {});
-  }, [createForm.customerPhone, createForm.customerName]);
+  }, [createForm.customerPhone, createForm.customerName, createForm.deliveryAddress]);
 
   function addToCreateCart() {
     if (createForm.orderType === "new_tank") {
@@ -1230,9 +1237,10 @@ window.onload = function() { window.print(); window.onafterprint = () => window.
                 onSelect={c => {
                   setCreateCustKnown(true);
                   setCreateCustAddrs(c.addresses || []);
+                  const incomingName2 = (c.customerName && c.customerName !== "ลูกค้าหน้าร้าน") ? c.customerName : "";
                   setCreateForm(f => ({
                     ...f,
-                    customerName:    f.customerName    || c.customerName || "",
+                    customerName:    f.customerName    || incomingName2,
                     customerPhone:   c.customerPhone   || "",
                     deliveryAddress: f.deliveryAddress || c.addresses?.[0] || c.deliveryAddress || "",
                     brandId:   f.brandId   || c.brandId   || "",
@@ -1251,9 +1259,10 @@ window.onload = function() { window.print(); window.onafterprint = () => window.
                 onChange={v => setCreateForm(f => ({ ...f, deliveryAddress: v }))}
                 onSelect={c => {
                   setCreateCustAddrs(c.addresses || []);
+                  const incomingName = (c.customerName && c.customerName !== "ลูกค้าหน้าร้าน") ? c.customerName : "";
                   setCreateForm(f => ({
                     ...f,
-                    customerName:    f.customerName    || c.customerName || "",
+                    customerName:    f.customerName    || incomingName,
                     customerPhone:   f.customerPhone   || c.customerPhone || "",
                     deliveryAddress: c.addresses?.[0]  || c.deliveryAddress || f.deliveryAddress,
                     brandId:   f.brandId   || c.brandId   || "",

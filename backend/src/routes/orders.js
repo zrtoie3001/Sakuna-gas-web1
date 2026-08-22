@@ -114,21 +114,26 @@ router.get("/customer-suggestions", requireAuth, async (req, res) => {
 // Customer order history (for quick re-order)
 router.get("/customer-history", requireAuth, async (req, res) => {
   try {
-    const { phone, name } = req.query;
-    if (!phone && !name) return res.json([]);
+    const { phone, name, address } = req.query;
+    if (!phone && !name && !address) return res.json([]);
     const { sequelize: seq } = require("../config/database");
     const { QueryTypes } = require("sequelize");
 
+    // Never use "ลูกค้าหน้าร้าน" as a name filter — it mixes all walk-in customers
+    const cleanName = (name && name !== "ลูกค้าหน้าร้าน") ? name : null;
+
     let whereSql, replacements;
-    if (phone && name) {
-      whereSql = `(customer_phone = :phone OR customer_name ILIKE :name)`;
-      replacements = { phone, name };
-    } else if (phone) {
+    if (phone) {
       whereSql = `customer_phone = :phone`;
       replacements = { phone };
-    } else {
+    } else if (address) {
+      whereSql = `LOWER(REGEXP_REPLACE(TRIM(delivery_address),'\\s+',' ','g')) = LOWER(REGEXP_REPLACE(TRIM(:address),'\\s+',' ','g'))`;
+      replacements = { address };
+    } else if (cleanName) {
       whereSql = `customer_name ILIKE :name`;
-      replacements = { name };
+      replacements = { name: cleanName };
+    } else {
+      return res.json([]);
     }
     const rows = await seq.query(
       `SELECT note, unit_price, brand_id, product_id, qty FROM orders
