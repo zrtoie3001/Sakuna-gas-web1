@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import api from "../utils/api.js";
 
 const NAVY = "#1A2B6B"; const ORANGE = "#F47B20"; const WHITE = "#FFFFFF"; const GRAY = "#6B7280";
@@ -11,6 +12,7 @@ function displayName(c) {
 }
 
 export default function Customers() {
+  const navigate = useNavigate();
   const [customers, setCustomers] = useState([]);
   const [search, setSearch]       = useState("");
   const [selected, setSelected]   = useState(null);
@@ -89,7 +91,9 @@ export default function Customers() {
 
           <p style={{ fontSize: 12, fontWeight: 700, color: NAVY, marginBottom: 6 }}>ประวัติออเดอร์</p>
           {orders.slice(0, 10).map(o => (
-            <div key={o.id} style={{ padding: "8px 10px", borderRadius: 8, border: "1px solid #E5E7EB", marginBottom: 6, fontSize: 12 }}>
+            <div key={o.id} onClick={() => navigate(`/orders?q=${o.orderNumber}`)} style={{ padding: "8px 10px", borderRadius: 8, border: "1px solid #E5E7EB", marginBottom: 6, fontSize: 12, cursor: "pointer" }}
+              onMouseEnter={e => e.currentTarget.style.background = "#F0F9FF"}
+              onMouseLeave={e => e.currentTarget.style.background = WHITE}>
               <div style={{ display: "flex", justifyContent: "space-between" }}>
                 <span style={{ color: ORANGE, fontWeight: 700 }}>{o.orderNumber}</span>
                 <span style={{ color: GRAY }}>{new Date(o.createdAt).toLocaleDateString("th-TH")}</span>

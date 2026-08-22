@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import qrBase64 from "../assets/qrBase64.js";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import api from "../utils/api.js";
 
 const NAVY   = "#1A2B6B";
@@ -102,6 +102,7 @@ function ExtraItemPicker({ equipList, onAdd }) {
 
 export default function Orders() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [orders, setOrders]     = useState([]);
   const [total, setTotal]       = useState(0);
   const [page, setPage]         = useState(1);
@@ -114,7 +115,7 @@ export default function Orders() {
   const [creating, setCreating]     = useState(false);
   const [brands, setBrands]         = useState([]);
   const [products, setProducts]     = useState([]);
-  const [search, setSearch]         = useState("");
+  const [search, setSearch]         = useState(searchParams.get("q") || "");
   const [showWalkin, setShowWalkin] = useState(false);
   const [walkinType, setWalkinType] = useState("gas"); // gas | new_tank | equipment
   const [walkinForm, setWalkinForm] = useState({ customerName: "", customerPhone: "", brandName: "", productId: "", qty: 1, price: "", paymentMethod: "cash", note: "", gasBrand: "", gasWeight: "", stockId: "", equipId: "" });
