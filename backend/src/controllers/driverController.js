@@ -2,12 +2,17 @@ const bcrypt = require("bcryptjs");
 const { User, Order, Brand, Product, Customer } = require("../models");
 const { optimizeRoute } = require("../services/mapsService");
 
-async function listDrivers(_req, res) {
-  // Show both drivers and admins — admins can deliver too
+async function listDrivers(req, res) {
+  const { Op } = require("sequelize");
+  // For assign-driver dropdown: only delivery staff; for finance page: all staff
+  const driversOnly = req.query.role === "driver";
+  const where = driversOnly
+    ? { isActive: true, role: { [Op.in]: ["driver", "both"] } }
+    : { isActive: true };
   const drivers = await User.findAll({
-    where: { isActive: true },
+    where,
     attributes: { exclude: ["passwordHash"] },
-    order: [["role", "ASC"], ["name", "ASC"]],
+    order: [["name", "ASC"]],
   });
   res.json(drivers);
 }

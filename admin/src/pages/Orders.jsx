@@ -157,7 +157,7 @@ export default function Orders() {
     api.get("/api/v1/products?limit=100").then(r => setProducts(Array.isArray(r.data) ? r.data : r.data.products || [])).catch(() => {});
     api.get("/api/v1/stock/gas").then(r => setGasStocks(r.data)).catch(() => {});
     api.get("/api/v1/stock/equipment").then(r => setEquipList(r.data)).catch(() => {});
-    api.get("/api/v1/drivers").then(r => setDrivers(Array.isArray(r.data) ? r.data : [])).catch(() => {});
+    api.get("/api/v1/drivers?role=driver").then(r => setDrivers(Array.isArray(r.data) ? r.data : [])).catch(() => {});
   }, []);
 
   // Fetch customer history whenever phone or name changes (after autocomplete select)
