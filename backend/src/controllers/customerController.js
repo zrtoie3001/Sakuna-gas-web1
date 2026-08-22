@@ -50,29 +50,35 @@ async function listCustomers(req, res) {
     const replacements = { limit: parseInt(limit), offset };
     if (search) replacements.q = `%${search}%`;
 
+    // Treat blank / "ลูกค้าหน้าร้าน" as no-name so they don't merge across customers
+    const nameExpr = `NULLIF(NULLIF(TRIM(customer_name),''), 'ลูกค้าหน้าร้าน')`;
+    const phoneExpr = `NULLIF(TRIM(customer_phone),'')`;
+    // group key: phone if present, else name — rows with neither are excluded
+    const keyExpr = `COALESCE(${phoneExpr}, LOWER(${nameExpr}))`;
+
     const rows = await seq.query(
       `SELECT
-         COALESCE(NULLIF(TRIM(customer_phone),''), LOWER(TRIM(customer_name))) AS id,
-         MAX(NULLIF(TRIM(customer_name),'')) AS name,
-         MAX(NULLIF(TRIM(customer_phone),'')) AS phone,
+         ${keyExpr} AS id,
+         MAX(${nameExpr}) AS name,
+         MAX(${phoneExpr}) AS phone,
          COUNT(id) AS "totalOrders",
          MAX(created_at) AS "lastOrderAt",
          MAX(delivery_address) AS "lastAddress"
        FROM orders
        WHERE status != 'cancelled'
-         AND (NULLIF(TRIM(customer_name),'') IS NOT NULL OR NULLIF(TRIM(customer_phone),'') IS NOT NULL)
+         AND ${keyExpr} IS NOT NULL
          ${searchSql}
-       GROUP BY COALESCE(NULLIF(TRIM(customer_phone),''), LOWER(TRIM(customer_name)))
+       GROUP BY ${keyExpr}
        ORDER BY MAX(created_at) DESC
        LIMIT :limit OFFSET :offset`,
       { replacements, type: QueryTypes.SELECT }
     );
 
     const [countRow] = await seq.query(
-      `SELECT COUNT(DISTINCT COALESCE(NULLIF(TRIM(customer_phone),''), LOWER(TRIM(customer_name)))) AS total
+      `SELECT COUNT(DISTINCT COALESCE(NULLIF(TRIM(customer_phone),''), LOWER(NULLIF(NULLIF(TRIM(customer_name),''),'ลูกค้าหน้าร้าน')))) AS total
        FROM orders
        WHERE status != 'cancelled'
-         AND (NULLIF(TRIM(customer_name),'') IS NOT NULL OR NULLIF(TRIM(customer_phone),'') IS NOT NULL)
+         AND COALESCE(NULLIF(TRIM(customer_phone),''), LOWER(NULLIF(NULLIF(TRIM(customer_name),''),'ลูกค้าหน้าร้าน'))) IS NOT NULL
          ${searchSql}`,
       { replacements: search ? { q: `%${search}%` } : {}, type: QueryTypes.SELECT }
     );
