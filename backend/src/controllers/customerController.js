@@ -120,6 +120,23 @@ async function getCustomerOrdersByPhone(req, res) {
   } catch (e) { res.status(500).json({ error: e.message }); }
 }
 
+// Admin: delete customer — clears delivery_address on all matching orders so they won't appear in list
+async function deleteCustomer(req, res) {
+  try {
+    const { address } = req.body;
+    if (!address) return res.status(400).json({ error: "address required" });
+    const { sequelize: seq } = require("../config/database");
+    const { QueryTypes } = require("sequelize");
+    await seq.query(
+      `UPDATE orders SET delivery_address = NULL
+       WHERE LOWER(REGEXP_REPLACE(TRIM(delivery_address),'\\s+',' ','g')) = LOWER(REGEXP_REPLACE(TRIM(:address),'\\s+',' ','g'))
+         AND status != 'cancelled'`,
+      { replacements: { address }, type: QueryTypes.UPDATE }
+    );
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+}
+
 // Admin: update customer contact info across all matching orders
 async function updateCustomerContact(req, res) {
   try {
@@ -163,4 +180,4 @@ async function getCustomerOrders(req, res) {
   res.json({ customer, orders });
 }
 
-module.exports = { getOrCreateCustomer, addAddress, getAddresses, listCustomers, getCustomerOrders, getCustomerOrdersByPhone, updateCustomerContact };
+module.exports = { getOrCreateCustomer, addAddress, getAddresses, listCustomers, getCustomerOrders, getCustomerOrdersByPhone, updateCustomerContact, deleteCustomer };

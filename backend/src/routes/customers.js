@@ -12,6 +12,7 @@ router.post("/line/:lineUserId/addresses", ctrl.addAddress);
 router.get("/",        requireAuth, requireRole("admin"), ctrl.listCustomers);
 router.get("/orders-by-contact", requireAuth, requireRole("admin"), ctrl.getCustomerOrdersByPhone);
 router.patch("/update-contact", requireAuth, requireRole("admin"), ctrl.updateCustomerContact);
+router.delete("/delete-customer", requireAuth, requireRole("admin"), ctrl.deleteCustomer);
 router.get("/:id/orders", requireAuth, requireRole("admin"), ctrl.getCustomerOrders);
 
 module.exports = router;
