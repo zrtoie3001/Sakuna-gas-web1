@@ -126,7 +126,7 @@ async function dashboardStats(req, res) {
     }),
     // Top products (this month)
     Order.findAll({
-      where: { createdAt: { [Op.gte]: monthStart }, status: { [Op.ne]: "cancelled" } },
+      where: { createdAt: { [Op.gte]: monthStart }, status: { [Op.ne]: "cancelled" }, productId: { [Op.ne]: null } },
       attributes: ["productId", [fn("SUM", col("qty")), "totalQty"], [fn("SUM", col("total")), "revenue"]],
       include: [{ model: Product, as: "product", attributes: ["name", "kg"] }],
       group: ["productId", "product.id"],
@@ -143,7 +143,7 @@ async function dashboardStats(req, res) {
     }),
     // Brand breakdown (this month)
     Order.findAll({
-      where: { createdAt: { [Op.gte]: monthStart }, status: { [Op.ne]: "cancelled" } },
+      where: { createdAt: { [Op.gte]: monthStart }, status: { [Op.ne]: "cancelled" }, brandId: { [Op.ne]: null } },
       attributes: ["brandId", [fn("COUNT", col("Order.id")), "count"], [fn("SUM", col("total")), "revenue"]],
       include: [{ model: Brand, as: "brand", attributes: ["name"] }],
       group: ["brandId", "brand.id"],
