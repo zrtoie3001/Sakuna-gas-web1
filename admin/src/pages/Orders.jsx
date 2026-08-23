@@ -1041,7 +1041,7 @@ window.onload = function() { window.print(); window.onafterprint = () => window.
           <div style={{ background: WHITE, borderRadius: 20, padding: 24, width: "100%", maxWidth: 420, margin: "auto", maxHeight: "90vh", overflowY: "auto" }}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
               <h2 style={{ fontSize: 16, fontWeight: 800, color: NAVY }}>🏪 ขายหน้าร้าน</h2>
-              <button onClick={() => { setShowWalkin(false); setWalkinCart([]); }} style={{ background: "none", border: "none", fontSize: 20, color: GRAY, cursor: "pointer" }}>✕</button>
+              <button onClick={() => { setShowWalkin(false); setWalkinCart([]); setWalkinForm({ customerName: "", customerPhone: "", brandName: "", productId: "", qty: 1, price: "", paymentMethod: "cash", note: "", gasBrand: "", gasWeight: "", stockId: "", equipId: "" }); setWalkinType("gas"); }} style={{ background: "none", border: "none", fontSize: 20, color: GRAY, cursor: "pointer" }}>✕</button>
             </div>
 
             {/* Customer info */}
