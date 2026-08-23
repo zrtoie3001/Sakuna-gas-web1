@@ -194,25 +194,28 @@ export default function Orders() {
     api.get("/api/v1/drivers?role=driver").then(r => setDrivers(Array.isArray(r.data) ? r.data : [])).catch(() => {});
   }, []);
 
-  // Fetch customer history whenever phone/name/address changes
+  // Fetch customer history — debounced 500ms, fires when phone/name/address settles
   useEffect(() => {
-    const phone   = createForm.customerPhone?.trim();
-    const rawName = createForm.customerName?.trim();
-    const name    = (rawName && rawName !== "ลูกค้าหน้าร้าน") ? rawName : "";
-    const address = createForm.deliveryAddress?.trim();
-    const k = `${phone}|${name}|${address}`;
-    if (k === historyKey) return;
-    if (!phone && !name && !address) { setCustHistory([]); setHistoryKey(""); setHiddenHistKeys(new Set()); return; }
-    setHistoryKey(k);
-    setHiddenHistKeys(new Set());
-    const params = new URLSearchParams();
-    if (phone) params.set("phone", phone);
-    else if (address) params.set("address", address);
-    else if (name) params.set("name", name);
-    else return;
-    api.get(`/api/v1/orders/customer-history?${params}`)
-      .then(r => setCustHistory(r.data || []))
-      .catch(() => {});
+    const t = setTimeout(() => {
+      const phone   = createForm.customerPhone?.trim();
+      const rawName = createForm.customerName?.trim();
+      const name    = (rawName && rawName !== "ลูกค้าหน้าร้าน") ? rawName : "";
+      const address = createForm.deliveryAddress?.trim();
+      const k = `${phone}|${name}|${address}`;
+      if (k === historyKey) return;
+      if (!phone && !name && !address) { setCustHistory([]); setHistoryKey(""); setHiddenHistKeys(new Set()); return; }
+      setHistoryKey(k);
+      setHiddenHistKeys(new Set());
+      const params = new URLSearchParams();
+      if (phone) params.set("phone", phone);
+      else if (address) params.set("address", address);
+      else if (name) params.set("name", name);
+      else return;
+      api.get(`/api/v1/orders/customer-history?${params}`)
+        .then(r => setCustHistory(r.data || []))
+        .catch(() => {});
+    }, 500);
+    return () => clearTimeout(t);
   }, [createForm.customerPhone, createForm.customerName, createForm.deliveryAddress]);
 
   function addToCreateCart() {

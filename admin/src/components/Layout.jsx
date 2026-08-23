@@ -153,10 +153,14 @@ export default function Layout() {
     }
 
     let cancelled = false;
+    let inflight = null;
 
     async function checkOrders() {
+      if (inflight) return; // skip if previous request still running
+      const ctrl = new AbortController();
+      inflight = ctrl;
       try {
-        const r = await api.get("/api/v1/orders?limit=50");
+        const r = await api.get("/api/v1/orders?limit=50", { signal: ctrl.signal });
         if (cancelled) return;
         const orders = r.data.orders || [];
         if (knownOrders.current === null) {
@@ -178,12 +182,14 @@ export default function Layout() {
           }
           knownOrders.current.set(o.id, o.status);
         });
-      } catch {}
+      } catch (e) {
+        if (e.name !== "CanceledError" && e.code !== "ERR_CANCELED") console.warn("checkOrders error:", e.message);
+      } finally { inflight = null; }
     }
 
-    const id = setInterval(checkOrders, 15000);
+    const id = setInterval(checkOrders, 30000);
     checkOrders();
-    return () => { cancelled = true; clearInterval(id); };
+    return () => { cancelled = true; clearInterval(id); inflight?.abort(); };
   }, []);
 
   async function changeMyPassword() {
