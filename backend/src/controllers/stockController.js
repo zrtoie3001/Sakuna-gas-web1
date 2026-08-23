@@ -84,6 +84,23 @@ async function addRefill(req, res) {
   res.status(201).json(refill);
 }
 
+async function deleteRefill(req, res) {
+  try {
+    const refill = await GasRefill.findByPk(req.params.id);
+    if (!refill) return res.status(404).json({ error: "Not found" });
+    // Reverse the stock addition
+    const stock = await GasStock.findOne({ where: { brandName: refill.brandName, weightKg: refill.weightKg } });
+    if (stock) {
+      const oldVal = Number(stock.hasGas);
+      const newVal = Math.max(0, oldVal - Number(refill.qty));
+      await stock.update({ hasGas: newVal });
+      await writeLog(refill.brandName, refill.weightKg, "hasGas", oldVal, newVal, "refill-delete", `ลบรายการเติม ${refill.qty} ถัง`);
+    }
+    await refill.destroy();
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+}
+
 // ── Equipment ─────────────────────────────────────────────────────────────────
 
 async function getEquipment(req, res) {
@@ -122,4 +139,4 @@ async function sellEquipment(req, res) {
   res.status(201).json(sale);
 }
 
-module.exports = { getGasStock, upsertGasStock, adjustGasStock, getStockLogs, getRefills, addRefill, getEquipment, createEquipment, updateEquipment, deleteEquipment, sellEquipment };
+module.exports = { getGasStock, upsertGasStock, adjustGasStock, getStockLogs, getRefills, addRefill, deleteRefill, getEquipment, createEquipment, updateEquipment, deleteEquipment, sellEquipment };

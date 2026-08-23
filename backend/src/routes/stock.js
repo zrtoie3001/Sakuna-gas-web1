@@ -9,6 +9,7 @@ router.get("/gas/logs",         requireAuth, ctrl.getStockLogs);
 
 router.get("/refills",          requireAuth, ctrl.getRefills);
 router.post("/refills",         requireAuth, ctrl.addRefill);
+router.delete("/refills/:id",   requireAuth, ctrl.deleteRefill);
 
 router.get("/equipment",        requireAuth, ctrl.getEquipment);
 router.post("/equipment",       requireAuth, ctrl.createEquipment);

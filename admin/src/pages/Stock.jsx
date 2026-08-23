@@ -275,7 +275,7 @@ export default function Stock() {
             <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 13 }}>
               <thead>
                 <tr style={{ background: NAVY, color: WHITE }}>
-                  {["วันที่","ยี่ห้อ","น้ำหนัก","จำนวน","ราคา/ถัง","รวม","หมายเหตุ"].map(h => (
+                  {["วันที่","ยี่ห้อ","น้ำหนัก","จำนวน","ราคา/ถัง","รวม","หมายเหตุ",""].map(h => (
                     <th key={h} style={{ padding: "8px 12px", textAlign: "left" }}>{h}</th>
                   ))}
                 </tr>
@@ -290,10 +290,17 @@ export default function Stock() {
                     <td style={{ padding: "8px 12px" }}>฿{Number(r.costPerUnit||0).toLocaleString()}</td>
                     <td style={{ padding: "8px 12px", fontWeight: 700 }}>฿{Number(r.totalCost||0).toLocaleString()}</td>
                     <td style={{ padding: "8px 12px", color: GRAY }}>{r.note || "-"}</td>
+                    <td style={{ padding: "8px 6px" }}>
+                      <button onClick={async () => {
+                        if (!window.confirm(`ลบรายการเติม ${r.brandName} ${r.weightKg}kg ${r.qty} ถัง?\nสต็อกจะถูกหักคืน ${r.qty} ถัง`)) return;
+                        await api.delete(`/api/v1/stock/refills/${r.id}`);
+                        fetchRefills(); fetchStock();
+                      }} style={{ background: "none", border: "none", color: "#EF4444", fontSize: 16, cursor: "pointer", padding: "2px 6px" }}>✕</button>
+                    </td>
                   </tr>
                 ))}
                 {refills.length === 0 && (
-                  <tr><td colSpan={7} style={{ padding: 24, textAlign: "center", color: GRAY }}>ยังไม่มีบันทึก</td></tr>
+                  <tr><td colSpan={8} style={{ padding: 24, textAlign: "center", color: GRAY }}>ยังไม่มีบันทึก</td></tr>
                 )}
               </tbody>
             </table>
