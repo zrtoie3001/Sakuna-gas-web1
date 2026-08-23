@@ -88,7 +88,6 @@ function Sidebar({ user, onClose, mobile, onPasswordClick, onLogout }) {
       background: `linear-gradient(180deg, ${NAVY2} 0%, ${NAVY} 100%)`,
       display: "flex", flexDirection: "column",
       height: mobile ? "auto" : "100vh",
-      position: mobile ? "relative" : "sticky", top: 0,
     }}>
       <div style={{ padding: "24px 20px 20px", borderBottom: "1px solid rgba(255,255,255,.1)" }}>
         <div style={{ fontSize: 26, fontWeight: 900, color: WHITE }}>
@@ -209,9 +208,9 @@ export default function Layout() {
   }
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh", overflowY: "auto" }} onClick={unlockAudio}>
+    <div style={{ display: "flex", height: "100vh", overflow: "hidden" }} onClick={unlockAudio}>
       {/* Desktop sidebar */}
-      <div style={{ display: "none", position: "sticky", top: 0, height: "100vh", flexShrink: 0 }} className="desktop-sidebar">
+      <div style={{ display: "none", flexShrink: 0 }} className="desktop-sidebar">
         <Sidebar user={user} onClose={() => {}} onPasswordClick={() => setPwModal(true)} onLogout={logout} />
       </div>
 
@@ -226,7 +225,7 @@ export default function Layout() {
       )}
 
       {/* Main */}
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, overflowY: "auto" }}>
         {/* Top bar */}
         <div style={{
           background: WHITE, padding: "14px 20px",
