@@ -80,8 +80,8 @@ export default function Customers() {
   }
 
   return (
-    <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
-      <div style={{ flex: "1 1 400px", minWidth: 0 }}>
+    <div style={{ display: "flex", gap: 16, height: "calc(100vh - 110px)" }}>
+      <div style={{ flex: "1 1 400px", minWidth: 0, overflowY: "auto" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
           <h1 style={{ fontSize: 20, fontWeight: 900, color: NAVY }}>👥 ลูกค้า</h1>
           <span style={{ fontSize: 13, color: GRAY }}>{total} ราย</span>
@@ -111,7 +111,7 @@ export default function Customers() {
       </div>
 
       {selected && (
-        <div style={{ flex: "0 0 320px", background: WHITE, borderRadius: 14, padding: 20, boxShadow: "0 2px 12px rgba(0,0,0,.06)", position: "sticky", top: 16, maxHeight: "calc(100vh - 80px)", overflowY: "auto" }}>
+        <div style={{ flex: "0 0 320px", background: WHITE, borderRadius: 14, padding: 20, boxShadow: "0 2px 12px rgba(0,0,0,.06)", overflowY: "auto" }}>
           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
             <h2 style={{ fontSize: 16, fontWeight: 900, color: NAVY }}>{displayName(selected)}</h2>
             <button onClick={() => { setSelected(null); setEditing(false); }} style={{ background: "none", border: "none", fontSize: 20, color: GRAY }}>✕</button>

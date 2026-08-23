@@ -211,7 +211,7 @@ export default function Layout() {
   return (
     <div style={{ display: "flex", minHeight: "100vh", overflowY: "auto" }} onClick={unlockAudio}>
       {/* Desktop sidebar */}
-      <div style={{ display: "none" }} className="desktop-sidebar">
+      <div style={{ display: "none", position: "sticky", top: 0, height: "100vh", flexShrink: 0 }} className="desktop-sidebar">
         <Sidebar user={user} onClose={() => {}} onPasswordClick={() => setPwModal(true)} onLogout={logout} />
       </div>
 
