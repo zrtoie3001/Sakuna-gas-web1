@@ -10,6 +10,7 @@ const GRAY   = "#6B7280";
 
 // สยาม and ยูนิค share the same stock pool — find stock from either brand
 const SHARED_BRANDS = ["ยูนิค", "สยาม"];
+const ALL_WEIGHTS = [4, 7, 8, 11.5, 13.5, 15, 48];
 
 function findStockByBrand(gasStocks, brandName, weight) {
   // Try exact match first, then partner brand if empty
@@ -1101,7 +1102,8 @@ window.onload = function() { window.print(); window.onafterprint = () => window.
               const stockBrandNames = [...new Set(gasStocks.map(s => s.brandName))];
               const apiBrandNames = brands.map(b => b.name);
               const allBrandNames = [...new Set([...apiBrandNames, ...stockBrandNames])].sort();
-              const weights = [...new Set(gasStocks.filter(s => !walkinForm.gasBrand || s.brandName === walkinForm.gasBrand || (SHARED_BRANDS.includes(walkinForm.gasBrand) && SHARED_BRANDS.includes(s.brandName))).map(s => Number(s.weightKg)))].sort((a,b)=>a-b);
+              const stockWeights = gasStocks.filter(s => !walkinForm.gasBrand || s.brandName === walkinForm.gasBrand || (SHARED_BRANDS.includes(walkinForm.gasBrand) && SHARED_BRANDS.includes(s.brandName))).map(s => Number(s.weightKg));
+              const weights = [...new Set([...ALL_WEIGHTS, ...stockWeights])].sort((a,b)=>a-b);
               const selectedStock = findStockByBrand(gasStocks, walkinForm.gasBrand, walkinForm.gasWeight);
               const stockField = walkinType === "new_tank" ? "newTank" : "hasGas";
               const stockQty = walkinForm.gasBrand && walkinForm.gasWeight ? sharedStockQty(gasStocks, walkinForm.gasBrand, walkinForm.gasWeight, stockField) : null;
@@ -1415,7 +1417,7 @@ window.onload = function() { window.print(); window.onafterprint = () => window.
               </>
             ) : (() => {
               const ntBrands = [...new Set([...brands.map(b => b.name), ...gasStocks.map(s => s.brandName)])].sort();
-              const ntWeights = [...new Set(gasStocks.filter(s => !createForm.ntBrand || s.brandName === createForm.ntBrand || (SHARED_BRANDS.includes(createForm.ntBrand) && SHARED_BRANDS.includes(s.brandName))).map(s => Number(s.weightKg)))].sort((a,b)=>a-b);
+              const ntWeights = [...new Set([...ALL_WEIGHTS, ...gasStocks.filter(s => !createForm.ntBrand || s.brandName === createForm.ntBrand || (SHARED_BRANDS.includes(createForm.ntBrand) && SHARED_BRANDS.includes(s.brandName))).map(s => Number(s.weightKg))])].sort((a,b)=>a-b);
               const ntStock = findStockByBrand(gasStocks, createForm.ntBrand, createForm.ntWeight);
               return (
                 <>
