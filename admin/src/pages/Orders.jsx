@@ -132,24 +132,34 @@ export default function Orders() {
   const [custHistory, setCustHistory] = useState([]);
   const [historyKey, setHistoryKey] = useState(""); // phone|name used to fetch history
   const [hiddenHistKeys, setHiddenHistKeys] = useState(new Set()); // keys hidden by user for current customer
+  const [historyQtyPicker, setHistoryQtyPicker] = useState(null); // { h, label } for qty picker popup
+  const cartRef = useRef(null);
   const [editOrder, setEditOrder]     = useState(null);   // order being edited
   const [editForm,  setEditForm]      = useState({});
   const [editSaving, setEditSaving]   = useState(false);
   const [showUnpaid, setShowUnpaid]   = useState(false);
 
+  const fetchRef = useRef(null);
   const fetch = useCallback(async () => {
-    const params = new URLSearchParams({ page, limit: 20 });
-    if (statusFilter) params.set("status", statusFilter);
-    if (date) params.set("date", date);
-    const r = await api.get(`/api/v1/orders?${params}`);
-    setOrders(r.data.orders);
-    setTotal(r.data.total);
+    if (fetchRef.current) fetchRef.current.abort();
+    const ctrl = new AbortController();
+    fetchRef.current = ctrl;
+    try {
+      const params = new URLSearchParams({ page, limit: 20 });
+      if (statusFilter) params.set("status", statusFilter);
+      if (date) params.set("date", date);
+      const r = await api.get(`/api/v1/orders?${params}`, { signal: ctrl.signal });
+      setOrders(r.data.orders);
+      setTotal(r.data.total);
+    } catch (e) {
+      if (e.name !== "CanceledError" && e.code !== "ERR_CANCELED") console.error("fetch orders error:", e.message);
+    }
   }, [page, statusFilter, date]);
 
   useEffect(() => {
     fetch();
-    const interval = setInterval(fetch, 30000);
-    return () => clearInterval(interval);
+    const interval = setInterval(fetch, 60000);
+    return () => { clearInterval(interval); fetchRef.current?.abort(); };
   }, [fetch]);
 
   useEffect(() => {
@@ -575,8 +585,11 @@ window.onload = function() { window.print(); window.onafterprint = () => window.
         note: editForm.note,
       };
       const { data: updated } = await api.put(`/api/v1/orders/${editOrder.id}`, payload);
-      setSelected(s => s?.id === editOrder.id ? { ...s, ...updated } : s);
-      setOrders(prev => prev.map(o => o.id === editOrder.id ? { ...o, ...updated } : o));
+      const brandObj = brands.find(b => String(b.id) === String(editForm.brandId));
+      const prodObj  = products.find(p => String(p.id) === String(editForm.productId));
+      const merged = { ...updated, brand: brandObj || null, product: prodObj || null };
+      setSelected(s => s?.id === editOrder.id ? { ...s, ...merged } : s);
+      setOrders(prev => prev.map(o => o.id === editOrder.id ? { ...o, ...merged } : o));
       setEditOrder(null);
     } catch (e) { alert(e.response?.data?.error || "เกิดข้อผิดพลาด"); }
     finally { setEditSaving(false); }
@@ -1307,16 +1320,8 @@ window.onload = function() { window.print(); window.onafterprint = () => window.
                           {h.count > 1 && <span style={{ fontSize: 11, color: GRAY, marginLeft: 6 }}>({h.count} ครั้ง)</span>}
                         </div>
                         <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
-                          <button onClick={() => {
-                            const stock = gasStocks.find(s => s.brandName === h.brandName && Number(s.weightKg) === Number(h.weightKg));
-                            if (h.type === "new_tank") {
-                              setCreateCart(c => [...c, { type: "new_tank", stockId: stock?.id, brandName: h.brandName, weightKg: h.weightKg, label, qty: 1, price: h.unitPrice, equipId: null, name: label }]);
-                            } else {
-                              const brand = brands.find(b => b.name === h.brandName);
-                              const prod = products.find(p => Number(p.kg) === Number(h.weightKg));
-                              setCreateCart(c => [...c, { type: "gas", brandId: brand?.id, productId: prod?.id, brandName: h.brandName, weightKg: h.weightKg, label, qty: 1, price: h.unitPrice, equipId: null, name: label }]);
-                            }
-                          }} style={{ padding: "5px 12px", borderRadius: 7, border: "none", background: NAVY, color: WHITE, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>+ เพิ่ม</button>
+                          <button onClick={() => setHistoryQtyPicker({ h, label, hk })}
+                            style={{ padding: "5px 12px", borderRadius: 7, border: "none", background: NAVY, color: WHITE, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>+ เพิ่ม</button>
                           <button onClick={() => setHiddenHistKeys(s => new Set([...s, hk]))}
                             style={{ padding: "5px 8px", borderRadius: 7, border: "1.5px solid #E5E7EB", background: WHITE, color: GRAY, fontSize: 13, fontWeight: 700, cursor: "pointer", lineHeight: 1 }}>×</button>
                         </div>
@@ -1453,7 +1458,7 @@ window.onload = function() { window.print(); window.onafterprint = () => window.
 
             {/* Cart */}
             {createCart.length > 0 && (
-              <div style={{ background: "#F8FAFC", border: "2px solid #E5E7EB", borderRadius: 12, padding: 12, marginBottom: 14 }}>
+              <div ref={cartRef} style={{ background: "#F8FAFC", border: "2px solid #E5E7EB", borderRadius: 12, padding: 12, marginBottom: 14 }}>
                 <div style={{ fontSize: 12, fontWeight: 800, color: NAVY, marginBottom: 8 }}>🛒 ตะกร้าสินค้า</div>
                 {createCart.map((it, idx) => (
                   <div key={idx} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 0", borderBottom: idx < createCart.length - 1 ? "1px solid #E5E7EB" : "none" }}>
@@ -1484,6 +1489,41 @@ window.onload = function() { window.print(); window.onafterprint = () => window.
           </div>
         </div>
       )}
+
+      {/* History qty picker */}
+      {historyQtyPicker && (() => {
+        const { h, label } = historyQtyPicker;
+        let pickerQty = 1;
+        return (
+          <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.55)", zIndex: 600, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+            <div style={{ background: WHITE, borderRadius: 18, padding: 24, width: "100%", maxWidth: 320 }}>
+              <div style={{ fontSize: 15, fontWeight: 800, color: NAVY, marginBottom: 4 }}>{label}</div>
+              <div style={{ fontSize: 13, color: ORANGE, fontWeight: 700, marginBottom: 16 }}>฿{Number(h.unitPrice).toLocaleString()} / ถัง</div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 6 }}>จำนวน (ถัง)</div>
+              <input id="hist-qty-input" type="number" min="1" defaultValue={1}
+                onChange={e => { pickerQty = Math.max(1, parseInt(e.target.value) || 1); }}
+                style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: "2px solid #E5E7EB", fontSize: 20, fontWeight: 800, textAlign: "center", boxSizing: "border-box", marginBottom: 16 }} />
+              <div style={{ display: "flex", gap: 10 }}>
+                <button onClick={() => setHistoryQtyPicker(null)}
+                  style={{ flex: 1, padding: 12, borderRadius: 10, border: "2px solid #E5E7EB", background: WHITE, color: GRAY, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>ยกเลิก</button>
+                <button onClick={() => {
+                  const qty = Math.max(1, parseInt(document.getElementById("hist-qty-input")?.value) || 1);
+                  const stock = gasStocks.find(s => s.brandName === h.brandName && Number(s.weightKg) === Number(h.weightKg));
+                  if (h.type === "new_tank") {
+                    setCreateCart(c => [...c, { type: "new_tank", stockId: stock?.id, brandName: h.brandName, weightKg: h.weightKg, label, qty, price: h.unitPrice, equipId: null, name: label }]);
+                  } else {
+                    const brand = brands.find(b => b.name === h.brandName);
+                    const prod = products.find(p => Number(p.kg) === Number(h.weightKg));
+                    setCreateCart(c => [...c, { type: "gas", brandId: brand?.id, productId: prod?.id, brandName: h.brandName, weightKg: h.weightKg, label, qty, price: h.unitPrice, equipId: null, name: label }]);
+                  }
+                  setHistoryQtyPicker(null);
+                  setTimeout(() => cartRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
+                }} style={{ flex: 2, padding: 12, borderRadius: 10, border: "none", background: NAVY, color: WHITE, fontWeight: 800, fontSize: 14, cursor: "pointer" }}>✅ เพิ่มลงตะกร้า</button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

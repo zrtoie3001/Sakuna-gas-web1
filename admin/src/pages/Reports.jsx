@@ -280,10 +280,11 @@ export default function Reports() {
               <div style={{ overflowY: "auto", padding: "10px 18px 24px" }}>
                 {filtered.length === 0 && <p style={{ textAlign: "center", color: GRAY, padding: 20 }}>ไม่มีออเดอร์</p>}
                 {filtered.map((o, i) => (
-                  <div key={o.id} style={{ padding: "10px 0", borderBottom: i < filtered.length - 1 ? "1px solid #F3F4F6" : "none", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <div>
+                  <div key={o.id} style={{ padding: "10px 0", borderBottom: i < filtered.length - 1 ? "1px solid #F3F4F6" : "none", display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
+                    <div style={{ minWidth: 0 }}>
                       <div style={{ fontWeight: 700, fontSize: 13, color: NAVY }}>{o.orderNumber}</div>
-                      <div style={{ fontSize: 12, color: GRAY }}>{o.customerName || "-"}</div>
+                      {o.deliveryAddress && <div style={{ fontSize: 12, color: NAVY, fontWeight: 600, marginTop: 1 }}>📍 {o.deliveryAddress}</div>}
+                      {o.customerName && o.customerName !== "ลูกค้าหน้าร้าน" && <div style={{ fontSize: 11, color: GRAY }}>👤 {o.customerName}</div>}
                     </div>
                     <div style={{ textAlign: "right" }}>
                       <div style={{ fontWeight: 800, fontSize: 14, color }}> ฿{Number(o.total).toLocaleString()}</div>
