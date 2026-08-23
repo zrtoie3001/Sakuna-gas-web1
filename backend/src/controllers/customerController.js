@@ -50,14 +50,12 @@ async function listCustomers(req, res) {
       : "";
     if (search) replacements.q = `%${search}%`;
 
-    // Group by (address, phone) — same address + different phone = different customer
+    // Group by address only — one address = one customer row (take max phone if available)
     const addrKey = `LOWER(REGEXP_REPLACE(TRIM(delivery_address), '\\s+', ' ', 'g'))`;
-    const phoneKey = `COALESCE(NULLIF(TRIM(customer_phone),''), '')`;
-    const groupKey = `${addrKey} || '|' || ${phoneKey}`;
 
     const rows = await seq.query(
       `SELECT
-         ${groupKey} AS id,
+         ${addrKey} AS id,
          MAX(TRIM(delivery_address)) AS "lastAddress",
          MAX(NULLIF(NULLIF(TRIM(customer_name),''),'ลูกค้าหน้าร้าน')) AS name,
          MAX(NULLIF(TRIM(customer_phone),'')) AS phone,
@@ -67,7 +65,7 @@ async function listCustomers(req, res) {
        WHERE status != 'cancelled'
          AND NULLIF(TRIM(delivery_address),'') IS NOT NULL
          ${searchSqlAddr}
-       GROUP BY ${addrKey}, ${phoneKey}
+       GROUP BY ${addrKey}
        ORDER BY MAX(created_at) DESC
        LIMIT :limit OFFSET :offset`,
       { replacements, type: QueryTypes.SELECT }
@@ -75,12 +73,12 @@ async function listCustomers(req, res) {
 
     const [countRow] = await seq.query(
       `SELECT COUNT(*) AS total FROM (
-         SELECT ${addrKey}, ${phoneKey}
+         SELECT ${addrKey}
          FROM orders
          WHERE status != 'cancelled'
            AND NULLIF(TRIM(delivery_address),'') IS NOT NULL
            ${searchSqlAddr}
-         GROUP BY ${addrKey}, ${phoneKey}
+         GROUP BY ${addrKey}
        ) sub`,
       { replacements: search ? { q: `%${search}%` } : {}, type: QueryTypes.SELECT }
     );
