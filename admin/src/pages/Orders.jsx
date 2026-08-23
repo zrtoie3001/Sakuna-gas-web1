@@ -1097,7 +1097,10 @@ window.onload = function() { window.print(); window.onafterprint = () => window.
             </div>
 
             {(walkinType === "gas" || walkinType === "new_tank") ? (() => {
-              const brands = [...new Set(gasStocks.map(s => s.brandName))].sort();
+              // Use brands from API; add any gasStock brands not already covered
+              const stockBrandNames = [...new Set(gasStocks.map(s => s.brandName))];
+              const apiBrandNames = brands.map(b => b.name);
+              const allBrandNames = [...new Set([...apiBrandNames, ...stockBrandNames])].sort();
               const weights = [...new Set(gasStocks.filter(s => !walkinForm.gasBrand || s.brandName === walkinForm.gasBrand || (SHARED_BRANDS.includes(walkinForm.gasBrand) && SHARED_BRANDS.includes(s.brandName))).map(s => Number(s.weightKg)))].sort((a,b)=>a-b);
               const selectedStock = findStockByBrand(gasStocks, walkinForm.gasBrand, walkinForm.gasWeight);
               const stockField = walkinType === "new_tank" ? "newTank" : "hasGas";
@@ -1111,7 +1114,7 @@ window.onload = function() { window.print(); window.onafterprint = () => window.
                       <select value={walkinForm.gasBrand || ""} onChange={e => setWalkinForm(f => ({ ...f, gasBrand: e.target.value, gasWeight: "", stockId: "" }))}
                         style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 14, boxSizing: "border-box" }}>
                         <option value="">-- เลือกยี่ห้อ --</option>
-                        {brands.map(b => <option key={b} value={b}>{b}</option>)}
+                        {allBrandNames.map(b => <option key={b} value={b}>{b}</option>)}
                       </select>
                     </div>
                     <div style={{ flex: 1 }}>
@@ -1411,7 +1414,7 @@ window.onload = function() { window.print(); window.onafterprint = () => window.
                 )}
               </>
             ) : (() => {
-              const ntBrands = [...new Set(gasStocks.map(s => s.brandName))].sort();
+              const ntBrands = [...new Set([...brands.map(b => b.name), ...gasStocks.map(s => s.brandName)])].sort();
               const ntWeights = [...new Set(gasStocks.filter(s => !createForm.ntBrand || s.brandName === createForm.ntBrand || (SHARED_BRANDS.includes(createForm.ntBrand) && SHARED_BRANDS.includes(s.brandName))).map(s => Number(s.weightKg)))].sort((a,b)=>a-b);
               const ntStock = findStockByBrand(gasStocks, createForm.ntBrand, createForm.ntWeight);
               return (
