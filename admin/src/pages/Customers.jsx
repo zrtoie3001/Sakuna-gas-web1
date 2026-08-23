@@ -5,8 +5,8 @@ import api from "../utils/api.js";
 const NAVY = "#1A2B6B"; const ORANGE = "#F47B20"; const WHITE = "#FFFFFF"; const GRAY = "#6B7280";
 
 function displayName(c) {
-  if (c.lastAddress) return c.lastAddress;
   if (c.name && c.name !== "ลูกค้าหน้าร้าน") return c.name;
+  if (c.lastAddress) return c.lastAddress;
   if (c.phone) return c.phone;
   return "ไม่ระบุ";
 }
@@ -102,7 +102,10 @@ export default function Customers() {
               </div>
               <div style={{ minWidth: 0 }}>
                 <p style={{ fontSize: 14, fontWeight: 700, color: NAVY, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{displayName(c)}</p>
-                <p style={{ fontSize: 12, color: GRAY }}>{c.phone || ""}{c.phone && c.totalOrders ? " · " : ""}สั่ง {c.totalOrders} ครั้ง</p>
+                {c.lastAddress && (c.name && c.name !== "ลูกค้าหน้าร้าน") && (
+                  <p style={{ fontSize: 11, color: GRAY, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>📍 {c.lastAddress}</p>
+                )}
+                <p style={{ fontSize: 12, color: GRAY }}>{c.phone || ""}{c.phone ? " · " : ""}สั่ง {c.totalOrders} ครั้ง</p>
               </div>
             </div>
           ))}
