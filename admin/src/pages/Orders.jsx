@@ -8,6 +8,41 @@ const ORANGE = "#F47B20";
 const WHITE  = "#FFFFFF";
 const GRAY   = "#6B7280";
 
+// Brands merged for display (สยาม+ยูนิค → ยูนิค/สยาม, primary = ยูนิค)
+const MERGED_BRAND_MAP = { "สยาม": "ยูนิค/สยาม", "ยูนิค": "ยูนิค/สยาม" };
+const MERGED_DISPLAY   = "ยูนิค/สยาม";
+const MERGED_PRIMARY   = "ยูนิค"; // brand used when saving order
+
+function mergeBrandList(stocks) {
+  const seen = new Set();
+  const result = [];
+  for (const s of stocks) {
+    const display = MERGED_BRAND_MAP[s.brandName] || s.brandName;
+    if (!seen.has(display)) { seen.add(display); result.push(display); }
+  }
+  return result.sort();
+}
+
+function resolveStockBrands(displayBrand) {
+  if (displayBrand === MERGED_DISPLAY) return ["ยูนิค", "สยาม"];
+  return [displayBrand];
+}
+
+function mergedStockQty(gasStocks, displayBrand, weight, field) {
+  return resolveStockBrands(displayBrand).reduce((sum, bn) => {
+    const s = gasStocks.find(x => x.brandName === bn && Number(x.weightKg) === Number(weight));
+    return sum + (Number(s?.[field]) || 0);
+  }, 0);
+}
+
+function findStockByDisplayBrand(gasStocks, displayBrand, weight) {
+  for (const bn of resolveStockBrands(displayBrand)) {
+    const s = gasStocks.find(x => x.brandName === bn && Number(x.weightKg) === Number(weight));
+    if (s) return s;
+  }
+  return null;
+}
+
 const STATUSES = [
   { key: "",                  label: "ทั้งหมด" },
   { key: "pending",           label: "รอรับงาน",       bg: "#FEF3C7", color: "#92400E" },
@@ -193,17 +228,18 @@ export default function Orders() {
 
   function addToCreateCart() {
     if (createForm.orderType === "new_tank") {
-      const stock = gasStocks.find(s => s.id === createForm.newTankStockId);
+      const stock = findStockByDisplayBrand(gasStocks, createForm.ntBrand, createForm.ntWeight);
       if (!stock) return alert("กรุณาเลือกยี่ห้อและน้ำหนัก");
       if (!createForm.newTankPrice) return alert("กรุณาใส่ราคา");
+      const ntDisplayName = createForm.ntBrand || stock.brandName;
       setCreateCart(c => [...c, {
         type: "new_tank",
-        brandName: stock.brandName,
+        brandName: ntDisplayName,
         weightKg: stock.weightKg,
         stockId: stock.id,
         qty: Number(createForm.qty || 1),
         price: Number(createForm.newTankPrice),
-        label: `ถังใหม่ ${stock.brandName} ${stock.weightKg} กก.`,
+        label: `ถังใหม่ ${ntDisplayName} ${stock.weightKg} กก.`,
       }]);
       setCreateForm(f => ({ ...f, ntBrand: "", ntWeight: "", newTankStockId: "", newTankPrice: "", qty: 1 }));
     } else if (createForm.orderType === "equipment") {
@@ -280,18 +316,19 @@ export default function Orders() {
 
   function addToWalkinCart() {
     if (walkinType === "gas" || walkinType === "new_tank") {
-      const stock = gasStocks.find(s => s.id === walkinForm.stockId);
+      const stock = findStockByDisplayBrand(gasStocks, walkinForm.gasBrand, walkinForm.gasWeight);
       if (!stock) return alert("กรุณาเลือกยี่ห้อและน้ำหนัก");
       if (!walkinForm.price) return alert("กรุณาใส่ราคา");
+      const displayBrandName = walkinForm.gasBrand === MERGED_DISPLAY ? MERGED_DISPLAY : stock.brandName;
       const prefix = walkinType === "new_tank" ? "🆕 ถังใหม่ " : "⛽ ";
       setWalkinCart(c => [...c, {
         type: walkinType,
-        brandName: stock.brandName,
+        brandName: displayBrandName,
         weightKg: stock.weightKg,
         stockId: stock.id,
         qty: Number(walkinForm.qty || 1),
         price: Number(walkinForm.price),
-        label: `${prefix}${stock.brandName} ${stock.weightKg} กก.`,
+        label: `${prefix}${displayBrandName} ${stock.weightKg} กก.`,
       }]);
     } else {
       const item = equipList.find(e => e.id === walkinForm.equipId);
@@ -1060,10 +1097,11 @@ window.onload = function() { window.print(); window.onafterprint = () => window.
             </div>
 
             {(walkinType === "gas" || walkinType === "new_tank") ? (() => {
-              const brands = [...new Set(gasStocks.map(s => s.brandName))].sort();
-              const weights = [...new Set(gasStocks.filter(s => !walkinForm.gasBrand || s.brandName === walkinForm.gasBrand).map(s => Number(s.weightKg)))].sort((a,b)=>a-b);
-              const selectedStock = gasStocks.find(s => s.brandName === walkinForm.gasBrand && Number(s.weightKg) === Number(walkinForm.gasWeight));
-              const stockQty = walkinType === "new_tank" ? selectedStock?.newTank : selectedStock?.hasGas;
+              const brands = mergeBrandList(gasStocks);
+              const weights = [...new Set(gasStocks.filter(s => !walkinForm.gasBrand || resolveStockBrands(walkinForm.gasBrand).includes(s.brandName)).map(s => Number(s.weightKg)))].sort((a,b)=>a-b);
+              const selectedStock = findStockByDisplayBrand(gasStocks, walkinForm.gasBrand, walkinForm.gasWeight);
+              const stockField = walkinType === "new_tank" ? "newTank" : "hasGas";
+              const stockQty = walkinForm.gasBrand && walkinForm.gasWeight ? mergedStockQty(gasStocks, walkinForm.gasBrand, walkinForm.gasWeight, stockField) : null;
               const stockLabel = walkinType === "new_tank" ? "ถังใหม่" : "ถังมีแก๊ส";
               return (
                 <>
@@ -1080,7 +1118,7 @@ window.onload = function() { window.print(); window.onafterprint = () => window.
                       <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>น้ำหนัก *</div>
                       <select value={walkinForm.gasWeight || ""} onChange={e => {
                         const w = e.target.value;
-                        const s = gasStocks.find(x => x.brandName === walkinForm.gasBrand && Number(x.weightKg) === Number(w));
+                        const s = findStockByDisplayBrand(gasStocks, walkinForm.gasBrand, w);
                         setWalkinForm(f => ({ ...f, gasWeight: w, stockId: s?.id || "" }));
                       }} style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 14, boxSizing: "border-box" }}>
                         <option value="">-- เลือกขนาด --</option>
@@ -1373,9 +1411,9 @@ window.onload = function() { window.print(); window.onafterprint = () => window.
                 )}
               </>
             ) : (() => {
-              const ntBrands = [...new Set(gasStocks.map(s => s.brandName))].sort();
-              const ntWeights = [...new Set(gasStocks.filter(s => !createForm.ntBrand || s.brandName === createForm.ntBrand).map(s => Number(s.weightKg)))].sort((a,b)=>a-b);
-              const ntStock = gasStocks.find(s => s.brandName === createForm.ntBrand && Number(s.weightKg) === Number(createForm.ntWeight));
+              const ntBrands = mergeBrandList(gasStocks);
+              const ntWeights = [...new Set(gasStocks.filter(s => !createForm.ntBrand || resolveStockBrands(createForm.ntBrand).includes(s.brandName)).map(s => Number(s.weightKg)))].sort((a,b)=>a-b);
+              const ntStock = findStockByDisplayBrand(gasStocks, createForm.ntBrand, createForm.ntWeight);
               return (
                 <>
                   <div style={{ display: "flex", gap: 12, marginBottom: 12 }}>
@@ -1391,7 +1429,7 @@ window.onload = function() { window.print(); window.onafterprint = () => window.
                       <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>น้ำหนัก *</div>
                       <select value={createForm.ntWeight || ""} onChange={e => {
                         const w = e.target.value;
-                        const s = gasStocks.find(x => x.brandName === createForm.ntBrand && Number(x.weightKg) === Number(w));
+                        const s = findStockByDisplayBrand(gasStocks, createForm.ntBrand, w);
                         setCreateForm(f => ({ ...f, ntWeight: w, newTankStockId: s?.id || "" }));
                       }} style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 14, boxSizing: "border-box" }}>
                         <option value="">-- เลือก --</option>
@@ -1399,9 +1437,9 @@ window.onload = function() { window.print(); window.onafterprint = () => window.
                       </select>
                     </div>
                   </div>
-                  {ntStock && (
+                  {ntStock && createForm.ntBrand && createForm.ntWeight && (
                     <div style={{ background: "#F0FDF4", borderRadius: 8, padding: "8px 12px", marginBottom: 12, fontSize: 13, color: "#166534" }}>
-                      ถังใหม่ในสต็อก: <strong>{ntStock.newTank} ถัง</strong>
+                      ถังใหม่ในสต็อก: <strong>{mergedStockQty(gasStocks, createForm.ntBrand, createForm.ntWeight, "newTank")} ถัง</strong>
                     </div>
                   )}
                   <div style={{ marginBottom: 12 }}>
