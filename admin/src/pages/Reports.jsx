@@ -241,7 +241,7 @@ export default function Reports() {
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
             <thead>
               <tr style={{ background: "#F8FAFC", borderBottom: "2px solid #E5E7EB" }}>
-                {["เลขออเดอร์", "ลูกค้า", "สินค้า", "จำนวน (ถัง)", "ยอดรวม", "สถานะ"].map(h => (
+                {["เลขออเดอร์", "ลูกค้า", "ที่อยู่", "สินค้า", "จำนวน (ถัง)", "ยอดรวม", "สถานะ"].map(h => (
                   <th key={h} style={{ padding: "10px 12px", textAlign: "left", color: GRAY, fontWeight: 700 }}>{h}</th>
                 ))}
               </tr>
@@ -251,6 +251,7 @@ export default function Reports() {
                 <tr key={o.id} style={{ borderBottom: "1px solid #F3F4F6" }}>
                   <td style={{ padding: "9px 12px", fontWeight: 700, color: ORANGE }}>{o.orderNumber}</td>
                   <td style={{ padding: "9px 12px" }}>{o.customerName}</td>
+                  <td style={{ padding: "9px 12px", color: GRAY, maxWidth: 200 }}>{o.deliveryAddress || "-"}</td>
                   <td style={{ padding: "9px 12px", color: GRAY }}>{o.product?.name}</td>
                   <td style={{ padding: "9px 12px" }}>{o.qty} ถัง</td>
                   <td style={{ padding: "9px 12px", fontWeight: 700 }}>฿{Number(o.total).toLocaleString()}</td>

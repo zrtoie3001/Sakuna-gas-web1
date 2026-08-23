@@ -122,6 +122,38 @@ async function getCustomerOrdersByPhone(req, res) {
   } catch (e) { res.status(500).json({ error: e.message }); }
 }
 
+// Admin: update customer contact info across all matching orders
+async function updateCustomerContact(req, res) {
+  try {
+    const { oldAddress, oldPhone, newName, newPhone, newAddress } = req.body;
+    if (!oldAddress) return res.status(400).json({ error: "oldAddress required" });
+
+    const { sequelize: seq } = require("../config/database");
+    const { QueryTypes } = require("sequelize");
+
+    // Build WHERE clause matching the customer's (address, phone) group key
+    const normOld = `LOWER(REGEXP_REPLACE(TRIM(delivery_address),'\\s+',' ','g')) = LOWER(REGEXP_REPLACE(TRIM(:oldAddress),'\\s+',' ','g'))`;
+    const phoneMatch = oldPhone
+      ? `AND COALESCE(NULLIF(TRIM(customer_phone),''),'') = :oldPhone`
+      : `AND COALESCE(NULLIF(TRIM(customer_phone),''),'') = ''`;
+
+    const setClauses = [];
+    const replacements = { oldAddress, oldPhone: oldPhone || "" };
+    if (newName !== undefined) { setClauses.push(`customer_name = :newName`); replacements.newName = newName || null; }
+    if (newPhone !== undefined) { setClauses.push(`customer_phone = :newPhone`); replacements.newPhone = newPhone || null; }
+    if (newAddress !== undefined) { setClauses.push(`delivery_address = :newAddress`); replacements.newAddress = newAddress || null; }
+    if (!setClauses.length) return res.status(400).json({ error: "Nothing to update" });
+
+    const [, meta] = await seq.query(
+      `UPDATE orders SET ${setClauses.join(", ")}
+       WHERE ${normOld} ${phoneMatch} AND status != 'cancelled'`,
+      { replacements, type: QueryTypes.UPDATE }
+    );
+
+    res.json({ updated: meta });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+}
+
 async function getCustomerOrders(req, res) {
   const customer = await Customer.findByPk(req.params.id);
   if (!customer) return res.status(404).json({ error: "Not found" });
@@ -133,4 +165,4 @@ async function getCustomerOrders(req, res) {
   res.json({ customer, orders });
 }
 
-module.exports = { getOrCreateCustomer, addAddress, getAddresses, listCustomers, getCustomerOrders, getCustomerOrdersByPhone };
+module.exports = { getOrCreateCustomer, addAddress, getAddresses, listCustomers, getCustomerOrders, getCustomerOrdersByPhone, updateCustomerContact };
