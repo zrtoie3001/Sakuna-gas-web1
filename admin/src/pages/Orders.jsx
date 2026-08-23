@@ -684,6 +684,15 @@ window.onload = function() { window.print(); window.onafterprint = () => window.
           );
         })()}
 
+        {/* Pagination top */}
+        <div style={{ display: "flex", justifyContent: "center", gap: 8, marginBottom: 10 }}>
+          <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
+            style={{ padding: "6px 14px", borderRadius: 8, border: "2px solid #E5E7EB", background: WHITE, fontWeight: 700, color: NAVY, cursor: page === 1 ? "default" : "pointer" }}>←</button>
+          <span style={{ padding: "6px 10px", fontSize: 13, color: GRAY }}>หน้า {page}</span>
+          <button onClick={() => setPage(p => p + 1)} disabled={orders.length < 20}
+            style={{ padding: "6px 14px", borderRadius: 8, border: "2px solid #E5E7EB", background: WHITE, fontWeight: 700, color: NAVY, cursor: orders.length < 20 ? "default" : "pointer" }}>→</button>
+        </div>
+
         {/* Table */}
         <div style={{ background: WHITE, borderRadius: 14, overflow: "hidden", boxShadow: "0 2px 12px rgba(0,0,0,.06)" }}>
           {orders.filter(o => !search || [o.orderNumber, o.customerName, o.customerPhone, o.deliveryAddress, o.product?.name].some(v => String(v||"").toLowerCase().includes(search.toLowerCase()))).map(o => {
