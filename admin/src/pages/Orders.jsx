@@ -272,7 +272,6 @@ export default function Orders() {
 
   async function confirmCreateOrder() {
     if (createCart.length === 0) return alert("กรุณาเพิ่มสินค้าในตะกร้าก่อน");
-    if (!createForm.deliveryAddress) return alert("กรุณากรอกที่อยู่จัดส่ง");
     setCreating(true);
     try {
       const cartItems = createCart.map(it => ({
@@ -1309,7 +1308,7 @@ window.onload = function() { window.print(); window.onafterprint = () => window.
               />
             </div>
             <div style={{ marginBottom: 12 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>ที่อยู่จัดส่ง *</div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>ที่อยู่จัดส่ง</div>
               <CustomerAutocomplete
                 value={createForm.deliveryAddress}
                 onChange={v => setCreateForm(f => ({ ...f, deliveryAddress: v }))}
