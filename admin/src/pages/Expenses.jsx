@@ -8,7 +8,7 @@ const GREEN = "#059669";
 const RED = "#DC2626";
 const ORANGE = "#D97706";
 
-const TYPE_LABEL = { fuel: "⛽ เติมน้ำมัน", repair: "🔧 ซ่อมรถ/อื่นๆ", other: "📦 ทั่วไป", parcel: "📮 พัสดุ", lift: "🏗️ ค่ายก" };
+const TYPE_LABEL = { fuel: "⛽ เติมน้ำมัน", repair: "🔧 ซ่อมรถ/อื่นๆ", other: "📦 ทั่วไป", parcel: "📮 พัสดุ", lift: "🏗️ ค่ายก", collect: "💵 เก็บเงินนำส่ง" };
 const TYPE_COLOR = { fuel: "#FEF3C7", repair: "#FEE2E2", other: "#EFF6FF", parcel: "#F3E8FF" };
 const TYPE_TEXT  = { fuel: "#92400E", repair: "#991B1B", other: "#1E40AF", parcel: "#6B21A8" };
 
@@ -112,6 +112,7 @@ export default function Expenses() {
           <option value="other">📦 ทั่วไป</option>
           <option value="parcel">📮 พัสดุ</option>
           <option value="lift">🏗️ ค่ายก</option>
+          <option value="collect">💵 เก็บเงินนำส่ง</option>
         </select>
         <input type="date" value={filterFrom} onChange={e => setFilterFrom(e.target.value)} style={{ ...inp, width: "auto", flex: 1 }} />
         <input type="date" value={filterTo}   onChange={e => setFilterTo(e.target.value)}   style={{ ...inp, width: "auto", flex: 1 }} />
@@ -175,6 +176,7 @@ export default function Expenses() {
                 <option value="other">📦 อื่นๆ</option>
                 <option value="parcel">📮 พัสดุ</option>
                 <option value="lift">🏗️ ค่ายก</option>
+                <option value="collect">💵 เก็บเงินนำส่ง</option>
               </select>
             </div>
 

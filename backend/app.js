@@ -52,7 +52,8 @@ app.use("/api/v1/stock",     require("./src/routes/stock"));
 app.use("/api/v1/settings",  require("./src/routes/settings"));
 app.use("/api/v1/debts",     require("./src/routes/debts"));
 app.use("/api/v1/expenses",  require("./src/routes/expenses"));
-app.use("/api/v1/payroll",   require("./src/routes/payroll"));
+app.use("/api/v1/payroll",    require("./src/routes/payroll"));
+app.use("/api/v1/cash-float", require("./src/routes/cashFloat"));
 
 // ── Health ────────────────────────────────────────────────────────────────────
 app.get("/health", (_req, res) => res.json({ status: "ok", ts: new Date() }));

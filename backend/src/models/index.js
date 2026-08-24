@@ -245,6 +245,14 @@ const Expense = sequelize.define("Expense", {
   createdByName:   { type: DataTypes.STRING(100) },
 }, { tableName: "expenses", underscored: true });
 
+// ── CashFloat (ยอดเงินสดตั้งต้น) ──────────────────────────────────────────────
+const CashFloat = sequelize.define("CashFloat", {
+  id:          { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+  date:        { type: DataTypes.DATEONLY, allowNull: false, unique: true },
+  startAmount: { type: DataTypes.DECIMAL(10, 2), allowNull: false, defaultValue: 0 },
+  note:        { type: DataTypes.TEXT },
+}, { tableName: "cash_floats", underscored: true });
+
 // ── Debt (ค้างเงิน / ค้างถัง) ─────────────────────────────────────────────────
 const Debt = sequelize.define("Debt", {
   id:             { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
@@ -282,4 +290,5 @@ module.exports = {
   EquipmentSale,
   Debt,
   Expense,
+  CashFloat,
 };
