@@ -1006,20 +1006,32 @@ window.onload = function() { window.print(); window.onafterprint = () => window.
                   return (
                     <div key={idx} style={{ background: "#F8FAFF", borderRadius: 10, padding: "10px 12px", marginBottom: 8, border: "1.5px solid #E5E7EB" }}>
                       <div style={{ fontSize: 12, fontWeight: 700, color: NAVY, marginBottom: 8 }}>รายการที่ {idx + 1}: {label}</div>
-                      <div style={{ display: "flex", gap: 8 }}>
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: 10, color: GRAY, fontWeight: 700, marginBottom: 3 }}>ยี่ห้อ</div>
-                          <input value={it.brandName || ""} onChange={e => setEditItems(arr => arr.map((x, i) => i === idx ? { ...x, brandName: e.target.value } : x))}
-                            style={{ width: "100%", padding: "7px 10px", borderRadius: 7, border: "1.5px solid #E5E7EB", fontSize: 13, boxSizing: "border-box" }} />
-                        </div>
-                        {(it.type === "gas" || it.type === "new_tank") && (
-                          <div style={{ flex: 1 }}>
-                            <div style={{ fontSize: 10, color: GRAY, fontWeight: 700, marginBottom: 3 }}>น้ำหนัก (กก.)</div>
-                            <input type="number" value={it.weightKg || ""} onChange={e => setEditItems(arr => arr.map((x, i) => i === idx ? { ...x, weightKg: e.target.value } : x))}
-                              style={{ width: "100%", padding: "7px 10px", borderRadius: 7, border: "1.5px solid #E5E7EB", fontSize: 13, boxSizing: "border-box" }} />
+                      {(() => {
+                        const allBrands = [...new Set([...brands.map(b => b.name), ...gasStocks.map(s => s.brandName)])].sort();
+                        const allWeights = [...new Set([...ALL_WEIGHTS, ...gasStocks.filter(s => !it.brandName || s.brandName === it.brandName || (SHARED_BRANDS.includes(it.brandName) && SHARED_BRANDS.includes(s.brandName))).map(s => Number(s.weightKg))])].sort((a,b)=>a-b);
+                        return (
+                          <div style={{ display: "flex", gap: 8 }}>
+                            <div style={{ flex: 1 }}>
+                              <div style={{ fontSize: 10, color: GRAY, fontWeight: 700, marginBottom: 3 }}>ยี่ห้อ</div>
+                              <select value={it.brandName || ""} onChange={e => setEditItems(arr => arr.map((x, i) => i === idx ? { ...x, brandName: e.target.value } : x))}
+                                style={{ width: "100%", padding: "7px 10px", borderRadius: 7, border: "1.5px solid #E5E7EB", fontSize: 13, boxSizing: "border-box" }}>
+                                <option value="">-- ยี่ห้อ --</option>
+                                {allBrands.map(b => <option key={b} value={b}>{b}</option>)}
+                              </select>
+                            </div>
+                            {(it.type === "gas" || it.type === "new_tank") && (
+                              <div style={{ flex: 1 }}>
+                                <div style={{ fontSize: 10, color: GRAY, fontWeight: 700, marginBottom: 3 }}>น้ำหนัก (กก.)</div>
+                                <select value={it.weightKg || ""} onChange={e => setEditItems(arr => arr.map((x, i) => i === idx ? { ...x, weightKg: e.target.value } : x))}
+                                  style={{ width: "100%", padding: "7px 10px", borderRadius: 7, border: "1.5px solid #E5E7EB", fontSize: 13, boxSizing: "border-box" }}>
+                                  <option value="">-- กก. --</option>
+                                  {allWeights.map(w => <option key={w} value={w}>{w} กก.</option>)}
+                                </select>
+                              </div>
+                            )}
                           </div>
-                        )}
-                      </div>
+                        );
+                      })()}
                       <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
                         <div style={{ flex: 1 }}>
                           <div style={{ fontSize: 10, color: GRAY, fontWeight: 700, marginBottom: 3 }}>จำนวน</div>
