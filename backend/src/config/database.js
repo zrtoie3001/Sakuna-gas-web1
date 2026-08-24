@@ -8,7 +8,13 @@ const sequelize = new Sequelize(process.env.DATABASE_URL, {
       : false,
   },
   logging: false,
-  pool: { max: 5, min: 0, acquire: 30000, idle: 10000 },
+  pool: {
+    max: 20,      // รองรับ concurrent request มากขึ้น
+    min: 2,       // keep connections warm
+    acquire: 10000, // fail fast แทนค้าง 30 วิ
+    idle: 30000,
+    evict: 10000,
+  },
 });
 
 module.exports = { sequelize };

@@ -30,7 +30,7 @@ app.use(cors({
   credentials: true,
 }));
 
-app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 200, standardHeaders: true }));
+app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 1000, standardHeaders: true, legacyHeaders: false }));
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 // ── Webhook (ต้อง mount ก่อน express.json เพื่อให้ LINE middleware อ่าน raw body ได้) ──
@@ -74,7 +74,10 @@ const PORT = process.env.PORT || 3001;
   try {
     await sequelize.authenticate();
     logger.info("Database connected");
-    await sequelize.sync({ alter: process.env.NODE_ENV === "development" });
+    // sync({ alter }) ถูกปิดใน production เพราะช้าและล็อก table ระหว่าง startup
+    if (process.env.NODE_ENV === "development") {
+      await sequelize.sync({ alter: true });
+    }
 
     // ── Manual migrations (idempotent) ─────────────────────────────────────────
     await sequelize.query(`ALTER TABLE store_settings ADD COLUMN IF NOT EXISTS force_open BOOLEAN NOT NULL DEFAULT false;`).catch(() => {});
@@ -146,6 +149,11 @@ const PORT = process.env.PORT || 3001;
         updated_at TIMESTAMPTZ DEFAULT NOW()
       );
     `).catch(() => {});
+    // Performance indexes — idempotent
+    await sequelize.query(`CREATE INDEX IF NOT EXISTS idx_orders_created_at ON orders(created_at DESC);`).catch(() => {});
+    await sequelize.query(`CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);`).catch(() => {});
+    await sequelize.query(`CREATE INDEX IF NOT EXISTS idx_orders_payment ON orders(payment_method, is_paid);`).catch(() => {});
+    await sequelize.query(`CREATE INDEX IF NOT EXISTS idx_expenses_created_at ON expenses(created_at DESC);`).catch(() => {});
     logger.info("Migrations done");
 
     app.listen(PORT, () => logger.info(`API running on port ${PORT}`));

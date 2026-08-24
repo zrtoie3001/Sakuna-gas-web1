@@ -187,7 +187,7 @@ export default function Layout() {
       } finally { inflight = null; }
     }
 
-    const id = setInterval(checkOrders, 30000);
+    const id = setInterval(checkOrders, 60000);
     checkOrders();
     return () => { cancelled = true; clearInterval(id); inflight?.abort(); };
   }, []);

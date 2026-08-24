@@ -183,7 +183,7 @@ export default function Orders() {
 
   useEffect(() => {
     fetch();
-    const interval = setInterval(fetch, 60000);
+    const interval = setInterval(fetch, 120000);
     return () => { clearInterval(interval); fetchRef.current?.abort(); };
   }, [fetch]);
 
