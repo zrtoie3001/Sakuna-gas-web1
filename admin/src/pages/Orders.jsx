@@ -161,6 +161,7 @@ export default function Orders() {
   const cartRef = useRef(null);
   const [editOrder, setEditOrder]     = useState(null);   // order being edited
   const [editForm,  setEditForm]      = useState({});
+  const [editItems, setEditItems]     = useState(null);   // null = single-item mode, array = multi-item (walkin mixed)
   const [editSaving, setEditSaving]   = useState(false);
   const [showUnpaid, setShowUnpaid]   = useState(false);
 
@@ -577,6 +578,19 @@ window.onload = function() { window.print(); window.onafterprint = () => window.
 
   function openEdit(order) {
     setEditOrder(order);
+    const noteRaw = order.note || "";
+    let walkinData = null;
+    if (noteRaw.startsWith("__walkin:")) {
+      try { walkinData = JSON.parse(noteRaw.replace(/^__walkin:/, "").split("\n")[0]); } catch {}
+    }
+    const extraNote = noteRaw.startsWith("__walkin:") ? noteRaw.split("\n").slice(1).join("\n").trim() : noteRaw;
+
+    if (walkinData?.type === "mixed" && Array.isArray(walkinData.items) && walkinData.items.length > 0) {
+      // Multi-item walkin: edit each line separately
+      setEditItems(walkinData.items.map(it => ({ ...it })));
+    } else {
+      setEditItems(null);
+    }
     setEditForm({
       customerName:    order.customerName    || "",
       customerPhone:   order.customerPhone   || "",
@@ -587,30 +601,40 @@ window.onload = function() { window.print(); window.onafterprint = () => window.
       paymentMethod:   order.paymentMethod   || "cash",
       brandId:         order.brandId         || order.brand?.id || "",
       productId:       order.productId       || order.product?.id || "",
-      note:            (() => {
-        const n = order.note || "";
-        if (n.startsWith("__walkin:")) return n.split("\n").slice(1).join("\n").trim();
-        return n;
-      })(),
+      note:            extraNote,
+      _walkinData:     walkinData,
     });
   }
 
   async function saveEdit() {
     setEditSaving(true);
     try {
-      const qty   = Number(editForm.qty   || 1);
-      const price = Number(editForm.unitPrice || 0);
+      let qty, unitPrice, total, noteOut;
+      if (editItems) {
+        // Rebuild walkin note JSON from edited items
+        const newWalkinData = { ...editForm._walkinData, items: editItems };
+        const itemsTotal = editItems.reduce((s, it) => s + Number(it.qty || 1) * Number(it.price || it.unitPrice || 0), 0);
+        qty = editItems.reduce((s, it) => s + Number(it.qty || 1), 0);
+        unitPrice = qty > 0 ? Math.round(itemsTotal / qty) : 0;
+        total = itemsTotal;
+        noteOut = `__walkin:${JSON.stringify(newWalkinData)}${editForm.note ? "\n" + editForm.note : ""}`;
+      } else {
+        qty = Number(editForm.qty || 1);
+        unitPrice = Number(editForm.unitPrice || 0);
+        total = qty * unitPrice;
+        noteOut = editForm.note;
+      }
       const payload = {
         customerName:    editForm.customerName,
         customerPhone:   editForm.customerPhone,
         deliveryAddress: editForm.deliveryAddress,
         qty,
-        unitPrice: price,
-        total:     qty * price,
+        unitPrice,
+        total,
         paymentMethod: editForm.paymentMethod,
         brandId:   editForm.brandId   || null,
         productId: editForm.productId || null,
-        note: editForm.note,
+        note: noteOut,
       };
       const { data: updated } = await api.put(`/api/v1/orders/${editOrder.id}`, payload);
       const brandObj = brands.find(b => String(b.id) === String(editForm.brandId));
@@ -970,44 +994,101 @@ window.onload = function() { window.print(); window.onafterprint = () => window.
               </div>
             ))}
 
-            <div style={{ display: "flex", gap: 12, marginBottom: 12 }}>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>ยี่ห้อ</div>
-                <select value={editForm.brandId || ""} onChange={e => setEditForm(f => ({ ...f, brandId: e.target.value, productId: "" }))}
-                  style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 14, boxSizing: "border-box" }}>
-                  <option value="">-- ยี่ห้อ --</option>
-                  {brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-                </select>
+            {editItems ? (
+              // ── Multi-item walkin: show each line editable ──
+              <div style={{ marginBottom: 14 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 8 }}>รายการสินค้า</div>
+                {editItems.map((it, idx) => {
+                  const label = it.type === "new_tank" ? `ถังใหม่ ${it.brandName} ${it.weightKg}กก.`
+                              : it.type === "gas"      ? `${it.brandName} ${it.weightKg}กก.`
+                              : it.name || it.brandName || "สินค้า";
+                  const lineTotal = Number(it.qty || 1) * Number(it.price || it.unitPrice || 0);
+                  return (
+                    <div key={idx} style={{ background: "#F8FAFF", borderRadius: 10, padding: "10px 12px", marginBottom: 8, border: "1.5px solid #E5E7EB" }}>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: NAVY, marginBottom: 8 }}>รายการที่ {idx + 1}: {label}</div>
+                      <div style={{ display: "flex", gap: 8 }}>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: 10, color: GRAY, fontWeight: 700, marginBottom: 3 }}>ยี่ห้อ</div>
+                          <input value={it.brandName || ""} onChange={e => setEditItems(arr => arr.map((x, i) => i === idx ? { ...x, brandName: e.target.value } : x))}
+                            style={{ width: "100%", padding: "7px 10px", borderRadius: 7, border: "1.5px solid #E5E7EB", fontSize: 13, boxSizing: "border-box" }} />
+                        </div>
+                        {(it.type === "gas" || it.type === "new_tank") && (
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontSize: 10, color: GRAY, fontWeight: 700, marginBottom: 3 }}>น้ำหนัก (กก.)</div>
+                            <input type="number" value={it.weightKg || ""} onChange={e => setEditItems(arr => arr.map((x, i) => i === idx ? { ...x, weightKg: e.target.value } : x))}
+                              style={{ width: "100%", padding: "7px 10px", borderRadius: 7, border: "1.5px solid #E5E7EB", fontSize: 13, boxSizing: "border-box" }} />
+                          </div>
+                        )}
+                      </div>
+                      <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: 10, color: GRAY, fontWeight: 700, marginBottom: 3 }}>จำนวน</div>
+                          <input type="number" min="1" value={it.qty || ""} onChange={e => setEditItems(arr => arr.map((x, i) => i === idx ? { ...x, qty: e.target.value } : x))}
+                            style={{ width: "100%", padding: "7px 10px", borderRadius: 7, border: "1.5px solid #E5E7EB", fontSize: 13, boxSizing: "border-box" }} />
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: 10, color: GRAY, fontWeight: 700, marginBottom: 3 }}>ราคา/ถัง (บาท)</div>
+                          <input type="number" value={it.price || it.unitPrice || ""} onChange={e => setEditItems(arr => arr.map((x, i) => i === idx ? { ...x, price: e.target.value, unitPrice: e.target.value } : x))}
+                            style={{ width: "100%", padding: "7px 10px", borderRadius: 7, border: "1.5px solid #E5E7EB", fontSize: 13, boxSizing: "border-box" }} />
+                        </div>
+                        <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "flex-end" }}>
+                          <div style={{ fontSize: 10, color: GRAY, fontWeight: 700, marginBottom: 3 }}>รวม</div>
+                          <div style={{ padding: "7px 10px", fontWeight: 800, color: "#059669", fontSize: 13 }}>฿{lineTotal.toLocaleString()}</div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+                <div style={{ background: "#F0FDF4", borderRadius: 10, padding: "10px 14px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span style={{ fontWeight: 700, color: "#166534", fontSize: 13 }}>ยอดรวม</span>
+                  <span style={{ fontWeight: 900, fontSize: 18, color: "#059669" }}>
+                    ฿{editItems.reduce((s, it) => s + Number(it.qty || 1) * Number(it.price || it.unitPrice || 0), 0).toLocaleString()}
+                  </span>
+                </div>
               </div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>น้ำหนัก</div>
-                <select value={editForm.productId || ""} onChange={e => setEditForm(f => ({ ...f, productId: e.target.value }))}
-                  style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 14, boxSizing: "border-box" }}>
-                  <option value="">-- น้ำหนัก --</option>
-                  {products.filter(p => !editForm.brandId || p.brandId === editForm.brandId || p.brand_id === editForm.brandId).map(p => (
-                    <option key={p.id} value={p.id}>{p.kg != null ? `${p.kg} กก.` : p.name}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
+            ) : (
+              // ── Single item ──
+              <>
+                <div style={{ display: "flex", gap: 12, marginBottom: 12 }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>ยี่ห้อ</div>
+                    <select value={editForm.brandId || ""} onChange={e => setEditForm(f => ({ ...f, brandId: e.target.value, productId: "" }))}
+                      style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 14, boxSizing: "border-box" }}>
+                      <option value="">-- ยี่ห้อ --</option>
+                      {brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                    </select>
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>น้ำหนัก</div>
+                    <select value={editForm.productId || ""} onChange={e => setEditForm(f => ({ ...f, productId: e.target.value }))}
+                      style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 14, boxSizing: "border-box" }}>
+                      <option value="">-- น้ำหนัก --</option>
+                      {products.filter(p => !editForm.brandId || p.brandId === editForm.brandId || p.brand_id === editForm.brandId).map(p => (
+                        <option key={p.id} value={p.id}>{p.kg != null ? `${p.kg} กก.` : p.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
 
-            <div style={{ display: "flex", gap: 12, marginBottom: 12 }}>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>จำนวน</div>
-                <input type="number" min="1" value={editForm.qty || ""} onChange={e => setEditForm(f => ({ ...f, qty: e.target.value, total: Number(e.target.value) * Number(f.unitPrice || 0) }))}
-                  style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 14, boxSizing: "border-box" }} />
-              </div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>ราคา/หน่วย (บาท)</div>
-                <input type="number" value={editForm.unitPrice || ""} onChange={e => setEditForm(f => ({ ...f, unitPrice: e.target.value, total: Number(f.qty || 1) * Number(e.target.value) }))}
-                  style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 14, boxSizing: "border-box" }} />
-              </div>
-            </div>
+                <div style={{ display: "flex", gap: 12, marginBottom: 12 }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>จำนวน</div>
+                    <input type="number" min="1" value={editForm.qty || ""} onChange={e => setEditForm(f => ({ ...f, qty: e.target.value, total: Number(e.target.value) * Number(f.unitPrice || 0) }))}
+                      style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 14, boxSizing: "border-box" }} />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>ราคา/หน่วย (บาท)</div>
+                    <input type="number" value={editForm.unitPrice || ""} onChange={e => setEditForm(f => ({ ...f, unitPrice: e.target.value, total: Number(f.qty || 1) * Number(e.target.value) }))}
+                      style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 14, boxSizing: "border-box" }} />
+                  </div>
+                </div>
 
-            <div style={{ background: "#F0FDF4", borderRadius: 10, padding: "10px 14px", marginBottom: 14, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <span style={{ fontWeight: 700, color: "#166534", fontSize: 13 }}>ยอดรวม</span>
-              <span style={{ fontWeight: 900, fontSize: 18, color: "#059669" }}>฿{(Number(editForm.qty || 1) * Number(editForm.unitPrice || 0)).toLocaleString()}</span>
-            </div>
+                <div style={{ background: "#F0FDF4", borderRadius: 10, padding: "10px 14px", marginBottom: 14, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span style={{ fontWeight: 700, color: "#166534", fontSize: 13 }}>ยอดรวม</span>
+                  <span style={{ fontWeight: 900, fontSize: 18, color: "#059669" }}>฿{(Number(editForm.qty || 1) * Number(editForm.unitPrice || 0)).toLocaleString()}</span>
+                </div>
+              </>
+            )}
 
             <div style={{ marginBottom: 12 }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>วิธีชำระเงิน</div>
