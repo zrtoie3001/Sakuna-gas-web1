@@ -132,9 +132,9 @@ export default function Expenses() {
             <div style={{ flexShrink: 0 }}>
               {e.slipUrl ? (
                 <img
-                  src={`${API_URL}${e.slipUrl}`}
+                  src={e.slipUrl?.startsWith("http") ? e.slipUrl : `${API_URL}${e.slipUrl}`}
                   alt="slip"
-                  onClick={() => setLightbox(`${API_URL}${e.slipUrl}`)}
+                  onClick={() => setLightbox(e.slipUrl?.startsWith("http") ? e.slipUrl : `${API_URL}${e.slipUrl}`)}
                   style={{ width: 64, height: 64, objectFit: "cover", borderRadius: 10, cursor: "pointer", border: "1.5px solid #E5E7EB" }}
                 />
               ) : (

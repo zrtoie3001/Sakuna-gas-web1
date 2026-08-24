@@ -1,5 +1,6 @@
 const { Op } = require("sequelize");
 const { Expense } = require("../models");
+const { uploadStream } = require("../utils/cloudinary");
 
 async function listExpenses(req, res) {
   const { from, to, type, page = 1, limit = 50 } = req.query;
@@ -23,7 +24,11 @@ async function createExpense(req, res) {
   try {
     const { type, amount, description, createdByName } = req.body;
     if (!amount || isNaN(Number(amount))) return res.status(400).json({ error: "กรุณาระบุจำนวนเงิน" });
-    const slipUrl = req.file ? `/uploads/slips/${req.file.filename}` : null;
+    let slipUrl = null;
+    if (req.file) {
+      const result = await uploadStream(req.file.buffer, "sakunna/slips");
+      slipUrl = result.secure_url;
+    }
     const expense = await Expense.create({
       type: type || "other",
       amount: Number(amount),

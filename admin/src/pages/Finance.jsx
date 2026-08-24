@@ -124,9 +124,9 @@ export default function Finance() {
             <div style={{ flexShrink: 0 }}>
               {p.slipUrl ? (
                 <img
-                  src={`${API_URL}${p.slipUrl}`}
+                  src={p.slipUrl?.startsWith("http") ? p.slipUrl : `${API_URL}${p.slipUrl}`}
                   alt="slip"
-                  onClick={() => setLightbox(`${API_URL}${p.slipUrl}`)}
+                  onClick={() => setLightbox(p.slipUrl?.startsWith("http") ? p.slipUrl : `${API_URL}${p.slipUrl}`)}
                   style={{ width: 64, height: 64, objectFit: "cover", borderRadius: 10, cursor: "pointer", border: "1.5px solid #E5E7EB" }}
                 />
               ) : (

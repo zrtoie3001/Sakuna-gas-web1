@@ -1,5 +1,6 @@
 const { Op, DataTypes } = require("sequelize");
 const { sequelize } = require("../config/database");
+const { uploadStream } = require("../utils/cloudinary");
 
 // Lazy-init model (ไม่ต้องแก้ models/index.js)
 let StaffPayment;
@@ -42,7 +43,11 @@ async function createPayroll(req, res) {
     const { staffName, amount, type, note } = req.body;
     if (!staffName) return res.status(400).json({ error: "กรุณาระบุชื่อพนักงาน" });
     if (!amount || isNaN(Number(amount))) return res.status(400).json({ error: "กรุณาระบุจำนวนเงิน" });
-    const slipUrl = req.file ? `/uploads/slips/${req.file.filename}` : null;
+    let slipUrl = null;
+    if (req.file) {
+      const result = await uploadStream(req.file.buffer, "sakunna/slips");
+      slipUrl = result.secure_url;
+    }
     const row = await M.create({
       staffName,
       amount: Number(amount),
