@@ -825,6 +825,7 @@ ${noteText ? `<div style="margin-top:8px; padding:6px 8px; border:1.5px dashed #
               }} style={{
                 padding: "6px 12px", borderRadius: 8, border: `2px solid ${NAVY}`,
                 background: WHITE, color: NAVY, fontSize: 12, fontWeight: 700, cursor: "pointer",
+                whiteSpace: "nowrap",
               }}>🖨 ปริ้น{(extraItems[selected.id]?.length) ? ` (+${extraItems[selected.id].length})` : ""}</button>
               <button onClick={() => setSelected(null)} style={{ background: "none", border: "none", fontSize: 20, color: GRAY }}>✕</button>
             </div>
