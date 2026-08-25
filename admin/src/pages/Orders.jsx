@@ -553,13 +553,19 @@ ${noteText ? `<div style="margin-top:8px; padding:6px 8px; border:1.5px dashed #
 <div class="center" style="font-size:13px; font-weight:800; margin-top:4px;">สกุณา</div>
 <div class="dash" style="margin-top:6px;"></div>
 <div class="center" style="font-size:13px; font-weight:800; margin-top:4px;">ขอบคุณที่ใช้บริการค่ะ</div>
-<script>
-window.onload = function() { window.print(); window.onafterprint = () => window.close(); };
-<\/script>
 </body></html>`;
-    const w = window.open("", "_blank", "width=420,height=700");
-    w.document.write(html);
-    w.document.close();
+    // ใช้ iframe ซ่อนอยู่เพื่อปริ้นโดยไม่ต้องเปิดหน้าต่างใหม่
+    const iframe = document.createElement("iframe");
+    iframe.style.cssText = "position:fixed;top:-9999px;left:-9999px;width:0;height:0;border:none;";
+    document.body.appendChild(iframe);
+    iframe.contentDocument.open();
+    iframe.contentDocument.write(html);
+    iframe.contentDocument.close();
+    iframe.contentWindow.focus();
+    setTimeout(() => {
+      iframe.contentWindow.print();
+      setTimeout(() => document.body.removeChild(iframe), 1000);
+    }, 300);
   }
 
   async function updateStatus(orderId, status) {
