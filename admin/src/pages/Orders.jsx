@@ -798,7 +798,7 @@ ${noteText ? `<div style="margin-top:8px; padding:6px 8px; border:1.5px dashed #
         <div style={{ position: "fixed", top: 60, right: 16, width: 320, background: WHITE, borderRadius: 14, padding: 20, boxShadow: "0 4px 24px rgba(0,0,0,.12)", maxHeight: "calc(100vh - 76px)", overflowY: "auto", zIndex: 9999 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
             <h2 style={{ fontSize: 16, fontWeight: 900, color: NAVY }}>{selected.orderNumber}</h2>
-            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
               <button onClick={() => togglePaid(selected.id)} style={{
                 padding: "6px 10px", borderRadius: 8, border: "none", fontSize: 12, fontWeight: 700, cursor: "pointer",
                 background: selected.isPaid ? "#D1FAE5" : "#FEE2E2",
@@ -827,7 +827,7 @@ ${noteText ? `<div style="margin-top:8px; padding:6px 8px; border:1.5px dashed #
                 background: WHITE, color: NAVY, fontSize: 12, fontWeight: 700, cursor: "pointer",
                 whiteSpace: "nowrap",
               }}>🖨 ปริ้น{(extraItems[selected.id]?.length) ? ` (+${extraItems[selected.id].length})` : ""}</button>
-              <button onClick={() => setSelected(null)} style={{ background: "none", border: "none", fontSize: 20, color: GRAY }}>✕</button>
+              <button onClick={() => setSelected(null)} style={{ background: "none", border: "none", fontSize: 20, color: GRAY, flexShrink: 0, marginLeft: "auto" }}>✕</button>
             </div>
           </div>
 
