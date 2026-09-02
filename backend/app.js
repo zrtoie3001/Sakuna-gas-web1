@@ -132,6 +132,8 @@ const PORT = process.env.PORT || 3001;
       );
     `).catch(() => {});
     await sequelize.query(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS created_by_name VARCHAR(100);`).catch(() => {});
+    // Convert expenses.type from ENUM to VARCHAR so new types (lift, parcel, collect) work without migration
+    await sequelize.query(`ALTER TABLE expenses ALTER COLUMN type TYPE VARCHAR(30);`).catch(() => {});
     // Fix payment_method ENUM to include 'cod'
     await sequelize.query(`ALTER TABLE orders DROP CONSTRAINT IF EXISTS orders_payment_method_check;`).catch(() => {});
     await sequelize.query(`ALTER TABLE orders ADD CONSTRAINT orders_payment_method_check CHECK (payment_method IN ('cash','qr','cod'));`).catch(() => {});
@@ -162,5 +164,10 @@ const PORT = process.env.PORT || 3001;
     process.exit(1);
   }
 })();
+
+// ป้องกัน server crash จาก unhandled promise rejection
+process.on("unhandledRejection", (err) => {
+  logger.error("Unhandled rejection (non-fatal):", { message: err?.message, stack: err?.stack });
+});
 
 module.exports = app;

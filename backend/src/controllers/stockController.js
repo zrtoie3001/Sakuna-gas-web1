@@ -69,8 +69,9 @@ async function getRefills(_req, res) {
 }
 
 async function addRefill(req, res) {
-  const { brandName, weightKg, qty, costPerUnit, note } = req.body;
-  const totalCost = (Number(costPerUnit) || 0) * Number(qty);
+  const { brandName, weightKg, qty, note } = req.body;
+  const costPerUnit = req.body.costPerUnit !== "" && req.body.costPerUnit != null ? Number(req.body.costPerUnit) : null;
+  const totalCost = (costPerUnit || 0) * Number(qty);
   const refill = await GasRefill.create({ brandName, weightKg, qty, costPerUnit, totalCost, note });
 
   let stock = await GasStock.findOne({ where: { brandName, weightKg } });
