@@ -219,10 +219,17 @@ async function getOrderById(req, res) {
 
 // ── Admin: list orders ────────────────────────────────────────────────────────
 async function listOrders(req, res) {
-  const { status, date, page = 1, limit = 20 } = req.query;
+  const { status, date, page = 1, limit = 20, unpaid } = req.query;
   const where = {};
   if (status) where.status = status;
-  if (date) {
+  if (unpaid === "1") {
+    where.isPaid = false;
+    where.status = { [Op.ne]: "cancelled" };
+    // ย้อนหลัง 30 วัน
+    const since = new Date(); since.setDate(since.getDate() - 30); since.setHours(0,0,0,0);
+    const today = new Date(); today.setHours(0,0,0,0);
+    where.createdAt = { [Op.between]: [since, today] };
+  } else if (date) {
     const start = new Date(date); start.setHours(0, 0, 0, 0);
     const end   = new Date(date); end.setHours(23, 59, 59, 999);
     where.createdAt = { [Op.between]: [start, end] };

@@ -233,7 +233,7 @@ export default function Reports() {
         {dayOverdue.length > 0 && (
           <div style={{ background: "#FFF1F2", borderRadius: 10, marginBottom: 14, border: "1.5px solid #FECDD3", padding: "10px 14px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <span style={{ fontSize: 13, fontWeight: 800, color: "#9F1239" }}>🔴 ค้างจากวันก่อน {dayOverdue.length} รายการ — ไม่รวมในยอดวันนี้</span>
-            <span onClick={() => navigate("/debts")} style={{ fontSize: 12, fontWeight: 700, color: "#BE123C", cursor: "pointer", textDecoration: "underline" }}>💸 ดูรายการ</span>
+            <span onClick={() => navigate("/orders?unpaid=1")} style={{ fontSize: 12, fontWeight: 700, color: "#BE123C", cursor: "pointer", textDecoration: "underline" }}>💸 ดูรายการ</span>
           </div>
         )}
 

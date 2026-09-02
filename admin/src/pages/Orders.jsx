@@ -141,6 +141,7 @@ export default function Orders() {
   const [brands, setBrands]         = useState([]);
   const [products, setProducts]     = useState([]);
   const [search, setSearch]         = useState(searchParams.get("q") || "");
+  const [unpaidOnly, setUnpaidOnly] = useState(searchParams.get("unpaid") === "1");
   const [showWalkin, setShowWalkin] = useState(false);
   const [walkinType, setWalkinType] = useState("gas"); // gas | new_tank | equipment
   const [walkinForm, setWalkinForm] = useState({ customerName: "", customerPhone: "", brandName: "", productId: "", qty: 1, price: "", paymentMethod: "cash", note: "", gasBrand: "", gasWeight: "", stockId: "", equipId: "" });
@@ -172,15 +173,19 @@ export default function Orders() {
     fetchRef.current = ctrl;
     try {
       const params = new URLSearchParams({ page, limit: 20 });
-      if (statusFilter) params.set("status", statusFilter);
-      if (date) params.set("date", date);
+      if (unpaidOnly) {
+        params.set("unpaid", "1");
+      } else {
+        if (statusFilter) params.set("status", statusFilter);
+        if (date) params.set("date", date);
+      }
       const r = await api.get(`/api/v1/orders?${params}`, { signal: ctrl.signal });
       setOrders(r.data.orders);
       setTotal(r.data.total);
     } catch (e) {
       if (e.name !== "CanceledError" && e.code !== "ERR_CANCELED") console.error("fetch orders error:", e.message);
     }
-  }, [page, statusFilter, date]);
+  }, [page, statusFilter, date, unpaidOnly]);
 
   useEffect(() => {
     fetch();
@@ -684,8 +689,16 @@ ${noteText ? `<div style="margin-top:8px; padding:6px 8px; border:1.5px dashed #
           </button>
         </div>
 
+        {/* Unpaid-only mode banner */}
+        {unpaidOnly && (
+          <div style={{ background: "#FEE2E2", border: "1.5px solid #FCA5A5", borderRadius: 10, marginBottom: 12, padding: "10px 14px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: "#991B1B" }}>🔴 กำลังดูออเดอร์ค้างจ่าย (30 วันที่ผ่านมา) — {total} รายการ</span>
+            <button onClick={() => { setUnpaidOnly(false); setDate(new Date().toISOString().split("T")[0]); }} style={{ fontSize: 12, padding: "4px 10px", borderRadius: 6, border: "1px solid #EF4444", background: "white", color: "#991B1B", cursor: "pointer", fontWeight: 700 }}>✕ ล้าง filter</button>
+          </div>
+        )}
+
         {/* Unpaid alert */}
-        {(() => {
+        {!unpaidOnly && (() => {
           const unpaid = orders.filter(o => !o.isPaid && o.status !== "cancelled");
           if (!unpaid.length) return null;
           return (
