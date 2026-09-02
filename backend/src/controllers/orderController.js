@@ -4,7 +4,7 @@ const { Order, Customer, DeliveryAddress, Brand, Product, DiscountCode, OrderSta
 const { getDeliveryInfo } = require("../services/mapsService");
 const { sendOrderConfirmation, sendStatusUpdate, notifyAdminNewOrder } = require("../services/lineService");
 const { isOpen, getNextOpenTime } = require("../utils/businessHours");
-const { appendOrder, updateOrderStatus } = require("../services/sheetsService");
+const { appendOrder, updateOrderStatus, syncStockToSheet } = require("../services/sheetsService");
 
 function haversineKm(lat1, lng1, lat2, lng2) {
   const R = 6371, dLat = (lat2 - lat1) * Math.PI / 180, dLng = (lng2 - lng1) * Math.PI / 180;
@@ -199,6 +199,7 @@ async function createOrder(req, res) { try {
     notifyAdminNewOrder(fullOrder).catch(() => {});
   }
   appendOrder(fullOrder).catch(() => {});
+  syncStockToSheet().catch(() => {});
 
   res.status(201).json({ order: fullOrder });
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -446,6 +447,7 @@ async function createWalkinOrder(req, res) {
     });
 
     appendOrder(order, walkinNote).catch(() => {});
+    syncStockToSheet().catch(() => {});
     res.status(201).json(order);
   } catch (e) {
     res.status(500).json({ error: e.message });
