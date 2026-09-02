@@ -5,6 +5,7 @@ const { createOrder, getOrderById, listOrders, updateStatus, acceptOrder, create
 const { notifyAdminPaymentConfirmed, sendPaymentReceivedToCustomer } = require("../services/lineService");
 const { Order, Brand, Product, Customer } = require("../models");
 const { requireAuth, requireRole } = require("../middleware/auth");
+const ah = require("../middleware/asyncHandler");
 
 const upload = multer({
   dest: process.env.UPLOAD_DIR || "./uploads",
@@ -16,7 +17,7 @@ const upload = multer({
 });
 
 // Walk-in sale (admin)
-router.post("/walkin", requireAuth, createWalkinOrder);
+router.post("/walkin", requireAuth, ah(createWalkinOrder));
 
 // Customer suggestions — search by name OR phone, returns gas info + all addresses
 router.get("/customer-suggestions", requireAuth, async (req, res) => {
@@ -197,11 +198,11 @@ router.get("/customer-history", requireAuth, async (req, res) => {
 });
 
 // Staff list
-router.get("/", requireAuth, listOrders);
+router.get("/", requireAuth, ah(listOrders));
 
 // Customer (no auth)
-router.post("/", createOrder);
-router.get("/:id", getOrderById);
+router.post("/", ah(createOrder));
+router.get("/:id", ah(getOrderById));
 
 // Upload slip (customer)
 router.post("/:id/slip", upload.single("slip"), async (req, res) => {
@@ -231,16 +232,16 @@ router.post("/:id/payment-confirmed", async (req, res) => {
 });
 
 // Staff actions
-router.put("/:id", requireAuth, updateOrder);
-router.put("/:id/status", requireAuth, updateStatus);
-router.put("/:id/payment", requireAuth, async (req, res) => {
+router.put("/:id", requireAuth, ah(updateOrder));
+router.put("/:id/status", requireAuth, ah(updateStatus));
+router.put("/:id/payment", requireAuth, ah(async (req, res) => {
   const { paymentMethod } = req.body;
   if (!["cash","qr","cod"].includes(paymentMethod)) return res.status(400).json({ error: "Invalid payment method" });
   const order = await Order.findByPk(req.params.id);
   if (!order) return res.status(404).json({ error: "Not found" });
   await order.update({ paymentMethod });
   res.json({ ok: true });
-});
+}));
 router.patch("/:id/paid", requireAuth, async (req, res) => {
   try {
     const order = await Order.findByPk(req.params.id);
@@ -316,6 +317,6 @@ router.put("/:id/driver", requireAuth, requireRole("admin"), async (req, res) =>
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
-router.post("/:id/accept", requireAuth, requireRole("driver", "admin"), acceptOrder);
+router.post("/:id/accept", requireAuth, requireRole("driver", "admin"), ah(acceptOrder));
 
 module.exports = router;

@@ -1,9 +1,10 @@
 const router = require("express").Router();
 const { login, me, changePassword } = require("../controllers/authController");
 const { requireAuth } = require("../middleware/auth");
+const ah = require("../middleware/asyncHandler");
 
-router.post("/login", login);
-router.get("/me", requireAuth, me);
-router.put("/password", requireAuth, changePassword);
+router.post("/login", ah(login));
+router.get("/me", requireAuth, ah(me));
+router.put("/password", requireAuth, ah(changePassword));
 
 module.exports = router;
