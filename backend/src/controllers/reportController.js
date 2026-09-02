@@ -32,9 +32,9 @@ async function dailyReport(req, res) {
       group: ["paymentMethod"],
       raw: true,
     }),
-    // ออเดอร์ค้างจากวันอื่น (ก่อนวันนี้ ยังไม่จ่าย ไม่ยกเลิก)
+    // ออเดอร์ค้างจากวันอื่น (ก่อนวันนี้ ยังไม่จ่าย ไม่ยกเลิก ย้อนหลังแค่ 30 วัน)
     Order.findAll({
-      where: { createdAt: { [Op.lt]: start }, status: { [Op.ne]: "cancelled" }, isPaid: false },
+      where: { createdAt: { [Op.between]: [new Date(start.getTime() - 30 * 24 * 60 * 60 * 1000), start] }, status: { [Op.ne]: "cancelled" }, isPaid: false },
       attributes: ["id", "orderNumber", "customerName", "total", "createdAt"],
       order: [["createdAt", "DESC"]],
       raw: true,
