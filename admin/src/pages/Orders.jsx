@@ -771,7 +771,7 @@ ${noteText ? `<div style="margin-top:8px; padding:6px 8px; border:1.5px dashed #
                   {o.driver && <p style={{ fontSize: 11, color: "#059669", fontWeight: 700 }}>🛵 {o.driver.name}</p>}
                 </div>
                 <div style={{ fontSize: 11, color: GRAY, textAlign: "right", flexShrink: 0 }}>
-                  {!date && <div>{new Date(o.createdAt).toLocaleDateString("th-TH", { day: "numeric", month: "short" })}</div>}
+                  {(!date || unpaidOnly) && <div>{new Date(o.createdAt).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "2-digit" })}</div>}
                   {new Date(o.createdAt).toLocaleTimeString("th-TH", { timeStyle: "short" })}
                 </div>
               </div>
