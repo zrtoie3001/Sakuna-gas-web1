@@ -445,6 +445,7 @@ async function createWalkinOrder(req, res) {
       status: orderStatus || "delivered",
     });
 
+    appendOrder(order, walkinNote).catch(() => {});
     res.status(201).json(order);
   } catch (e) {
     res.status(500).json({ error: e.message });

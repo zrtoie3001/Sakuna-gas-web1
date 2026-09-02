@@ -29,7 +29,7 @@ async function ensureHeader(sheets) {
   }
 }
 
-async function appendOrder(order) {
+async function appendOrder(order, walkinNoteOverride) {
   if (!SHEET_ID || !process.env.GOOGLE_SERVICE_ACCOUNT_JSON) return;
   try {
     const sheets = getClient();
@@ -37,27 +37,40 @@ async function appendOrder(order) {
     const now = new Date(order.createdAt || new Date());
     const dateStr = now.toLocaleDateString("th-TH", { dateStyle: "short", timeZone: "Asia/Bangkok" });
     const timeStr = now.toLocaleTimeString("th-TH", { timeStyle: "short", timeZone: "Asia/Bangkok" });
+    const payLabel = order.paymentMethod === "cash" ? "เงินสด" : order.paymentMethod === "cod" ? "เก็บปลายทาง" : "QR โอน";
+    const status = order.status || "pending";
+    const addr = order.deliveryAddress || "หน้าร้าน";
+    const orderNum = order.orderNumber || "";
+    const custName = order.customerName || "หน้าร้าน";
+    const custPhone = order.customerPhone || "";
+
+    // parse walkin note
+    const rawNote = walkinNoteOverride || order.note || "";
+    let walkin = null;
+    if (rawNote.startsWith("__walkin:")) {
+      try { walkin = JSON.parse(rawNote.replace(/^__walkin:/, "").split("\n")[0]); } catch {}
+    }
+
+    let rows = [];
+    if (walkin?.type === "mixed" && Array.isArray(walkin.items)) {
+      // one row per item
+      for (const it of walkin.items) {
+        const label = it.type === "equipment" ? (it.name || "อุปกรณ์") : `${it.brandName || ""} ${it.weightKg || ""}กก.`;
+        rows.push([dateStr, timeStr, orderNum, custName, custPhone, label, "", Number(it.qty) || 1, Number(it.price || it.unitPrice) * (Number(it.qty) || 1), payLabel, status, addr]);
+      }
+    } else if (walkin) {
+      const label = walkin.type === "equipment" ? "อุปกรณ์" : `${walkin.brandName || ""} ${walkin.weightKg || ""}กก.`;
+      rows.push([dateStr, timeStr, orderNum, custName, custPhone, label, "", Number(walkin.qty) || 1, Number(order.total) || 0, payLabel, status, addr]);
+    } else {
+      rows.push([dateStr, timeStr, orderNum, custName, custPhone, order.brand?.name || "", order.product?.name || "", order.qty || 0, Number(order.total) || 0, payLabel, status, addr]);
+    }
+
     await sheets.spreadsheets.values.append({
       spreadsheetId: SHEET_ID,
       range: "Sheet1!A:L",
       valueInputOption: "RAW",
       insertDataOption: "INSERT_ROWS",
-      requestBody: {
-        values: [[
-          dateStr,
-          timeStr,
-          order.orderNumber || "",
-          order.customerName || "",
-          order.customerPhone || "",
-          order.brand?.name || "",
-          order.product?.name || "",
-          order.qty || 0,
-          Number(order.total) || 0,
-          order.paymentMethod === "cash" ? "เงินสด" : "QR โอน",
-          order.status || "pending",
-          order.deliveryAddress || "",
-        ]],
-      },
+      requestBody: { values: rows },
     });
   } catch (e) {
     console.error("Sheets append error:", e.message);
