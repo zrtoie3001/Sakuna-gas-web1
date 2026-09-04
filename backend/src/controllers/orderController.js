@@ -4,7 +4,7 @@ const { Order, Customer, DeliveryAddress, Brand, Product, DiscountCode, OrderSta
 const { getDeliveryInfo } = require("../services/mapsService");
 const { sendOrderConfirmation, sendStatusUpdate, notifyAdminNewOrder } = require("../services/lineService");
 const { isOpen, getNextOpenTime } = require("../utils/businessHours");
-const { appendOrder, updateOrderStatus, syncStockToSheet } = require("../services/sheetsService");
+const { appendOrder, updateOrderStatus, syncStockToSheet, deleteOrderFromSheet } = require("../services/sheetsService");
 
 // สยาม + ยูนิค ใช้ถังร่วมกัน — deduct จากยี่ห้อที่มีสต็อก
 const SHARED_BRANDS = ["สยาม", "ยูนิค"];
@@ -351,7 +351,11 @@ async function updateStatus(req, res) {
   if (order.customer?.lineUserId) {
     sendStatusUpdate(order.customer.lineUserId, order, status).catch(() => {});
   }
-  updateOrderStatus(order).catch(() => {});
+  if (status === "cancelled") {
+    deleteOrderFromSheet(order.orderNumber).catch(() => {});
+  } else {
+    updateOrderStatus(order).catch(() => {});
+  }
 
   res.json(order);
 }

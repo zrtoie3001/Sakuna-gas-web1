@@ -169,4 +169,30 @@ async function syncStockToSheet() {
   }
 }
 
-module.exports = { appendOrder, updateOrderStatus, syncStockToSheet, appendStockLog };
+async function deleteOrderFromSheet(orderNumber) {
+  if (!SHEET_ID || !process.env.GOOGLE_SERVICE_ACCOUNT_JSON) return;
+  try {
+    const sheets = getClient();
+    const res = await sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID, range: "Sheet1!C:C" });
+    const rows = res.data.values || [];
+    // collect all row indexes matching orderNumber (1-indexed, +1 for header)
+    const sheetIds = rows.reduce((acc, r, i) => { if (r[0] === orderNumber) acc.push(i + 1); return acc; }, []);
+    if (!sheetIds.length) return;
+
+    const meta = await sheets.spreadsheets.get({ spreadsheetId: SHEET_ID });
+    const sheet = meta.data.sheets.find(s => s.properties.title === "Sheet1");
+    const sheetId = sheet?.properties?.sheetId ?? 0;
+
+    // delete from bottom to top so row indexes stay valid
+    const requests = sheetIds.reverse().map(rowIdx => ({
+      deleteDimension: {
+        range: { sheetId, dimension: "ROWS", startIndex: rowIdx - 1, endIndex: rowIdx },
+      },
+    }));
+    await sheets.spreadsheets.batchUpdate({ spreadsheetId: SHEET_ID, requestBody: { requests } });
+  } catch (e) {
+    console.error("Sheets delete error:", e.message);
+  }
+}
+
+module.exports = { appendOrder, updateOrderStatus, syncStockToSheet, appendStockLog, deleteOrderFromSheet };
