@@ -6,6 +6,28 @@ const { sendOrderConfirmation, sendStatusUpdate, notifyAdminNewOrder } = require
 const { isOpen, getNextOpenTime } = require("../utils/businessHours");
 const { appendOrder, updateOrderStatus, syncStockToSheet } = require("../services/sheetsService");
 
+// สยาม + ยูนิค ใช้ถังร่วมกัน — deduct จากยี่ห้อที่มีสต็อก
+const SHARED_BRANDS = ["สยาม", "ยูนิค"];
+async function deductStock(GasStock, brandName, weightKg, qty, field = "hasGas") {
+  const wkg = Number(weightKg);
+  if (SHARED_BRANDS.includes(brandName)) {
+    // หาถังจากทั้งสองยี่ห้อ เรียงตาม hasGas มากสุดก่อน
+    const { Op } = require("sequelize");
+    const stocks = await GasStock.findAll({ where: { brandName: { [Op.in]: SHARED_BRANDS }, weightKg: wkg }, order: [[field, "DESC"]] });
+    let remaining = qty;
+    for (const s of stocks) {
+      if (remaining <= 0) break;
+      const take = Math.min(remaining, Number(s[field]));
+      if (take > 0) { await s.update({ [field]: Number(s[field]) - take }); remaining -= take; }
+    }
+    if (remaining > 0) throw new Error(`สต็อก ${brandName} ${weightKg}กก. ไม่พอ`);
+  } else {
+    const stock = await GasStock.findOne({ where: { brandName, weightKg: wkg } });
+    if (!stock || Number(stock[field]) < qty) throw new Error(`สต็อก ${brandName} ${weightKg}กก. ไม่พอ`);
+    await stock.update({ [field]: Number(stock[field]) - qty });
+  }
+}
+
 function haversineKm(lat1, lng1, lat2, lng2) {
   const R = 6371, dLat = (lat2 - lat1) * Math.PI / 180, dLng = (lng2 - lng1) * Math.PI / 180;
   const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2;
@@ -181,10 +203,7 @@ async function createOrder(req, res) { try {
     const weightKg = Number(product.kg);
     if (brand?.name && !isNaN(weightKg)) {
       const { GasStock } = require("../models");
-      const stock = await GasStock.findOne({ where: { brandName: brand.name, weightKg } });
-      if (stock && stock.hasGas >= qty) {
-        await stock.update({ hasGas: stock.hasGas - qty });
-      }
+      await deductStock(GasStock, brand.name, weightKg, qty, "hasGas");
     }
   } catch (e) { console.error("Stock deduct error:", e.message); }
 
@@ -368,18 +387,16 @@ async function createWalkinOrder(req, res) {
         const p = Number(it.price) || 0;
         if (it.type === "gas") {
           const wkg = Number(it.weightKg);
-          if (isNaN(wkg)) { /* skip stock deduction — weightKg unknown */ } else {
-            const stock = await GasStock.findOne({ where: { brandName: it.brandName, weightKg: wkg } });
-            if (!stock) return res.status(400).json({ error: `ไม่พบสต็อก ${it.brandName} ${it.weightKg}กก.` });
-            if (stock.hasGas < q) return res.status(400).json({ error: `สต็อก ${it.brandName} ${it.weightKg}กก. ไม่พอ (มี ${stock.hasGas} ถัง)` });
-            await stock.update({ hasGas: stock.hasGas - q });
+          if (!isNaN(wkg)) {
+            try { await deductStock(GasStock, it.brandName, wkg, q, "hasGas"); }
+            catch (err) { return res.status(400).json({ error: err.message }); }
           }
         } else if (it.type === "new_tank") {
           const wkg = Number(it.weightKg);
-          const stock = isNaN(wkg) ? null : await GasStock.findOne({ where: { brandName: it.brandName, weightKg: wkg } });
-          if (!stock) return res.status(400).json({ error: `ไม่พบสต็อก ${it.brandName} ${it.weightKg}กก.` });
-          if (stock.newTank < q) return res.status(400).json({ error: `ถังใหม่ ${it.brandName} ไม่พอ` });
-          await stock.update({ newTank: stock.newTank - q });
+          if (!isNaN(wkg)) {
+            try { await deductStock(GasStock, it.brandName, wkg, q, "newTank"); }
+            catch (err) { return res.status(400).json({ error: err.message }); }
+          }
         } else if (it.type === "equipment") {
           const eq = await Equipment.findByPk(it.equipId);
           if (!eq) return res.status(400).json({ error: `ไม่พบสินค้า: ${it.name}` });
@@ -397,22 +414,18 @@ async function createWalkinOrder(req, res) {
     } else if (type === "gas") {
       const q = Number(qty) || 1;
       if (!brandName || !weightKg) return res.status(400).json({ error: "กรุณาเลือกยี่ห้อและน้ำหนัก" });
-      const stock = await GasStock.findOne({ where: { brandName, weightKg: Number(weightKg) } });
-      if (!stock) return res.status(400).json({ error: "ไม่พบสินค้าในสต็อก" });
-      if (stock.hasGas < q) return res.status(400).json({ error: `สต็อกไม่พอ (มีแค่ ${stock.hasGas} ถัง)` });
+      try { await deductStock(GasStock, brandName, Number(weightKg), q, "hasGas"); }
+      catch (err) { return res.status(400).json({ error: err.message }); }
       total = Number(price) * q; totalQty = q;
-      await stock.update({ hasGas: stock.hasGas - q });
       walkinNote = `__walkin:${JSON.stringify({ type: "gas", brandName, weightKg, qty: q, unitPrice: Number(price) })}` + (note ? `\n${note}` : "");
 
     // ── Single new tank ───────────────────────────────────────────────────────
     } else if (type === "new_tank") {
       const q = Number(qty) || 1;
       if (!brandName || !weightKg) return res.status(400).json({ error: "กรุณาเลือกยี่ห้อและน้ำหนัก" });
-      const stock = await GasStock.findOne({ where: { brandName, weightKg: Number(weightKg) } });
-      if (!stock) return res.status(400).json({ error: "ไม่พบสินค้าในสต็อก" });
-      if (stock.newTank < q) return res.status(400).json({ error: `ถังใหม่ไม่พอ (มีแค่ ${stock.newTank} ถัง)` });
+      try { await deductStock(GasStock, brandName, Number(weightKg), q, "newTank"); }
+      catch (err) { return res.status(400).json({ error: err.message }); }
       total = Number(price) * q; totalQty = q;
-      await stock.update({ newTank: stock.newTank - q });
       walkinNote = `__walkin:${JSON.stringify({ type: "new_tank", brandName, weightKg, qty: q, unitPrice: Number(price) })}` + (note ? `\n${note}` : "");
 
     // ── Equipment only ────────────────────────────────────────────────────────
