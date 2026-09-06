@@ -47,8 +47,8 @@ async function appendOrder(order, walkinNoteOverride) {
     // parse walkin note
     const rawNote = walkinNoteOverride || order.note || "";
     let walkin = null;
-    if (rawNote.startsWith("__walkin:")) {
-      try { walkin = JSON.parse(rawNote.replace(/^__walkin:/, "").split("\n")[0]); } catch {}
+    if (rawNote.startsWith("__walkin:") || rawNote.startsWith("__phone_walkin:")) {
+      try { walkin = JSON.parse(rawNote.replace(/^__(?:phone_)?walkin:/, "").split("\n")[0]); } catch {}
     }
 
     let rows = [];

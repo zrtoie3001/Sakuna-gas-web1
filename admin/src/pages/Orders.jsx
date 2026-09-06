@@ -304,6 +304,7 @@ export default function Orders() {
         note: createForm.note,
         deliveryAddress: createForm.deliveryAddress,
         orderStatus: "pending",
+        source: "phone",
       });
       setShowCreate(false);
       setCreateForm(EMPTY_ORDER);
@@ -382,8 +383,8 @@ export default function Orders() {
     const payLabel  = o.paymentMethod === "cash" ? "เงินสด" : o.paymentMethod === "qr" ? "QR โอน" : "เก็บปลายทาง";
     // Parse walkin note for product label
     let walkinData = null;
-    if (o.note?.startsWith("__walkin:")) {
-      try { walkinData = JSON.parse(o.note.replace(/^__walkin:/, "").split("\n")[0]); } catch {}
+    if (o.note?.match(/^__(?:phone_)?walkin:/) ) {
+      try { walkinData = JSON.parse(o.note.replace(/^__(?:phone_)?walkin:/, "").split("\n")[0]); } catch {}
     }
     let itemsHtml = "";
     let total = Number(o.total);
@@ -421,7 +422,7 @@ export default function Orders() {
     }
     const displayNote = (() => {
       const n = o.note || "";
-      if (!n || n.startsWith("__walkin:")) return n.split("\n").slice(1).join("\n").trim();
+      if (!n || n.match(/^__(?:phone_)?walkin:/) ) return n.split("\n").slice(1).join("\n").trim();
       return n.trim();
     })();
     openReceiptWindow(o, itemsHtml, total, dateStr, timeStr, payLabel, displayNote);
@@ -445,7 +446,7 @@ export default function Orders() {
     }
     const walkinNote = (() => {
       const n = order.note || "";
-      if (n.startsWith("__walkin:")) return n.split("\n").slice(1).join("\n").trim();
+      if (n.match(/^__(?:phone_)?walkin:/) ) return n.split("\n").slice(1).join("\n").trim();
       return n.trim();
     })();
     openReceiptWindow(order, itemsHtml, total, dateStr, timeStr, payLabel, walkinNote);
@@ -462,8 +463,8 @@ export default function Orders() {
 
     // Parse walkin note (mixed cart orders)
     let walkinData = null;
-    if (order.note?.startsWith("__walkin:")) {
-      try { walkinData = JSON.parse(order.note.replace(/^__walkin:/, "").split("\n")[0]); } catch {}
+    if (order.note?.match(/^__(?:phone_)?walkin:/) ) {
+      try { walkinData = JSON.parse(order.note.replace(/^__(?:phone_)?walkin:/, "").split("\n")[0]); } catch {}
     }
 
     if (walkinData?.type === "mixed" && Array.isArray(walkinData.items) && walkinData.items.length) {
@@ -491,7 +492,7 @@ export default function Orders() {
       itemsHtml += `<tr><td colspan="3" style="font-size:13px; font-weight:800; color:#000;">ส่วนลด${order.discountCode ? ` (${order.discountCode})` : ""}</td><td style="text-align:right; font-weight:800; color:#000;">-${discount.toLocaleString()}</td></tr>`;
       total = Number(order.total) + extras.reduce((s, e) => s + Number(e.price) * Number(e.qty), 0);
     }
-    const extrasNote = (order.note || "").replace(/^__walkin:.*\n?/, "").trim();
+    const extrasNote = (order.note || "").replace(/^__(?:phone_)?walkin:.*\n?/, "").trim();
     openReceiptWindow(order, itemsHtml, total, dateStr, timeStr, payLabel, extrasNote);
   }
 
@@ -593,10 +594,10 @@ ${noteText ? `<div style="margin-top:8px; padding:6px 8px; border:1.5px dashed #
     setEditOrder(order);
     const noteRaw = order.note || "";
     let walkinData = null;
-    if (noteRaw.startsWith("__walkin:")) {
-      try { walkinData = JSON.parse(noteRaw.replace(/^__walkin:/, "").split("\n")[0]); } catch {}
+    if (noteRaw.match(/^__(?:phone_)?walkin:/) ) {
+      try { walkinData = JSON.parse(noteRaw.replace(/^__(?:phone_)?walkin:/, "").split("\n")[0]); } catch {}
     }
-    const extraNote = noteRaw.startsWith("__walkin:") ? noteRaw.split("\n").slice(1).join("\n").trim() : noteRaw;
+    const extraNote = noteRaw.match(/^__(?:phone_)?walkin:/)  ? noteRaw.split("\n").slice(1).join("\n").trim() : noteRaw;
 
     if (walkinData?.type === "mixed" && Array.isArray(walkinData.items) && walkinData.items.length > 0) {
       // Multi-item walkin: edit each line separately
@@ -774,7 +775,7 @@ ${noteText ? `<div style="margin-top:8px; padding:6px 8px; border:1.5px dashed #
                   <p style={{ fontSize: 12, color: isCancelled ? GRAY : NAVY }}>{o.customerName} · {o.customerPhone}</p>
                   <p style={{ fontSize: 12, color: GRAY, textDecoration: isCancelled ? "line-through" : "none" }}>{(() => {
                     let wd = null;
-                    if (o.note?.startsWith("__walkin:")) { try { wd = JSON.parse(o.note.replace(/^__walkin:/, "").split("\n")[0]); } catch {} }
+                    if (o.note?.match(/^__(?:phone_)?walkin:/) ) { try { wd = JSON.parse(o.note.replace(/^__(?:phone_)?walkin:/, "").split("\n")[0]); } catch {} }
                     if (wd?.type === "mixed") return (wd.items || []).map(i => i.brandName || i.name).filter(Boolean).join(", ") || "หลายรายการ";
                     if (wd?.brandName && wd?.weightKg) return `${wd.brandName} ${wd.weightKg}กก. ×${wd.qty || o.qty}`;
                     return `${o.brand?.name || ""} ${o.product?.name || ""}`.trim() || "-";
@@ -806,8 +807,8 @@ ${noteText ? `<div style="margin-top:8px; padding:6px 8px; border:1.5px dashed #
       {selected && (() => {
         // parse walkin note for display
         let walkinData = null;
-        if (selected.note?.startsWith("__walkin:")) {
-          try { walkinData = JSON.parse(selected.note.replace(/^__walkin:/, "").split("\n")[0]); } catch {}
+        if (selected.note?.match(/^__(?:phone_)?walkin:/) ) {
+          try { walkinData = JSON.parse(selected.note.replace(/^__(?:phone_)?walkin:/, "").split("\n")[0]); } catch {}
         }
         const displayBrand = selected.brand?.name || (walkinData?.brandName ?? "-");
         const displayProduct = selected.product?.name
@@ -887,11 +888,11 @@ ${noteText ? `<div style="margin-top:8px; padding:6px 8px; border:1.5px dashed #
 
           {(() => {
             const n = selected.note || "";
-            if (n.startsWith("__walkin:")) {
+            if (n.match(/^__(?:phone_)?walkin:/) ) {
               // show cart items in human-readable form
               let walkinItems = null;
               try {
-                const data = JSON.parse(n.replace(/^__walkin:/, "").split("\n")[0]);
+                const data = JSON.parse(n.replace(/^__(?:phone_)?walkin:/, "").split("\n")[0]);
                 walkinItems = data.items || (data.type !== "mixed" ? [data] : null);
               } catch {}
               const userNote = n.split("\n").slice(1).join("\n").trim();

@@ -250,9 +250,15 @@ async function listOrders(req, res) {
   const where = {};
   if (status) where.status = status;
   if (source === "walkin") {
-    where.note = { [Op.like]: "__walkin:%" };
+    // เฉพาะที่กดขายหน้าร้าน (prefix __walkin: แต่ไม่ใช่ __phone_walkin:)
+    where.note = { [Op.like]: "__walkin:%" , [Op.notLike]: "__phone_walkin:%" };
   } else if (source === "phone") {
-    where[Op.or] = [{ note: null }, { note: { [Op.notLike]: "__walkin:%" } }];
+    // โทรสั่ง/LINE: __phone_walkin: หรือออเดอร์ปกติ (ไม่มี __walkin: prefix)
+    where[Op.or] = [
+      { note: { [Op.like]: "__phone_walkin:%" } },
+      { note: null },
+      { note: { [Op.notLike]: "__walkin:%" } },
+    ];
   }
   if (unpaid === "1") {
     where.isPaid = false;
@@ -305,8 +311,8 @@ async function updateStatus(req, res) {
     try {
       const { GasStock, Equipment } = require("../models");
       const n = order.note || "";
-      if (n.startsWith("__walkin:")) {
-        const walkin = JSON.parse(n.replace(/^__walkin:/, "").split("\n")[0]);
+      if (n.startsWith("__walkin:") || n.startsWith("__phone_walkin:")) {
+        const walkin = JSON.parse(n.replace(/^__(?:phone_)?walkin:/, "").split("\n")[0]);
         if (walkin.type === "mixed" && Array.isArray(walkin.items)) {
           for (const it of walkin.items) {
             const q = Number(it.qty) || 1;
@@ -371,8 +377,8 @@ async function updateStatus(req, res) {
     try {
       const { GasStock } = require("../models");
       const n = order.note || "";
-      if (n.startsWith("__walkin:")) {
-        const walkin = JSON.parse(n.replace(/^__walkin:/, "").split("\n")[0]);
+      if (n.startsWith("__walkin:") || n.startsWith("__phone_walkin:")) {
+        const walkin = JSON.parse(n.replace(/^__(?:phone_)?walkin:/, "").split("\n")[0]);
         if (walkin.type === "mixed" && Array.isArray(walkin.items)) {
           for (const it of walkin.items) {
             const q = Number(it.qty) || 1;
@@ -416,7 +422,10 @@ async function createWalkinOrder(req, res) {
     const { type, customerName, customerPhone, paymentMethod, note,
             brandName, weightKg, qty, price, items,
             cartItems,  // new: mixed cart
-            deliveryAddress: customAddress, orderStatus } = req.body;
+            deliveryAddress: customAddress, orderStatus,
+            source } = req.body;
+    // prefix แยก หน้าร้าน vs โทรสั่ง/LINE
+    const PREFIX = source === "phone" ? "__phone_walkin:" : "__walkin:";
 
     const { GasStock, Equipment, EquipmentSale } = require("../models");
     let total = 0;
@@ -451,7 +460,7 @@ async function createWalkinOrder(req, res) {
         total += p * q;
         noteItems.push({ ...it, qty: q, price: p });
       }
-      walkinNote = `__walkin:${JSON.stringify({ type: "mixed", items: noteItems })}` + (note ? `\n${note}` : "");
+      walkinNote = `${PREFIX}${JSON.stringify({ type: "mixed", items: noteItems })}` + (note ? `\n${note}` : "");
       totalQty = cartItems.reduce((s, it) => s + (Number(it.qty) || 1), 0);
 
     // ── Single gas ────────────────────────────────────────────────────────────
@@ -461,7 +470,7 @@ async function createWalkinOrder(req, res) {
       try { await deductStock(GasStock, brandName, Number(weightKg), q, "hasGas"); }
       catch (err) { return res.status(400).json({ error: err.message }); }
       total = Number(price) * q; totalQty = q;
-      walkinNote = `__walkin:${JSON.stringify({ type: "gas", brandName, weightKg, qty: q, unitPrice: Number(price) })}` + (note ? `\n${note}` : "");
+      walkinNote = `${PREFIX}${JSON.stringify({ type: "gas", brandName, weightKg, qty: q, unitPrice: Number(price) })}` + (note ? `\n${note}` : "");
 
     // ── Single new tank ───────────────────────────────────────────────────────
     } else if (type === "new_tank") {
@@ -470,7 +479,7 @@ async function createWalkinOrder(req, res) {
       try { await deductStock(GasStock, brandName, Number(weightKg), q, "newTank"); }
       catch (err) { return res.status(400).json({ error: err.message }); }
       total = Number(price) * q; totalQty = q;
-      walkinNote = `__walkin:${JSON.stringify({ type: "new_tank", brandName, weightKg, qty: q, unitPrice: Number(price) })}` + (note ? `\n${note}` : "");
+      walkinNote = `${PREFIX}${JSON.stringify({ type: "new_tank", brandName, weightKg, qty: q, unitPrice: Number(price) })}` + (note ? `\n${note}` : "");
 
     // ── Equipment only ────────────────────────────────────────────────────────
     } else {
@@ -484,7 +493,7 @@ async function createWalkinOrder(req, res) {
         await EquipmentSale.create({ equipmentId: eq.id, qty: itQty, salePrice: itPrice, note: note || null });
         total += itPrice * itQty;
       }
-      walkinNote = `__walkin:${JSON.stringify({ type: "equipment", items })}` + (note ? `\n${note}` : "");
+      walkinNote = `${PREFIX}${JSON.stringify({ type: "equipment", items })}` + (note ? `\n${note}` : "");
     }
 
     const order = await Order.create({
