@@ -249,8 +249,11 @@ async function listOrders(req, res) {
   const { status, date, page = 1, limit = 20, unpaid, source } = req.query;
   const where = {};
   if (status) where.status = status;
-  if (source === "walkin") where.note = { [Op.like]: "__walkin:%" };
-  else if (source === "phone") where.note = { [Op.or]: [{ [Op.notLike]: "__walkin:%" }, { [Op.is]: null }] };
+  if (source === "walkin") {
+    where.note = { [Op.like]: "__walkin:%" };
+  } else if (source === "phone") {
+    where[Op.or] = [{ note: null }, { note: { [Op.notLike]: "__walkin:%" } }];
+  }
   if (unpaid === "1") {
     where.isPaid = false;
     where.status = { [Op.ne]: "cancelled" };
