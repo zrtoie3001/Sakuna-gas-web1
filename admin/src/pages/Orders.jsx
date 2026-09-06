@@ -142,6 +142,7 @@ export default function Orders() {
   const [products, setProducts]     = useState([]);
   const [search, setSearch]         = useState(searchParams.get("q") || "");
   const [unpaidOnly, setUnpaidOnly] = useState(searchParams.get("unpaid") === "1");
+  const [source, setSource]         = useState(""); // "" | "walkin" | "phone"
   const [showWalkin, setShowWalkin] = useState(false);
   const [walkinType, setWalkinType] = useState("gas"); // gas | new_tank | equipment
   const [walkinForm, setWalkinForm] = useState({ customerName: "", customerPhone: "", brandName: "", productId: "", qty: 1, price: "", paymentMethod: "cash", note: "", gasBrand: "", gasWeight: "", stockId: "", equipId: "" });
@@ -179,13 +180,14 @@ export default function Orders() {
         if (statusFilter) params.set("status", statusFilter);
         if (date) params.set("date", date);
       }
+      if (source) params.set("source", source);
       const r = await api.get(`/api/v1/orders?${params}`, { signal: ctrl.signal });
       setOrders(r.data.orders);
       setTotal(r.data.total);
     } catch (e) {
       if (e.name !== "CanceledError" && e.code !== "ERR_CANCELED") console.error("fetch orders error:", e.message);
     }
-  }, [page, statusFilter, date, unpaidOnly]);
+  }, [page, statusFilter, date, unpaidOnly, source]);
 
   useEffect(() => {
     fetch();
@@ -687,6 +689,16 @@ ${noteText ? `<div style="margin-top:8px; padding:6px 8px; border:1.5px dashed #
             style={{ padding: "8px 12px", borderRadius: 8, border: "2px solid #F59E0B", background: statusFilter === "pending" && !date ? "#FEF3C7" : WHITE, color: "#92400E", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
             รอดำเนินการ ทั้งวัน
           </button>
+        </div>
+
+        {/* Source filter */}
+        <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
+          {[{ key: "", label: "📋 ทั้งหมด" }, { key: "walkin", label: "🏪 หน้าร้าน" }, { key: "phone", label: "📞 โทรสั่ง" }].map(s => (
+            <button key={s.key} onClick={() => { setSource(s.key); setPage(1); }}
+              style={{ padding: "6px 14px", borderRadius: 8, border: `2px solid ${source === s.key ? "#6366F1" : "#E5E7EB"}`, background: source === s.key ? "#EEF2FF" : WHITE, color: source === s.key ? "#4338CA" : "#374151", fontSize: 13, fontWeight: source === s.key ? 700 : 500, cursor: "pointer" }}>
+              {s.label}
+            </button>
+          ))}
         </div>
 
         {/* Unpaid-only mode banner */}
