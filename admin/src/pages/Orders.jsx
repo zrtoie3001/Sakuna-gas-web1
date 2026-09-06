@@ -520,7 +520,7 @@ export default function Orders() {
 </table>
 <div class="solid"></div>
 <table style="margin-bottom:8px;">
-  <tr><td colspan="2" style="word-break:break-word; font-size:14px; font-weight:800; padding-bottom:3px;">📍 ${order.deliveryAddress || "-"}</td></tr>
+  <tr><td colspan="2" style="word-break:break-word; font-size:14px; font-weight:800; padding-bottom:3px;">📍 ${(order.deliveryAddress && order.deliveryAddress !== "หน้าร้าน") ? order.deliveryAddress : ""}</td></tr>
   <tr>
     <td colspan="2" style="font-size:14px; font-weight:800; padding-bottom:3px;">ลูกค้า: ${(order.customerName && order.customerName !== "ลูกค้าหน้าร้าน") ? order.customerName : "-"}</td>
   </tr>
@@ -965,8 +965,18 @@ ${noteText ? `<div style="margin-top:8px; padding:6px 8px; border:1.5px dashed #
               }}>🚫 ยกเลิกออเดอร์</button>
             )}
             {selected.status === "cancelled" && (
-              <div style={{ marginTop: 10, padding: "7px 12px", borderRadius: 8, background: "#FEE2E2", color: "#991B1B", fontSize: 12, fontWeight: 700, textAlign: "center" }}>
-                ❌ ออเดอร์ถูกยกเลิกแล้ว
+              <div style={{ marginTop: 10 }}>
+                <div style={{ padding: "7px 12px", borderRadius: 8, background: "#FEE2E2", color: "#991B1B", fontSize: 12, fontWeight: 700, textAlign: "center", marginBottom: 6 }}>
+                  ❌ ออเดอร์ถูกยกเลิกแล้ว
+                </div>
+                <button onClick={() => {
+                  if (!window.confirm(`ยืนยันคืนสถานะออเดอร์ ${selected.orderNumber}?`)) return;
+                  updateStatus(selected.id, "pending");
+                }} disabled={updating} style={{
+                  width: "100%", padding: "7px", borderRadius: 8, border: "2px solid #F59E0B",
+                  background: "#FFFBEB", color: "#92400E", fontSize: 12, fontWeight: 700, cursor: "pointer",
+                  opacity: updating ? 0.6 : 1,
+                }}>↩ คืนสถานะ (รอดำเนินการ)</button>
               </div>
             )}
           </div>

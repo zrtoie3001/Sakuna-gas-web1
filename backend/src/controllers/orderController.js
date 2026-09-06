@@ -10,21 +10,28 @@ const { appendOrder, updateOrderStatus, syncStockToSheet, deleteOrderFromSheet }
 const SHARED_BRANDS = ["สยาม", "ยูนิค"];
 async function deductStock(GasStock, brandName, weightKg, qty, field = "hasGas") {
   const wkg = Number(weightKg);
+  const addEmpty = field === "hasGas"; // ขายถังมีแก๊ส → เพิ่มถังเปล่า
   if (SHARED_BRANDS.includes(brandName)) {
-    // หาถังจากทั้งสองยี่ห้อ เรียงตาม hasGas มากสุดก่อน
     const { Op } = require("sequelize");
     const stocks = await GasStock.findAll({ where: { brandName: { [Op.in]: SHARED_BRANDS }, weightKg: wkg }, order: [[field, "DESC"]] });
     let remaining = qty;
     for (const s of stocks) {
       if (remaining <= 0) break;
       const take = Math.min(remaining, Number(s[field]));
-      if (take > 0) { await s.update({ [field]: Number(s[field]) - take }); remaining -= take; }
+      if (take > 0) {
+        const updates = { [field]: Number(s[field]) - take };
+        if (addEmpty) updates.emptyTank = Number(s.emptyTank || 0) + take;
+        await s.update(updates);
+        remaining -= take;
+      }
     }
     if (remaining > 0) throw new Error(`สต็อก ${brandName} ${weightKg}กก. ไม่พอ`);
   } else {
     const stock = await GasStock.findOne({ where: { brandName, weightKg: wkg } });
     if (!stock || Number(stock[field]) < qty) throw new Error(`สต็อก ${brandName} ${weightKg}กก. ไม่พอ`);
-    await stock.update({ [field]: Number(stock[field]) - qty });
+    const updates = { [field]: Number(stock[field]) - qty };
+    if (addEmpty) updates.emptyTank = Number(stock.emptyTank || 0) + qty;
+    await stock.update(updates);
   }
 }
 
@@ -353,6 +360,34 @@ async function updateStatus(req, res) {
   }
   if (status === "cancelled") {
     deleteOrderFromSheet(order.orderNumber).catch(() => {});
+    syncStockToSheet().catch(() => {});
+  } else if (prevStatus === "cancelled") {
+    // un-cancel: deduct stock again + ลบ emptyTank ที่คืนไป
+    try {
+      const { GasStock } = require("../models");
+      const n = order.note || "";
+      if (n.startsWith("__walkin:")) {
+        const walkin = JSON.parse(n.replace(/^__walkin:/, "").split("\n")[0]);
+        if (walkin.type === "mixed" && Array.isArray(walkin.items)) {
+          for (const it of walkin.items) {
+            const q = Number(it.qty) || 1;
+            if (it.type === "gas") await deductStock(GasStock, it.brandName, Number(it.weightKg), q, "hasGas").catch(() => {});
+            else if (it.type === "new_tank") await deductStock(GasStock, it.brandName, Number(it.weightKg), q, "newTank").catch(() => {});
+          }
+        } else if (walkin.type === "gas") {
+          await deductStock(GasStock, walkin.brandName, Number(walkin.weightKg), Number(walkin.qty) || 1, "hasGas").catch(() => {});
+        } else if (walkin.type === "new_tank") {
+          await deductStock(GasStock, walkin.brandName, Number(walkin.weightKg), Number(walkin.qty) || 1, "newTank").catch(() => {});
+        }
+      } else if (order.productId) {
+        const { Product: Prod, Brand: B } = require("../models");
+        const prod = await Prod.findByPk(order.productId, { include: [{ model: B, as: "brand" }] });
+        if (prod) await deductStock(GasStock, prod.brand?.name, Number(prod.kg), Number(order.qty) || 1, "hasGas").catch(() => {});
+      }
+    } catch (e) { console.error("Stock re-deduct error:", e.message); }
+    appendOrder(order).catch(() => {});
+    syncStockToSheet().catch(() => {});
+    updateOrderStatus(order).catch(() => {});
   } else {
     updateOrderStatus(order).catch(() => {});
   }
