@@ -164,6 +164,7 @@ export default function Orders() {
   const [editOrder, setEditOrder]     = useState(null);   // order being edited
   const [editForm,  setEditForm]      = useState({});
   const [editItems, setEditItems]     = useState(null);   // null = single-item mode, array = multi-item (walkin mixed)
+  const [editNewItem, setEditNewItem] = useState({ type: "gas", brandName: "", weightKg: "", qty: 1, price: "", name: "" });
   const [editSaving, setEditSaving]   = useState(false);
   const [showUnpaid, setShowUnpaid]   = useState(false);
 
@@ -600,11 +601,14 @@ ${noteText ? `<div style="margin-top:8px; padding:6px 8px; border:1.5px dashed #
     const extraNote = noteRaw.match(/^__(?:phone_)?walkin:/)  ? noteRaw.split("\n").slice(1).join("\n").trim() : noteRaw;
 
     if (walkinData?.type === "mixed" && Array.isArray(walkinData.items) && walkinData.items.length > 0) {
-      // Multi-item walkin: edit each line separately
       setEditItems(walkinData.items.map(it => ({ ...it })));
+    } else if (walkinData?.type) {
+      // Single walkin item — convert to array so user can add/delete items
+      setEditItems([{ type: walkinData.type, brandName: walkinData.brandName || "", weightKg: walkinData.weightKg || "", qty: walkinData.qty || 1, price: walkinData.unitPrice || walkinData.price || order.total || 0, name: walkinData.name || "" }]);
     } else {
       setEditItems(null);
     }
+    setEditNewItem({ type: "gas", brandName: "", weightKg: "", qty: 1, price: "", name: "" });
     setEditForm({
       customerName:    order.customerName    || "",
       customerPhone:   order.customerPhone   || "",
@@ -617,6 +621,7 @@ ${noteText ? `<div style="margin-top:8px; padding:6px 8px; border:1.5px dashed #
       productId:       order.productId       || order.product?.id || "",
       note:            extraNote,
       _walkinData:     walkinData,
+      _walkinPrefix:   noteRaw.startsWith("__phone_walkin:") ? "__phone_walkin:" : "__walkin:",
     });
   }
 
@@ -626,12 +631,12 @@ ${noteText ? `<div style="margin-top:8px; padding:6px 8px; border:1.5px dashed #
       let qty, unitPrice, total, noteOut;
       if (editItems) {
         // Rebuild walkin note JSON from edited items
-        const newWalkinData = { ...editForm._walkinData, items: editItems };
+        const newWalkinData = { type: "mixed", ...(editForm._walkinData || {}), items: editItems };
         const itemsTotal = editItems.reduce((s, it) => s + Number(it.qty || 1) * Number(it.price || it.unitPrice || 0), 0);
         qty = editItems.reduce((s, it) => s + Number(it.qty || 1), 0);
         unitPrice = qty > 0 ? Math.round(itemsTotal / qty) : 0;
         total = itemsTotal;
-        noteOut = `__walkin:${JSON.stringify(newWalkinData)}${editForm.note ? "\n" + editForm.note : ""}`;
+        noteOut = `${editForm._walkinPrefix || "__walkin:"}${JSON.stringify(newWalkinData)}${editForm.note ? "\n" + editForm.note : ""}`;
       } else {
         qty = Number(editForm.qty || 1);
         unitPrice = Number(editForm.unitPrice || 0);
@@ -1048,7 +1053,10 @@ ${noteText ? `<div style="margin-top:8px; padding:6px 8px; border:1.5px dashed #
                   const lineTotal = Number(it.qty || 1) * Number(it.price || it.unitPrice || 0);
                   return (
                     <div key={idx} style={{ background: "#F8FAFF", borderRadius: 10, padding: "10px 12px", marginBottom: 8, border: "1.5px solid #E5E7EB" }}>
-                      <div style={{ fontSize: 12, fontWeight: 700, color: NAVY, marginBottom: 8 }}>รายการที่ {idx + 1}: {label}</div>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: NAVY }}>รายการที่ {idx + 1}: {label}</div>
+                        <button onClick={() => setEditItems(arr => arr.filter((_, i) => i !== idx))} style={{ background: "#FEE2E2", border: "1px solid #FCA5A5", borderRadius: 6, padding: "2px 8px", cursor: "pointer", fontSize: 13, color: "#DC2626", fontWeight: 700, lineHeight: 1.4 }}>✕</button>
+                      </div>
                       {(() => {
                         const allBrands = [...new Set([...brands.map(b => b.name), ...gasStocks.map(s => s.brandName)])].sort();
                         const allWeights = [...new Set([...ALL_WEIGHTS, ...gasStocks.filter(s => !it.brandName || s.brandName === it.brandName || (SHARED_BRANDS.includes(it.brandName) && SHARED_BRANDS.includes(s.brandName))).map(s => Number(s.weightKg))])].sort((a,b)=>a-b);
@@ -1094,6 +1102,68 @@ ${noteText ? `<div style="margin-top:8px; padding:6px 8px; border:1.5px dashed #
                     </div>
                   );
                 })}
+                {/* Add new item form */}
+                <div style={{ background: "#F0F9FF", borderRadius: 10, padding: "10px 12px", marginBottom: 10, border: "1.5px dashed #BAE6FD" }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "#0369A1", marginBottom: 8 }}>+ เพิ่มสินค้า</div>
+                  <div style={{ marginBottom: 6 }}>
+                    <div style={{ fontSize: 10, color: GRAY, fontWeight: 700, marginBottom: 3 }}>ประเภท</div>
+                    <select value={editNewItem.type} onChange={e => setEditNewItem(x => ({ ...x, type: e.target.value, brandName: "", weightKg: "", name: "" }))}
+                      style={{ width: "100%", padding: "7px 10px", borderRadius: 7, border: "1.5px solid #BAE6FD", fontSize: 13, boxSizing: "border-box" }}>
+                      <option value="gas">แก๊ส (เติม)</option>
+                      <option value="new_tank">ถังใหม่</option>
+                      <option value="equipment">อุปกรณ์</option>
+                    </select>
+                  </div>
+                  {editNewItem.type === "equipment" ? (
+                    <div style={{ marginBottom: 6 }}>
+                      <div style={{ fontSize: 10, color: GRAY, fontWeight: 700, marginBottom: 3 }}>ชื่ออุปกรณ์</div>
+                      <input value={editNewItem.name} onChange={e => setEditNewItem(x => ({ ...x, name: e.target.value }))}
+                        placeholder="เช่น หัวปรับ, สายแก๊ส"
+                        style={{ width: "100%", padding: "7px 10px", borderRadius: 7, border: "1.5px solid #BAE6FD", fontSize: 13, boxSizing: "border-box" }} />
+                    </div>
+                  ) : (
+                    <div style={{ display: "flex", gap: 8, marginBottom: 6 }}>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 10, color: GRAY, fontWeight: 700, marginBottom: 3 }}>ยี่ห้อ</div>
+                        <select value={editNewItem.brandName} onChange={e => setEditNewItem(x => ({ ...x, brandName: e.target.value }))}
+                          style={{ width: "100%", padding: "7px 10px", borderRadius: 7, border: "1.5px solid #BAE6FD", fontSize: 13, boxSizing: "border-box" }}>
+                          <option value="">-- ยี่ห้อ --</option>
+                          {[...new Set([...brands.map(b => b.name), ...gasStocks.map(s => s.brandName)])].sort().map(b => <option key={b} value={b}>{b}</option>)}
+                        </select>
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 10, color: GRAY, fontWeight: 700, marginBottom: 3 }}>น้ำหนัก (กก.)</div>
+                        <select value={editNewItem.weightKg} onChange={e => setEditNewItem(x => ({ ...x, weightKg: e.target.value }))}
+                          style={{ width: "100%", padding: "7px 10px", borderRadius: 7, border: "1.5px solid #BAE6FD", fontSize: 13, boxSizing: "border-box" }}>
+                          <option value="">-- กก. --</option>
+                          {[...new Set([...ALL_WEIGHTS, ...gasStocks.map(s => Number(s.weightKg))])].sort((a,b)=>a-b).map(w => <option key={w} value={w}>{w} กก.</option>)}
+                        </select>
+                      </div>
+                    </div>
+                  )}
+                  <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 10, color: GRAY, fontWeight: 700, marginBottom: 3 }}>จำนวน</div>
+                      <input type="number" min="1" value={editNewItem.qty} onChange={e => setEditNewItem(x => ({ ...x, qty: e.target.value }))}
+                        style={{ width: "100%", padding: "7px 10px", borderRadius: 7, border: "1.5px solid #BAE6FD", fontSize: 13, boxSizing: "border-box" }} />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 10, color: GRAY, fontWeight: 700, marginBottom: 3 }}>ราคา/ชิ้น (บาท)</div>
+                      <input type="number" value={editNewItem.price} onChange={e => setEditNewItem(x => ({ ...x, price: e.target.value }))}
+                        style={{ width: "100%", padding: "7px 10px", borderRadius: 7, border: "1.5px solid #BAE6FD", fontSize: 13, boxSizing: "border-box" }} />
+                    </div>
+                  </div>
+                  <button onClick={() => {
+                    if (!editNewItem.price) return alert("กรุณาใส่ราคา");
+                    if (editNewItem.type !== "equipment" && (!editNewItem.brandName || !editNewItem.weightKg)) return alert("กรุณาเลือกยี่ห้อและน้ำหนัก");
+                    if (editNewItem.type === "equipment" && !editNewItem.name) return alert("กรุณาใส่ชื่ออุปกรณ์");
+                    setEditItems(arr => [...arr, { type: editNewItem.type, brandName: editNewItem.brandName, weightKg: editNewItem.weightKg, qty: Number(editNewItem.qty) || 1, price: Number(editNewItem.price), name: editNewItem.name }]);
+                    setEditNewItem({ type: "gas", brandName: "", weightKg: "", qty: 1, price: "", name: "" });
+                  }} style={{ width: "100%", padding: "8px 0", borderRadius: 8, border: "none", background: "#0284C7", color: WHITE, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
+                    + เพิ่มสินค้า
+                  </button>
+                </div>
+
                 <div style={{ background: "#F0FDF4", borderRadius: 10, padding: "10px 14px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <span style={{ fontWeight: 700, color: "#166534", fontSize: 13 }}>ยอดรวม</span>
                   <span style={{ fontWeight: 900, fontSize: 18, color: "#059669" }}>
@@ -1445,23 +1515,11 @@ ${noteText ? `<div style="margin-top:8px; padding:6px 8px; border:1.5px dashed #
             </div>
             <div style={{ marginBottom: 12 }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>ที่อยู่จัดส่ง</div>
-              <CustomerAutocomplete
+              <input
                 value={createForm.deliveryAddress}
-                onChange={v => setCreateForm(f => ({ ...f, deliveryAddress: v }))}
-                onSelect={c => {
-                  setCreateCustAddrs(c.addresses || []);
-                  const incomingName = (c.customerName && c.customerName !== "ลูกค้าหน้าร้าน") ? c.customerName : "";
-                  setCreateForm(f => ({
-                    ...f,
-                    customerName:    f.customerName    || incomingName,
-                    customerPhone:   f.customerPhone   || c.customerPhone || "",
-                    deliveryAddress: c.addresses?.[0]  || c.deliveryAddress || f.deliveryAddress,
-                    brandId:   f.brandId   || c.brandId   || "",
-                    productId: f.productId || c.productId || "",
-                    unitPrice: c.unitPrice ? String(c.unitPrice) : f.unitPrice,
-                  }));
-                }}
+                onChange={e => setCreateForm(f => ({ ...f, deliveryAddress: e.target.value }))}
                 placeholder="บ้านเลขที่ ซอย..."
+                style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 14, boxSizing: "border-box" }}
               />
               {createCustAddrs.length > 1 && (
                 <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 4 }}>
