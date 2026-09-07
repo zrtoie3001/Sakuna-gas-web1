@@ -1536,24 +1536,33 @@ ${noteText ? `<div style="margin-top:8px; padding:6px 8px; border:1.5px dashed #
             </div>
             <div style={{ marginBottom: 12 }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>ที่อยู่จัดส่ง</div>
-              <CustomerAutocomplete
-                value={createForm.deliveryAddress}
-                onChange={v => setCreateForm(f => ({ ...f, deliveryAddress: v }))}
-                onSelect={c => {
-                  setCreateCustAddrs(c.addresses || []);
-                  setCreateCustKnown(true);
-                  setCreateForm(f => ({
-                    ...f,
-                    customerName:    f.customerName    || c.customerName || "",
-                    customerPhone:   f.customerPhone   || c.customerPhone || "",
-                    deliveryAddress: c.addresses?.[0]  || c.deliveryAddress || f.deliveryAddress,
-                    brandId:   f.brandId   || c.brandId   || "",
-                    productId: f.productId || c.productId || "",
-                    unitPrice: c.unitPrice ? String(c.unitPrice) : f.unitPrice,
-                  }));
-                }}
-                placeholder="บ้านเลขที่ ซอย..."
-              />
+              {(!createForm.customerName || createCustKnown) ? (
+                <CustomerAutocomplete
+                  value={createForm.deliveryAddress}
+                  onChange={v => setCreateForm(f => ({ ...f, deliveryAddress: v }))}
+                  onSelect={c => {
+                    setCreateCustAddrs(c.addresses || []);
+                    setCreateCustKnown(true);
+                    setCreateForm(f => ({
+                      ...f,
+                      customerName:    f.customerName    || c.customerName || "",
+                      customerPhone:   f.customerPhone   || c.customerPhone || "",
+                      deliveryAddress: c.addresses?.[0]  || c.deliveryAddress || f.deliveryAddress,
+                      brandId:   f.brandId   || c.brandId   || "",
+                      productId: f.productId || c.productId || "",
+                      unitPrice: c.unitPrice ? String(c.unitPrice) : f.unitPrice,
+                    }));
+                  }}
+                  placeholder="บ้านเลขที่ ซอย..."
+                />
+              ) : (
+                <input
+                  value={createForm.deliveryAddress}
+                  onChange={e => setCreateForm(f => ({ ...f, deliveryAddress: e.target.value }))}
+                  placeholder="บ้านเลขที่ ซอย..."
+                  style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 14, boxSizing: "border-box" }}
+                />
+              )}
               {createCustAddrs.length > 1 && (
                 <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 4 }}>
                   {createCustAddrs.map((addr, i) => (
