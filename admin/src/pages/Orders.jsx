@@ -413,18 +413,26 @@ export default function Orders() {
       const qtyUnit = isEquip ? " ชิ้น" : " ถัง";
       itemsHtml = `<tr><td>${productLabel || "-"}</td><td style="text-align:center;">${displayQty}${qtyUnit}</td><td style="text-align:right;">${Number(unitPrice).toLocaleString()}</td><td style="text-align:right;">${subtotal.toLocaleString()}</td></tr>`;
     }
-    for (const ex of extras) {
+    // parse __extras: from note (added by the /extras endpoint)
+    const extrasInNote = (() => {
+      const m = (o.note || "").match(/__extras:(\[.*\])$/);
+      if (!m) return [];
+      try { return JSON.parse(m[1]); } catch { return []; }
+    })();
+    const allExtras = [...extras, ...extrasInNote];
+    for (const ex of allExtras) {
       const lineTotal = Number(ex.price) * Number(ex.qty);
+      // extras from note are already in order.total — only add if coming from the extras param
+      if (!extrasInNote.includes(ex)) total += lineTotal;
       itemsHtml += `<tr><td>${ex.name}</td><td style="text-align:center;">${ex.qty} ชิ้น</td><td style="text-align:right;">${Number(ex.price).toLocaleString()}</td><td style="text-align:right;">${lineTotal.toLocaleString()}</td></tr>`;
-      total += lineTotal;
     }
     if (discount > 0) {
       itemsHtml += `<tr><td colspan="3" style="font-size:13px; font-weight:800; color:#000;">ส่วนลด${o.discountCode ? ` (${o.discountCode})` : ""}</td><td style="text-align:right; font-weight:800; color:#000;">-${discount.toLocaleString()}</td></tr>`;
     }
     const displayNote = (() => {
       const n = o.note || "";
-      if (!n || n.match(/^__(?:phone_)?walkin:/) ) return n.split("\n").slice(1).join("\n").trim();
-      return n.trim();
+      let clean = n.match(/^__(?:phone_)?walkin:/) ? n.split("\n").slice(1).join("\n").trim() : n.trim();
+      return clean.replace(/\n?__extras:\[.*\]$/, "").trim();
     })();
     openReceiptWindow(o, itemsHtml, total, dateStr, timeStr, payLabel, displayNote);
   }
@@ -598,13 +606,26 @@ ${noteText ? `<div style="margin-top:8px; padding:6px 8px; border:1.5px dashed #
     if (noteRaw.match(/^__(?:phone_)?walkin:/) ) {
       try { walkinData = JSON.parse(noteRaw.replace(/^__(?:phone_)?walkin:/, "").split("\n")[0]); } catch {}
     }
-    const extraNote = noteRaw.match(/^__(?:phone_)?walkin:/)  ? noteRaw.split("\n").slice(1).join("\n").trim() : noteRaw;
+    // parse __extras: items from note
+    const extrasInNote = (() => {
+      const m = noteRaw.match(/__extras:(\[.*\])$/);
+      if (!m) return [];
+      try { return JSON.parse(m[1]); } catch { return []; }
+    })();
+    const extrasAsItems = extrasInNote.map(e => ({ type: "equipment", name: e.name, qty: e.qty, price: e.price }));
+
+    let rawNote = noteRaw.match(/^__(?:phone_)?walkin:/) ? noteRaw.split("\n").slice(1).join("\n").trim() : noteRaw;
+    const extraNote = rawNote.replace(/\n?__extras:\[.*\]$/, "").trim();
 
     if (walkinData?.type === "mixed" && Array.isArray(walkinData.items) && walkinData.items.length > 0) {
-      setEditItems(walkinData.items.map(it => ({ ...it })));
+      setEditItems([...walkinData.items.map(it => ({ ...it })), ...extrasAsItems]);
     } else if (walkinData?.type) {
-      // Single walkin item — convert to array so user can add/delete items
-      setEditItems([{ type: walkinData.type, brandName: walkinData.brandName || "", weightKg: walkinData.weightKg || "", qty: walkinData.qty || 1, price: walkinData.unitPrice || walkinData.price || order.total || 0, name: walkinData.name || "" }]);
+      const mainItem = { type: walkinData.type, brandName: walkinData.brandName || "", weightKg: walkinData.weightKg || "", qty: walkinData.qty || 1, price: walkinData.unitPrice || walkinData.price || 0, name: walkinData.name || "" };
+      setEditItems([mainItem, ...extrasAsItems]);
+    } else if (extrasAsItems.length > 0) {
+      // Non-walkin order with extras — build main item from order fields
+      const mainItem = { type: "gas", brandName: order.brand?.name || "", weightKg: order.product?.kg || "", qty: order.qty || 1, price: order.unitPrice || 0 };
+      setEditItems([mainItem, ...extrasAsItems]);
     } else {
       setEditItems(null);
     }
