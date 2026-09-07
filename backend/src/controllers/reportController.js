@@ -48,9 +48,9 @@ async function dailyReport(req, res) {
   // Count gas tanks from all non-cancelled orders (exclude equipment)
   const gasTanks = orders.reduce((sum, o) => {
     const n = o.note || "";
-    if (n.startsWith("__walkin:")) {
+    if (n.match(/^__(?:phone_)?walkin:/)) {
       try {
-        const w = JSON.parse(n.replace(/^__walkin:/, "").split("\n")[0]);
+        const w = JSON.parse(n.replace(/^__(?:phone_)?walkin:/, "").split("\n")[0]);
         if (w.type === "mixed") return sum + (w.items || []).filter(i => i.type === "gas" || i.type === "new_tank").reduce((s, i) => s + (Number(i.qty) || 1), 0);
         if (w.type === "gas" || w.type === "new_tank") return sum + (Number(w.qty) || 1);
         return sum; // equipment
@@ -169,9 +169,9 @@ async function dashboardStats(req, res) {
   // Compute today's gas tank count (all orders, exclude equipment)
   const todayGasTanks = todayPaidOrders.reduce((sum, o) => {
     const n = o.note || "";
-    if (n.startsWith("__walkin:")) {
+    if (n.match(/^__(?:phone_)?walkin:/)) {
       try {
-        const w = JSON.parse(n.replace(/^__walkin:/, "").split("\n")[0]);
+        const w = JSON.parse(n.replace(/^__(?:phone_)?walkin:/, "").split("\n")[0]);
         if (w.type === "mixed") return sum + (w.items || []).filter(i => i.type === "gas" || i.type === "new_tank").reduce((s, i) => s + (Number(i.qty) || 1), 0);
         if (w.type === "gas" || w.type === "new_tank") return sum + (Number(w.qty) || 1);
         return sum;
