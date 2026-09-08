@@ -76,11 +76,13 @@ async function addRefill(req, res) {
 
   let stock = await GasStock.findOne({ where: { brandName, weightKg } });
   if (!stock) stock = await GasStock.create({ brandName, weightKg });
-  const oldVal = Number(stock.hasGas);
-  const newVal = oldVal + Number(qty);
-  await stock.update({ hasGas: newVal });
-  await writeLog(brandName, weightKg, "hasGas", oldVal, newVal, "refill", note);
-  appendStockLog({ brandName, weightKg, field: "hasGas", oldValue: oldVal, newValue: newVal, delta: Number(qty), action: "refill", note }).catch(() => {});
+  const oldHas = Number(stock.hasGas);
+  const newHas = oldHas + Number(qty);
+  const oldEmpty = Number(stock.emptyTank || 0);
+  const newEmpty = Math.max(0, oldEmpty - Number(qty));
+  await stock.update({ hasGas: newHas, emptyTank: newEmpty });
+  await writeLog(brandName, weightKg, "hasGas", oldHas, newHas, "refill", note);
+  appendStockLog({ brandName, weightKg, field: "hasGas", oldValue: oldHas, newValue: newHas, delta: Number(qty), action: "refill", note }).catch(() => {});
   syncStockToSheet().catch(() => {});
   res.status(201).json(refill);
 }
@@ -92,10 +94,12 @@ async function deleteRefill(req, res) {
     // Reverse the stock addition
     const stock = await GasStock.findOne({ where: { brandName: refill.brandName, weightKg: refill.weightKg } });
     if (stock) {
-      const oldVal = Number(stock.hasGas);
-      const newVal = Math.max(0, oldVal - Number(refill.qty));
-      await stock.update({ hasGas: newVal });
-      await writeLog(refill.brandName, refill.weightKg, "hasGas", oldVal, newVal, "refill-delete", `ลบรายการเติม ${refill.qty} ถัง`);
+      const oldHas = Number(stock.hasGas);
+      const newHas = Math.max(0, oldHas - Number(refill.qty));
+      const oldEmpty = Number(stock.emptyTank || 0);
+      const newEmpty = oldEmpty + Number(refill.qty); // คืนถังเปล่ากลับ
+      await stock.update({ hasGas: newHas, emptyTank: newEmpty });
+      await writeLog(refill.brandName, refill.weightKg, "hasGas", oldHas, newHas, "refill-delete", `ลบรายการเติม ${refill.qty} ถัง`);
     }
     await refill.destroy();
     res.json({ ok: true });
