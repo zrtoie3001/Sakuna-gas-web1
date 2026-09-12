@@ -43,7 +43,8 @@ const STATUSES = [
   { key: "cancelled",         label: "ยกเลิก",         bg: "#FEE2E2", color: "#991B1B" },
 ];
 
-const EMPTY_ORDER = { customerName: "", customerPhone: "", brandId: "", productId: "", qty: 1, unitPrice: "", paymentMethod: "cash", deliveryAddress: "", note: "", orderType: "gas" };
+const EMPTY_ORDER = { customerName: "", customerPhone: "", brandId: "", productId: "", qty: 1, unitPrice: "", paymentMethod: "cash", deliveryAddress: "", note: "", orderType: "gas", liftingFloors: "" };
+const LIFTING_RATE = (weightKg) => { const w = Number(weightKg); return w <= 4 ? 5 : w >= 15 ? 10 : 0; };
 
 function CustomerAutocomplete({ value, onChange, onSelect, placeholder, type = "text", disabled = false }) {
   const [open, setOpen] = useState(false);
@@ -229,11 +230,13 @@ export default function Orders() {
   }, [createForm.customerPhone, createForm.customerName, createForm.deliveryAddress]);
 
   function addToCreateCart() {
+    let weightForLifting = null;
     if (createForm.orderType === "new_tank") {
       const stock = findStockByBrand(gasStocks, createForm.ntBrand, createForm.ntWeight);
       if (!stock) return alert("กรุณาเลือกยี่ห้อและน้ำหนัก");
       if (!createForm.newTankPrice) return alert("กรุณาใส่ราคา");
       const ntDisplayName = createForm.ntBrand || stock.brandName;
+      weightForLifting = stock.weightKg;
       setCreateCart(c => [...c, {
         type: "new_tank",
         brandName: ntDisplayName,
@@ -243,7 +246,7 @@ export default function Orders() {
         price: Number(createForm.newTankPrice),
         label: `ถังใหม่ ${ntDisplayName} ${stock.weightKg} กก.`,
       }]);
-      setCreateForm(f => ({ ...f, ntBrand: "", ntWeight: "", newTankStockId: "", newTankPrice: "", qty: 1 }));
+      setCreateForm(f => ({ ...f, ntBrand: "", ntWeight: "", newTankStockId: "", newTankPrice: "", qty: 1, liftingFloors: "" }));
     } else if (createForm.orderType === "equipment") {
       const eq = equipList.find(e => e.id === createForm.equipId);
       if (!eq) return alert("กรุณาเลือกอะไหล่");
@@ -264,6 +267,7 @@ export default function Orders() {
       if (!createForm.unitPrice) return alert("กรุณาใส่ราคา");
       const brand = brands.find(b => b.id === createForm.brandId);
       const prod = products.find(p => p.id === createForm.productId);
+      weightForLifting = prod?.kg;
       setCreateCart(c => [...c, {
         type: "gas",
         brandId: createForm.brandId,
@@ -275,7 +279,13 @@ export default function Orders() {
         price: Number(createForm.unitPrice),
         label: `${brand?.name || ""} ${prod?.name || ""}`,
       }]);
-      setCreateForm(f => ({ ...f, brandId: "", productId: "", unitPrice: "", qty: 1 }));
+      setCreateForm(f => ({ ...f, brandId: "", productId: "", unitPrice: "", qty: 1, liftingFloors: "" }));
+    }
+    // Add lifting fee if applicable
+    const floors = Number(createForm.liftingFloors) || 0;
+    const rate = LIFTING_RATE(weightForLifting);
+    if (floors > 0 && rate > 0) {
+      setCreateCart(c => [...c, { type: "lifting", name: "ค่ายก", qty: 1, price: floors * rate, label: `ค่ายก ${floors} ชั้น` }]);
     }
   }
 
@@ -1727,6 +1737,32 @@ ${noteText ? `<div style="margin-top:8px; padding:6px 8px; border:1.5px dashed #
                 </select>
               </div>
             </div>
+
+            {/* ค่ายก */}
+            {(createForm.orderType === "gas" || createForm.orderType === "new_tank") && (() => {
+              const w = createForm.orderType === "gas"
+                ? products.find(p => p.id === createForm.productId)?.kg
+                : createForm.ntWeight;
+              const rate = LIFTING_RATE(w);
+              const floors = Number(createForm.liftingFloors) || 0;
+              const liftFee = floors * rate;
+              return (
+                <div style={{ marginBottom: 12 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>ค่ายก (จำนวนชั้น)</div>
+                  <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                    <input type="number" min="0" value={createForm.liftingFloors} onChange={e => setCreateForm(f => ({ ...f, liftingFloors: e.target.value }))}
+                      placeholder="0" style={{ width: 90, padding: "9px 12px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 14, boxSizing: "border-box" }} />
+                    {rate > 0 ? (
+                      <span style={{ fontSize: 13, color: floors > 0 ? ORANGE : GRAY, fontWeight: 700 }}>
+                        {rate} บาท/ชั้น{floors > 0 ? ` = ฿${liftFee.toLocaleString()}` : ""}
+                      </span>
+                    ) : (
+                      <span style={{ fontSize: 12, color: GRAY }}>4kg=5฿/ชั้น · 15kg=10฿/ชั้น</span>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* Add to cart */}
             <button onClick={addToCreateCart} style={{
