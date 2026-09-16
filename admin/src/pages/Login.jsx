@@ -67,6 +67,9 @@ export default function Login() {
               type="password" value={password} onChange={e => setPass(e.target.value)}
               placeholder="••••••••"
               required
+              autoComplete="current-password"
+              lang="en"
+              inputMode="none"
               style={{
                 width: "100%", padding: "11px 14px", borderRadius: 10,
                 border: "2px solid #E5E7EB", fontSize: 14, outline: "none",
