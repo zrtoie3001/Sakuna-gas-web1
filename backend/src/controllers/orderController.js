@@ -270,7 +270,11 @@ async function listOrders(req, res) {
   } else if (date) {
     const start = new Date(date); start.setHours(0, 0, 0, 0);
     const end   = new Date(date); end.setHours(23, 59, 59, 999);
-    where.createdAt = { [Op.between]: [start, end] };
+    // แสดงออเดอร์ที่สร้างวันนั้น OR ออเดอร์ล่วงหน้าที่กำหนดส่งวันนั้น
+    where[Op.or] = [
+      { createdAt: { [Op.between]: [start, end] } },
+      { scheduledDate: date },
+    ];
   }
   const { rows, count } = await Order.findAndCountAll({
     where,
@@ -423,7 +427,7 @@ async function createWalkinOrder(req, res) {
             brandName, weightKg, qty, price, items,
             cartItems,  // new: mixed cart
             deliveryAddress: customAddress, orderStatus,
-            source } = req.body;
+            source, scheduledDate } = req.body;
     // prefix แยก หน้าร้าน vs โทรสั่ง/LINE
     const PREFIX = source === "phone" ? "__phone_walkin:" : "__walkin:";
 
@@ -510,6 +514,7 @@ async function createWalkinOrder(req, res) {
       total,
       note: walkinNote,
       status: orderStatus || "delivered",
+      scheduledDate: scheduledDate || null,
     });
 
     appendOrder(order, walkinNote).catch(() => {});
@@ -537,6 +542,7 @@ async function updateOrder(req, res) {
     if (qty            !== undefined) updates.qty            = Number(qty);
     if (unitPrice      !== undefined) updates.unitPrice      = Number(unitPrice);
     if (total          !== undefined) updates.total          = Number(total);
+    if (req.body.scheduledDate !== undefined) updates.scheduledDate = req.body.scheduledDate || null;
     else if (qty !== undefined && unitPrice !== undefined) {
       updates.subtotal = Number(qty) * Number(unitPrice);
       updates.total    = Number(qty) * Number(unitPrice);

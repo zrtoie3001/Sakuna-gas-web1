@@ -43,7 +43,7 @@ const STATUSES = [
   { key: "cancelled",         label: "ยกเลิก",         bg: "#FEE2E2", color: "#991B1B" },
 ];
 
-const EMPTY_ORDER = { customerName: "", customerPhone: "", brandId: "", productId: "", qty: 1, unitPrice: "", paymentMethod: "cash", deliveryAddress: "", note: "", orderType: "gas", liftingFloors: "" };
+const EMPTY_ORDER = { customerName: "", customerPhone: "", brandId: "", productId: "", qty: 1, unitPrice: "", paymentMethod: "cash", deliveryAddress: "", note: "", orderType: "gas", liftingFloors: "", scheduledDate: "" };
 const LIFTING_RATE = (weightKg) => { const w = Number(weightKg); return w <= 4 ? 5 : w >= 15 ? 10 : 0; };
 
 function CustomerAutocomplete({ value, onChange, onSelect, placeholder, type = "text", disabled = false }) {
@@ -314,8 +314,9 @@ export default function Orders() {
         paymentMethod: createForm.paymentMethod,
         note: createForm.note,
         deliveryAddress: createForm.deliveryAddress,
-        orderStatus: "pending",
+        orderStatus: createForm.scheduledDate ? "pending" : "pending",
         source: "phone",
+        scheduledDate: createForm.scheduledDate || null,
       });
       setShowCreate(false);
       setCreateForm(EMPTY_ORDER);
@@ -802,6 +803,7 @@ ${noteText ? `<div style="margin-top:8px; padding:6px 8px; border:1.5px dashed #
                   <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 3, flexWrap: "wrap" }}>
                     <span style={{ fontSize: 13, fontWeight: 800, color: isCancelled ? "#9CA3AF" : ORANGE, textDecoration: isCancelled ? "line-through" : "none" }}>{o.orderNumber}</span>
                     <span style={{ fontSize: 11, background: s.bg, color: s.color, padding: "2px 6px", borderRadius: 6, fontWeight: 700 }}>{s.label}</span>
+                    {o.scheduledDate && <span style={{ fontSize: 11, background: "#DBEAFE", color: "#1D4ED8", padding: "2px 6px", borderRadius: 6, fontWeight: 700 }}>📅 ล่วงหน้า {new Date(o.scheduledDate + "T00:00:00").toLocaleDateString("th-TH", { day: "numeric", month: "short" })}</span>}
                     {!isCancelled && <span onClick={e => { e.stopPropagation(); togglePaid(o.id); }} style={{
                       fontSize: 11, padding: "2px 7px", borderRadius: 6, fontWeight: 700, cursor: "pointer",
                       background: o.isPaid ? "#D1FAE5" : "#FEE2E2",
@@ -1626,6 +1628,17 @@ ${noteText ? `<div style="margin-top:8px; padding:6px 8px; border:1.5px dashed #
                 style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 14, boxSizing: "border-box" }} />
             </div>
 
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>📅 วันส่ง (กรณีสั่งล่วงหน้า)</div>
+              <input type="date" value={createForm.scheduledDate} onChange={e => setCreateForm(f => ({ ...f, scheduledDate: e.target.value }))}
+                min={new Date().toISOString().split("T")[0]}
+                style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: `2px solid ${createForm.scheduledDate ? "#3B82F6" : "#E5E7EB"}`, fontSize: 14, boxSizing: "border-box",
+                  background: createForm.scheduledDate ? "#EFF6FF" : "white" }} />
+              {createForm.scheduledDate && (
+                <p style={{ fontSize: 11, color: "#3B82F6", marginTop: 4 }}>📌 ออเดอร์นี้จะแสดงในวัน {new Date(createForm.scheduledDate + "T00:00:00").toLocaleDateString("th-TH", { day: "numeric", month: "long", year: "numeric" })}</p>
+              )}
+            </div>
+
             {createForm.orderType === "gas" ? (
               <>
                 <div style={{ display: "flex", gap: 12, marginBottom: 12 }}>
@@ -1680,7 +1693,8 @@ ${noteText ? `<div style="margin-top:8px; padding:6px 8px; border:1.5px dashed #
                       <select value={createForm.ntWeight || ""} onChange={e => {
                         const w = e.target.value;
                         const s = findStockByBrand(gasStocks, createForm.ntBrand, w);
-                        setCreateForm(f => ({ ...f, ntWeight: w, newTankStockId: s?.id || "" }));
+                        const autoPrice = s?.newTankPrice != null ? String(s.newTankPrice) : "";
+                        setCreateForm(f => ({ ...f, ntWeight: w, newTankStockId: s?.id || "", newTankPrice: autoPrice || f.newTankPrice }));
                       }} style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 14, boxSizing: "border-box" }}>
                         <option value="">-- เลือก --</option>
                         {ntWeights.map(w => <option key={w} value={w}>{w} กก.</option>)}

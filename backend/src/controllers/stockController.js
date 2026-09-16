@@ -144,4 +144,12 @@ async function sellEquipment(req, res) {
   res.status(201).json(sale);
 }
 
-module.exports = { getGasStock, upsertGasStock, adjustGasStock, getStockLogs, getRefills, addRefill, deleteRefill, getEquipment, createEquipment, updateEquipment, deleteEquipment, sellEquipment };
+async function updateNewTankPrice(req, res) {
+  const { brandName, weightKg, price } = req.body;
+  let row = await GasStock.findOne({ where: { brandName, weightKg } });
+  if (!row) row = await GasStock.create({ brandName, weightKg });
+  await row.update({ newTankPrice: price === "" || price == null ? null : Number(price) });
+  res.json(row);
+}
+
+module.exports = { getGasStock, upsertGasStock, adjustGasStock, getStockLogs, getRefills, addRefill, deleteRefill, getEquipment, createEquipment, updateEquipment, deleteEquipment, sellEquipment, updateNewTankPrice };

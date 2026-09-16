@@ -102,6 +102,7 @@ const btn = (bg, color) => ({ padding: "8px 14px", borderRadius: 8, background: 
 
 const TABS = [
   { key: "gas",       label: "⛽ ถังแก๊ส" },
+  { key: "new_tank",  label: "🆕 ถังใหม่" },
   { key: "equipment", label: "🔧 อุปกรณ์/อะไหล่" },
   { key: "stove",     label: "🍳 เตา" },
   { key: "brands",    label: "🏷 ยี่ห้อ" },
@@ -116,6 +117,9 @@ export default function Products() {
   const [equipment, setEquipment] = useState([]);
   const [stoves, setStoves]     = useState([]);
   const [zones, setZones]       = useState([]);
+  const [gasStocks, setGasStocks] = useState([]);
+  const [newTankEdits, setNewTankEdits] = useState({}); // { "brand|kg": price }
+  const [newTankSaving, setNewTankSaving] = useState({});
   const [modal, setModal]       = useState(null);
   const [form, setForm]         = useState({});
   const [zoneForm, setZoneForm] = useState({ name: "", label: "", color: "#DC2626", centerLat: "", centerLng: "", radiusKm: "", maxKm: "", minLat: "", minLng: "", polygonCoords: "" });
@@ -129,8 +133,26 @@ export default function Products() {
     api.get("/api/v1/stock/equipment?category=equipment").then(r => setEquipment(r.data)).catch(() => {});
     api.get("/api/v1/stock/equipment?category=stove").then(r => setStoves(r.data)).catch(() => {});
     api.get("/api/v1/products/zones").then(r => setZones(Array.isArray(r.data) ? r.data : [])).catch(() => {});
+    api.get("/api/v1/stock/gas").then(r => {
+      setGasStocks(r.data);
+      const edits = {};
+      r.data.forEach(s => { edits[`${s.brandName}|${s.weightKg}`] = s.newTankPrice != null ? String(s.newTankPrice) : ""; });
+      setNewTankEdits(edits);
+    }).catch(() => {});
   };
   useEffect(load, []);
+
+  async function saveNewTankPrice(brandName, weightKg) {
+    const key = `${brandName}|${weightKg}`;
+    setNewTankSaving(s => ({ ...s, [key]: true }));
+    try {
+      const price = newTankEdits[key];
+      await api.patch("/api/v1/stock/gas/new-tank-price", { brandName, weightKg, price: price === "" ? null : Number(price) });
+      load();
+    } finally {
+      setNewTankSaving(s => ({ ...s, [key]: false }));
+    }
+  }
 
   async function saveGasProduct() {
     if (form.id) await api.put(`/api/v1/products/${form.id}`, form);
@@ -295,6 +317,45 @@ export default function Products() {
             </div>
           ))}
           {!products.length && <p style={{ color: GRAY, gridColumn: "1/-1" }}>ยังไม่มีสินค้า</p>}
+        </div>
+      )}
+
+      {/* 🆕 ถังใหม่ */}
+      {tab === "new_tank" && (
+        <div>
+          <p style={{ fontSize: 12, color: GRAY, marginBottom: 14 }}>กำหนดราคาถังใหม่แยกตามยี่ห้อ/ขนาด — ใส่ราคาในช่องแล้วกด "บันทึก"</p>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 12 }}>
+            {gasStocks.map(s => {
+              const key = `${s.brandName}|${s.weightKg}`;
+              const saved = s.newTankPrice != null ? Number(s.newTankPrice) : null;
+              return (
+                <div key={key} style={{ background: WHITE, borderRadius: 14, padding: 16, boxShadow: "0 2px 8px rgba(0,0,0,.06)" }}>
+                  <p style={{ fontSize: 15, fontWeight: 800, color: NAVY, marginBottom: 2 }}>{s.brandName}</p>
+                  <p style={{ fontSize: 12, color: GRAY, marginBottom: 10 }}>⚖️ {Number(s.weightKg)} กก.</p>
+                  {saved != null && (
+                    <p style={{ fontSize: 12, color: "#059669", marginBottom: 6 }}>ราคาปัจจุบัน: <strong>฿{saved.toLocaleString()}</strong></p>
+                  )}
+                  <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                    <input
+                      type="number"
+                      placeholder="ราคาถังใหม่"
+                      value={newTankEdits[key] ?? ""}
+                      onChange={e => setNewTankEdits(v => ({ ...v, [key]: e.target.value }))}
+                      style={{ ...inp, flex: 1 }}
+                    />
+                    <button
+                      onClick={() => saveNewTankPrice(s.brandName, s.weightKg)}
+                      disabled={newTankSaving[key]}
+                      style={{ ...btn(NAVY, WHITE), whiteSpace: "nowrap" }}
+                    >
+                      {newTankSaving[key] ? "..." : "บันทึก"}
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+            {!gasStocks.length && <p style={{ color: GRAY }}>ยังไม่มีสต็อกแก๊ส — เพิ่มข้อมูลในหน้าสต็อกก่อน</p>}
+          </div>
         </div>
       )}
 

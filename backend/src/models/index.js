@@ -127,6 +127,7 @@ const Order = sequelize.define("Order", {
     type: DataTypes.ENUM("pending", "preparing", "out_for_delivery", "near_destination", "delivered", "cancelled"),
     defaultValue: "pending",
   },
+  scheduledDate: { type: DataTypes.DATEONLY, allowNull: true }, // วันส่งล่วงหน้า
 }, { tableName: "orders", underscored: true });
 
 // ── OrderStatusLog ────────────────────────────────────────────────────────────
@@ -176,6 +177,7 @@ const GasStock = sequelize.define("GasStock", {
   emptyTank:   { type: DataTypes.INTEGER, defaultValue: 0 },   // ถังเปล่า
   damagedTank: { type: DataTypes.INTEGER, defaultValue: 0 },   // ถังเสีย
   heldTank:    { type: DataTypes.INTEGER, defaultValue: 0 },   // ค้างถัง
+  newTankPrice: { type: DataTypes.DECIMAL(10, 2), defaultValue: null, allowNull: true }, // ราคาถังใหม่
 }, { tableName: "gas_stocks", underscored: true });
 
 // ── StoreSetting ──────────────────────────────────────────────────────────────

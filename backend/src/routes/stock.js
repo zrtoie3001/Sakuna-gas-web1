@@ -7,6 +7,7 @@ router.get("/gas",              requireAuth, ah(ctrl.getGasStock));
 router.post("/gas",             requireAuth, ah(ctrl.upsertGasStock));
 router.post("/gas/adjust",      requireAuth, ah(ctrl.adjustGasStock));
 router.get("/gas/logs",         requireAuth, ah(ctrl.getStockLogs));
+router.patch("/gas/new-tank-price", requireAuth, ah(ctrl.updateNewTankPrice));
 
 router.get("/refills",          requireAuth, ah(ctrl.getRefills));
 router.post("/refills",         requireAuth, ah(ctrl.addRefill));
