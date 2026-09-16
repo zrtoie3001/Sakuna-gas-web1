@@ -120,6 +120,7 @@ export default function Products() {
   const [gasStocks, setGasStocks] = useState([]);
   const [newTankEdits, setNewTankEdits] = useState({}); // { "brand|kg": price }
   const [newTankSaving, setNewTankSaving] = useState({});
+  const [newTankAddForm, setNewTankAddForm] = useState({ brandName: "", weightKg: "", price: "" });
   const [modal, setModal]       = useState(null);
   const [form, setForm]         = useState({});
   const [zoneForm, setZoneForm] = useState({ name: "", label: "", color: "#DC2626", centerLat: "", centerLng: "", radiusKm: "", maxKm: "", minLat: "", minLng: "", polygonCoords: "" });
@@ -141,6 +142,19 @@ export default function Products() {
     }).catch(() => {});
   };
   useEffect(load, []);
+
+  async function addNewTankEntry() {
+    const { brandName, weightKg, price } = newTankAddForm;
+    if (!brandName.trim()) return alert("กรุณาใส่ยี่ห้อ");
+    if (!weightKg) return alert("กรุณาใส่ขนาด (กก.)");
+    await api.patch("/api/v1/stock/gas/new-tank-price", {
+      brandName: brandName.trim(), weightKg: Number(weightKg),
+      price: price === "" ? null : Number(price),
+    });
+    setNewTankAddForm({ brandName: "", weightKg: "", price: "" });
+    setModal(null);
+    load();
+  }
 
   async function saveNewTankPrice(brandName, weightKg) {
     const key = `${brandName}|${weightKg}`;
@@ -280,6 +294,7 @@ export default function Products() {
           {tab === "equipment" && <button onClick={() => { setModal("equip_new_equipment"); setForm({}); }} style={btn(ORANGE, WHITE)}>+ เพิ่มอุปกรณ์</button>}
           {tab === "stove" && <button onClick={() => { setModal("equip_new_stove"); setForm({}); }} style={btn(ORANGE, WHITE)}>+ เพิ่มเตา</button>}
           {tab === "brands" && <button onClick={() => { setModal("brand_new"); setForm({}); }} style={btn(NAVY, WHITE)}>+ เพิ่มยี่ห้อ</button>}
+          {tab === "new_tank" && <button onClick={() => { setNewTankAddForm({ brandName: "", weightKg: "", price: "" }); setModal("new_tank_add"); }} style={btn(ORANGE, WHITE)}>+ เพิ่มถังใหม่</button>}
           {tab === "zones" && <button onClick={() => { setModal("zone_new"); setEditZone(null); setZoneForm({ name: "", label: "", color: "#DC2626", centerLat: "", centerLng: "", radiusKm: "", maxKm: "", minLat: "", minLng: "", polygonCoords: "" }); setZonePriceForm({}); }} style={btn(ORANGE, WHITE)}>+ เพิ่มโซน</button>}
         </div>
       </div>
@@ -436,6 +451,31 @@ export default function Products() {
             {!zones.length && <p style={{ color: GRAY }}>ยังไม่มีโซน — กด "+ เพิ่มโซน"</p>}
           </div>
         </div>
+      )}
+
+      {/* Modal: New Tank Add */}
+      {modal === "new_tank_add" && (
+        <Modal title="เพิ่มถังใหม่" onClose={() => setModal(null)}>
+          <div style={{ marginBottom: 12 }}>
+            <label style={{ fontSize: 11, color: GRAY, display: "block", marginBottom: 4, fontWeight: 700 }}>ยี่ห้อ *</label>
+            <input value={newTankAddForm.brandName} onChange={e => setNewTankAddForm(f => ({ ...f, brandName: e.target.value }))}
+              placeholder="เช่น ปตท, PAP, สยาม" style={inp} list="brand-suggestions" />
+            <datalist id="brand-suggestions">
+              {brands.map(b => <option key={b.id} value={b.name} />)}
+            </datalist>
+          </div>
+          <div style={{ marginBottom: 12 }}>
+            <label style={{ fontSize: 11, color: GRAY, display: "block", marginBottom: 4, fontWeight: 700 }}>ขนาด (กก.) *</label>
+            <input type="number" step="0.5" value={newTankAddForm.weightKg} onChange={e => setNewTankAddForm(f => ({ ...f, weightKg: e.target.value }))}
+              placeholder="เช่น 4, 15, 48" style={inp} />
+          </div>
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ fontSize: 11, color: GRAY, display: "block", marginBottom: 4, fontWeight: 700 }}>ราคาถังใหม่ (บาท)</label>
+            <input type="number" value={newTankAddForm.price} onChange={e => setNewTankAddForm(f => ({ ...f, price: e.target.value }))}
+              placeholder="ปล่อยว่างได้ ตั้งทีหลัง" style={inp} />
+          </div>
+          <button onClick={addNewTankEntry} style={{ ...btn(NAVY, WHITE), width: "100%", padding: 12 }}>บันทึก</button>
+        </Modal>
       )}
 
       {/* Modal: Zone */}
