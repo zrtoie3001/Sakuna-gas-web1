@@ -642,7 +642,10 @@ ${noteText ? `<div style="margin-top:8px; padding:6px 8px; border:1.5px dashed #
       const mainItem = { type: "gas", brandName: order.brand?.name || "", weightKg: order.product?.kg || "", qty: order.qty || 1, price: order.unitPrice || 0 };
       setEditItems([mainItem, ...extrasAsItems]);
     } else {
-      setEditItems(null);
+      // Regular single-item order — convert to cart array for consistent UI
+      const brandName = order.brand?.name || "";
+      const weightKg  = order.product?.kg  != null ? String(order.product.kg) : "";
+      setEditItems([{ type: "gas", brandName, weightKg, qty: order.qty || 1, price: order.unitPrice || 0 }]);
     }
     setEditNewItem({ type: "gas", brandName: "", weightKg: "", qty: 1, price: "", name: "" });
     setEditForm({
@@ -665,19 +668,30 @@ ${noteText ? `<div style="margin-top:8px; padding:6px 8px; border:1.5px dashed #
     setEditSaving(true);
     try {
       let qty, unitPrice, total, noteOut;
-      if (editItems) {
-        // Rebuild walkin note JSON from edited items
+      const itemsTotal = editItems.reduce((s, it) => s + Number(it.qty || 1) * Number(it.price || it.unitPrice || 0), 0);
+      qty       = editItems.reduce((s, it) => s + Number(it.qty || 1), 0);
+      unitPrice = qty > 0 ? Math.round(itemsTotal / qty) : 0;
+      total     = itemsTotal;
+
+      let saveBrandId   = null;
+      let saveProductId = null;
+
+      if (editForm._walkinPrefix) {
+        // Walkin/phone order — rebuild walkin note JSON
         const newWalkinData = { type: "mixed", ...(editForm._walkinData || {}), items: editItems };
-        const itemsTotal = editItems.reduce((s, it) => s + Number(it.qty || 1) * Number(it.price || it.unitPrice || 0), 0);
-        qty = editItems.reduce((s, it) => s + Number(it.qty || 1), 0);
-        unitPrice = qty > 0 ? Math.round(itemsTotal / qty) : 0;
-        total = itemsTotal;
-        noteOut = `${editForm._walkinPrefix || "__walkin:"}${JSON.stringify(newWalkinData)}${editForm.note ? "\n" + editForm.note : ""}`;
+        noteOut = `${editForm._walkinPrefix}${JSON.stringify(newWalkinData)}${editForm.note ? "\n" + editForm.note : ""}`;
       } else {
-        qty = Number(editForm.qty || 1);
-        unitPrice = Number(editForm.unitPrice || 0);
-        total = qty * unitPrice;
-        noteOut = editForm.note;
+        // Regular order — no walkin note; look up brandId/productId from first gas item
+        noteOut = editForm.note || "";
+        const firstItem = editItems[0];
+        if (firstItem && firstItem.type !== "equipment") {
+          const matchBrand = brands.find(b => b.name === firstItem.brandName);
+          if (matchBrand) {
+            saveBrandId = matchBrand.id;
+            const matchProd = products.find(p => (p.brandId || p.brand_id) === matchBrand.id && Number(p.kg) === Number(firstItem.weightKg));
+            if (matchProd) saveProductId = matchProd.id;
+          }
+        }
       }
       const payload = {
         customerName:    editForm.customerName,
@@ -687,8 +701,8 @@ ${noteText ? `<div style="margin-top:8px; padding:6px 8px; border:1.5px dashed #
         unitPrice,
         total,
         paymentMethod: editForm.paymentMethod,
-        brandId:   editForm.brandId   || null,
-        productId: editForm.productId || null,
+        brandId:   saveBrandId,
+        productId: saveProductId,
         note: noteOut,
       };
       const { data: updated } = await api.put(`/api/v1/orders/${editOrder.id}`, payload);
@@ -1079,201 +1093,106 @@ ${noteText ? `<div style="margin-top:8px; padding:6px 8px; border:1.5px dashed #
               </div>
             ))}
 
-            {editItems ? (
-              // ── Multi-item walkin: show each line editable ──
-              <div style={{ marginBottom: 14 }}>
+            {/* ── Cart items (always shown as simple cards) ── */}
+            {editItems && editItems.length > 0 && (
+              <div style={{ marginBottom: 8 }}>
                 <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 8 }}>รายการสินค้า</div>
                 {editItems.map((it, idx) => {
-                  const label = it.type === "new_tank" ? `ถังใหม่ ${it.brandName} ${it.weightKg}กก.`
-                              : it.type === "gas"      ? `${it.brandName} ${it.weightKg}กก.`
-                              : it.name || it.brandName || "สินค้า";
+                  const label = it.type === "new_tank" ? `🆕 ถังใหม่ ${it.brandName} ${it.weightKg}กก.`
+                              : it.type === "equipment" ? `🔧 ${it.name || "อุปกรณ์"}`
+                              : `⛽ ${it.brandName} ${it.weightKg ? it.weightKg + "กก." : ""}`;
                   const lineTotal = Number(it.qty || 1) * Number(it.price || it.unitPrice || 0);
                   return (
-                    <div key={idx} style={{ background: "#F8FAFF", borderRadius: 10, padding: "10px 12px", marginBottom: 8, border: "1.5px solid #E5E7EB" }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                        <div style={{ fontSize: 12, fontWeight: 700, color: NAVY }}>รายการที่ {idx + 1}: {label}</div>
-                        <button onClick={() => setEditItems(arr => arr.filter((_, i) => i !== idx))} style={{ background: "#FEE2E2", border: "1px solid #FCA5A5", borderRadius: 6, padding: "2px 8px", cursor: "pointer", fontSize: 13, color: "#DC2626", fontWeight: 700, lineHeight: 1.4 }}>✕</button>
-                      </div>
-                      {(() => {
-                        const allBrands = [...new Set([...brands.map(b => b.name), ...gasStocks.map(s => s.brandName)])].sort();
-                        const allWeights = [...new Set([...ALL_WEIGHTS, ...gasStocks.filter(s => !it.brandName || s.brandName === it.brandName || (SHARED_BRANDS.includes(it.brandName) && SHARED_BRANDS.includes(s.brandName))).map(s => Number(s.weightKg))])].sort((a,b)=>a-b);
-                        return (
-                          <>{it.type === "equipment" && (
-                            <div style={{ marginBottom: 8 }}>
-                              <div style={{ fontSize: 10, color: GRAY, fontWeight: 700, marginBottom: 3 }}>อุปกรณ์</div>
-                              <select value={it.equipId || ""} onChange={e => {
-                                const eq = equipList.find(x => x.id === e.target.value);
-                                setEditItems(arr => arr.map((x, i) => i === idx ? { ...x, equipId: e.target.value, name: eq?.name || x.name, price: eq?.price || x.price } : x));
-                              }} style={{ width: "100%", padding: "7px 10px", borderRadius: 7, border: "1.5px solid #E5E7EB", fontSize: 13, boxSizing: "border-box" }}>
-                                <option value="">{it.name || "-- เลือกอุปกรณ์ --"}</option>
-                                {equipList.map(eq => <option key={eq.id} value={eq.id}>{eq.name} (฿{Number(eq.price).toLocaleString()})</option>)}
-                              </select>
-                            </div>
-                          )}
-                          <div style={{ display: "flex", gap: 8 }}>
-                            {it.type !== "equipment" && (
-                            <div style={{ flex: 1 }}>
-                              <div style={{ fontSize: 10, color: GRAY, fontWeight: 700, marginBottom: 3 }}>ยี่ห้อ</div>
-                              <select value={it.brandName || ""} onChange={e => setEditItems(arr => arr.map((x, i) => i === idx ? { ...x, brandName: e.target.value } : x))}
-                                style={{ width: "100%", padding: "7px 10px", borderRadius: 7, border: "1.5px solid #E5E7EB", fontSize: 13, boxSizing: "border-box" }}>
-                                <option value="">-- ยี่ห้อ --</option>
-                                {allBrands.map(b => <option key={b} value={b}>{b}</option>)}
-                              </select>
-                            </div>
-                            )}
-                            {(it.type === "gas" || it.type === "new_tank") && (
-                              <div style={{ flex: 1 }}>
-                                <div style={{ fontSize: 10, color: GRAY, fontWeight: 700, marginBottom: 3 }}>น้ำหนัก (กก.)</div>
-                                <select value={it.weightKg || ""} onChange={e => {
-                                  const w = e.target.value;
-                                  const matchBrand = brands.find(b => b.name.toLowerCase() === (it.brandName || "").toLowerCase());
-                                  const prod = products.find(p => p.brandId === matchBrand?.id && Number(p.kg) === Number(w));
-                                  const autoPrice = prod?.homePrice ? Number(prod.homePrice) : "";
-                                  setEditItems(arr => arr.map((x, i) => i === idx ? { ...x, weightKg: w, ...(autoPrice ? { price: autoPrice, unitPrice: autoPrice } : {}) } : x));
-                                }}
-                                  style={{ width: "100%", padding: "7px 10px", borderRadius: 7, border: "1.5px solid #E5E7EB", fontSize: 13, boxSizing: "border-box" }}>
-                                  <option value="">-- กก. --</option>
-                                  {allWeights.map(w => <option key={w} value={w}>{w} กก.</option>)}
-                                </select>
-                              </div>
-                            )}
-                          </div></>
-                        );
-                      })()}
-                      <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: 10, color: GRAY, fontWeight: 700, marginBottom: 3 }}>จำนวน</div>
-                          <input type="number" min="1" value={it.qty || ""} onChange={e => setEditItems(arr => arr.map((x, i) => i === idx ? { ...x, qty: e.target.value } : x))}
-                            style={{ width: "100%", padding: "7px 10px", borderRadius: 7, border: "1.5px solid #E5E7EB", fontSize: 13, boxSizing: "border-box" }} />
-                        </div>
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: 10, color: GRAY, fontWeight: 700, marginBottom: 3 }}>ราคา/ถัง (บาท)</div>
-                          <input type="number" value={it.price || it.unitPrice || ""} onChange={e => setEditItems(arr => arr.map((x, i) => i === idx ? { ...x, price: e.target.value, unitPrice: e.target.value } : x))}
-                            style={{ width: "100%", padding: "7px 10px", borderRadius: 7, border: "1.5px solid #E5E7EB", fontSize: 13, boxSizing: "border-box" }} />
-                        </div>
-                        <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "flex-end" }}>
-                          <div style={{ fontSize: 10, color: GRAY, fontWeight: 700, marginBottom: 3 }}>รวม</div>
-                          <div style={{ padding: "7px 10px", fontWeight: 800, color: "#059669", fontSize: 13 }}>฿{lineTotal.toLocaleString()}</div>
+                    <div key={idx} style={{ background: "#F8FAFF", borderRadius: 10, padding: "10px 14px", marginBottom: 8, border: "1.5px solid #E0E7FF", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: NAVY }}>{label}</div>
+                        <div style={{ fontSize: 12, color: GRAY, marginTop: 2 }}>
+                          {Number(it.qty || 1)} {it.type === "equipment" ? "ชิ้น" : "ถัง"} × ฿{Number(it.price || it.unitPrice || 0).toLocaleString()}
+                          {" = "}
+                          <span style={{ fontWeight: 700, color: "#059669" }}>฿{lineTotal.toLocaleString()}</span>
                         </div>
                       </div>
+                      <button onClick={() => setEditItems(arr => arr.filter((_, i) => i !== idx))}
+                        style={{ background: "#FEE2E2", border: "1px solid #FCA5A5", borderRadius: 8, padding: "6px 12px", cursor: "pointer", fontSize: 14, color: "#DC2626", fontWeight: 700, lineHeight: 1, flexShrink: 0 }}>✕</button>
                     </div>
                   );
                 })}
-                {/* Add new item form */}
-                <div style={{ background: "#F0F9FF", borderRadius: 10, padding: "10px 12px", marginBottom: 10, border: "1.5px dashed #BAE6FD" }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: "#0369A1", marginBottom: 8 }}>+ เพิ่มสินค้า</div>
-                  <div style={{ marginBottom: 6 }}>
-                    <div style={{ fontSize: 10, color: GRAY, fontWeight: 700, marginBottom: 3 }}>ประเภท</div>
-                    <select value={editNewItem.type} onChange={e => setEditNewItem(x => ({ ...x, type: e.target.value, brandName: "", weightKg: "", name: "" }))}
-                      style={{ width: "100%", padding: "7px 10px", borderRadius: 7, border: "1.5px solid #BAE6FD", fontSize: 13, boxSizing: "border-box" }}>
-                      <option value="gas">แก๊ส (เติม)</option>
-                      <option value="new_tank">ถังใหม่</option>
-                      <option value="equipment">อุปกรณ์</option>
-                    </select>
-                  </div>
-                  {editNewItem.type === "equipment" ? (
-                    <div style={{ marginBottom: 6 }}>
-                      <div style={{ fontSize: 10, color: GRAY, fontWeight: 700, marginBottom: 3 }}>อุปกรณ์</div>
-                      <select value={editNewItem.equipId || ""} onChange={e => {
-                        const eq = equipList.find(x => x.id === e.target.value);
-                        setEditNewItem(x => ({ ...x, equipId: e.target.value, name: eq?.name || "", price: eq?.price || "" }));
-                      }} style={{ width: "100%", padding: "7px 10px", borderRadius: 7, border: "1.5px solid #BAE6FD", fontSize: 13, boxSizing: "border-box" }}>
-                        <option value="">-- เลือกอุปกรณ์ --</option>
-                        {equipList.map(eq => <option key={eq.id} value={eq.id}>{eq.name} (มี {eq.qty} ชิ้น · ฿{Number(eq.price).toLocaleString()})</option>)}
-                      </select>
-                    </div>
-                  ) : (
-                    <div style={{ display: "flex", gap: 8, marginBottom: 6 }}>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: 10, color: GRAY, fontWeight: 700, marginBottom: 3 }}>ยี่ห้อ</div>
-                        <select value={editNewItem.brandName} onChange={e => setEditNewItem(x => ({ ...x, brandName: e.target.value }))}
-                          style={{ width: "100%", padding: "7px 10px", borderRadius: 7, border: "1.5px solid #BAE6FD", fontSize: 13, boxSizing: "border-box" }}>
-                          <option value="">-- ยี่ห้อ --</option>
-                          {[...new Set([...brands.map(b => b.name), ...gasStocks.map(s => s.brandName)])].sort().map(b => <option key={b} value={b}>{b}</option>)}
-                        </select>
-                      </div>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: 10, color: GRAY, fontWeight: 700, marginBottom: 3 }}>น้ำหนัก (กก.)</div>
-                        <select value={editNewItem.weightKg} onChange={e => setEditNewItem(x => ({ ...x, weightKg: e.target.value }))}
-                          style={{ width: "100%", padding: "7px 10px", borderRadius: 7, border: "1.5px solid #BAE6FD", fontSize: 13, boxSizing: "border-box" }}>
-                          <option value="">-- กก. --</option>
-                          {[...new Set([...ALL_WEIGHTS, ...gasStocks.map(s => Number(s.weightKg))])].sort((a,b)=>a-b).map(w => <option key={w} value={w}>{w} กก.</option>)}
-                        </select>
-                      </div>
-                    </div>
-                  )}
-                  <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 10, color: GRAY, fontWeight: 700, marginBottom: 3 }}>จำนวน</div>
-                      <input type="number" min="1" value={editNewItem.qty} onChange={e => setEditNewItem(x => ({ ...x, qty: e.target.value }))}
-                        style={{ width: "100%", padding: "7px 10px", borderRadius: 7, border: "1.5px solid #BAE6FD", fontSize: 13, boxSizing: "border-box" }} />
-                    </div>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 10, color: GRAY, fontWeight: 700, marginBottom: 3 }}>ราคา/ชิ้น (บาท)</div>
-                      <input type="number" value={editNewItem.price} onChange={e => setEditNewItem(x => ({ ...x, price: e.target.value }))}
-                        style={{ width: "100%", padding: "7px 10px", borderRadius: 7, border: "1.5px solid #BAE6FD", fontSize: 13, boxSizing: "border-box" }} />
-                    </div>
-                  </div>
-                  <button onClick={() => {
-                    if (!editNewItem.price) return alert("กรุณาใส่ราคา");
-                    if (editNewItem.type !== "equipment" && (!editNewItem.brandName || !editNewItem.weightKg)) return alert("กรุณาเลือกยี่ห้อและน้ำหนัก");
-                    if (editNewItem.type === "equipment" && !editNewItem.equipId) return alert("กรุณาเลือกอุปกรณ์");
-                    setEditItems(arr => [...arr, { type: editNewItem.type, brandName: editNewItem.brandName, weightKg: editNewItem.weightKg, qty: Number(editNewItem.qty) || 1, price: Number(editNewItem.price), name: editNewItem.name, equipId: editNewItem.equipId }]);
-                    setEditNewItem({ type: "gas", brandName: "", weightKg: "", qty: 1, price: "", name: "", equipId: "" });
-                  }} style={{ width: "100%", padding: "8px 0", borderRadius: 8, border: "none", background: "#0284C7", color: WHITE, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
-                    + เพิ่มสินค้า
-                  </button>
-                </div>
-
-                <div style={{ background: "#F0FDF4", borderRadius: 10, padding: "10px 14px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <span style={{ fontWeight: 700, color: "#166534", fontSize: 13 }}>ยอดรวม</span>
-                  <span style={{ fontWeight: 900, fontSize: 18, color: "#059669" }}>
-                    ฿{editItems.reduce((s, it) => s + Number(it.qty || 1) * Number(it.price || it.unitPrice || 0), 0).toLocaleString()}
-                  </span>
-                </div>
               </div>
-            ) : (
-              // ── Single item ──
-              <>
-                <div style={{ display: "flex", gap: 12, marginBottom: 12 }}>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>ยี่ห้อ</div>
-                    <select value={editForm.brandId || ""} onChange={e => setEditForm(f => ({ ...f, brandId: e.target.value, productId: "" }))}
-                      style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 14, boxSizing: "border-box" }}>
-                      <option value="">-- ยี่ห้อ --</option>
-                      {brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-                    </select>
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>น้ำหนัก</div>
-                    <select value={editForm.productId || ""} onChange={e => setEditForm(f => ({ ...f, productId: e.target.value }))}
-                      style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 14, boxSizing: "border-box" }}>
-                      <option value="">-- น้ำหนัก --</option>
-                      {products.filter(p => !editForm.brandId || p.brandId === editForm.brandId || p.brand_id === editForm.brandId).map(p => (
-                        <option key={p.id} value={p.id}>{p.kg != null ? `${p.kg} กก.` : p.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
+            )}
 
-                <div style={{ display: "flex", gap: 12, marginBottom: 12 }}>
+            {/* ── Add new item form ── */}
+            {editItems !== null && (
+              <div style={{ background: "#F0F9FF", borderRadius: 12, padding: "12px 14px", marginBottom: 12, border: "1.5px dashed #BAE6FD" }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "#0369A1", marginBottom: 10 }}>+ เพิ่มสินค้า</div>
+                <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+                  {[["gas","⛽ ถังแก๊ส"],["new_tank","🆕 ถังใหม่"],["equipment","🔧 อะไหล่"]].map(([v, lbl]) => (
+                    <button key={v} onClick={() => setEditNewItem(x => ({ ...x, type: v, brandName: "", weightKg: "", name: "", equipId: "", price: "" }))}
+                      style={{ flex: 1, padding: "7px 4px", borderRadius: 8, border: `2px solid ${editNewItem.type === v ? NAVY : "#E5E7EB"}`, background: editNewItem.type === v ? NAVY : WHITE, color: editNewItem.type === v ? WHITE : GRAY, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>
+                      {lbl}
+                    </button>
+                  ))}
+                </div>
+                {editNewItem.type === "equipment" ? (
+                  <div style={{ marginBottom: 10 }}>
+                    <select value={editNewItem.equipId || ""} onChange={e => {
+                      const eq = equipList.find(x => x.id === e.target.value);
+                      setEditNewItem(x => ({ ...x, equipId: e.target.value, name: eq?.name || "", price: eq?.price || "" }));
+                    }} style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "2px solid #BAE6FD", fontSize: 14, boxSizing: "border-box" }}>
+                      <option value="">-- เลือกอุปกรณ์ --</option>
+                      {equipList.map(eq => <option key={eq.id} value={eq.id}>{eq.name} (มี {eq.qty} ชิ้น · ฿{Number(eq.price).toLocaleString()})</option>)}
+                    </select>
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+                    <select value={editNewItem.brandName} onChange={e => setEditNewItem(x => ({ ...x, brandName: e.target.value }))}
+                      style={{ flex: 1, padding: "9px 10px", borderRadius: 8, border: "2px solid #BAE6FD", fontSize: 14, boxSizing: "border-box" }}>
+                      <option value="">-- ยี่ห้อ --</option>
+                      {[...new Set([...brands.map(b => b.name), ...gasStocks.map(s => s.brandName)])].sort().map(b => <option key={b} value={b}>{b}</option>)}
+                    </select>
+                    <select value={editNewItem.weightKg} onChange={e => {
+                      const w = e.target.value;
+                      const matchBrand = brands.find(b => b.name === editNewItem.brandName);
+                      const prod = products.find(p => (p.brandId || p.brand_id) === matchBrand?.id && Number(p.kg) === Number(w));
+                      const autoPrice = prod?.homePrice ? Number(prod.homePrice) : "";
+                      setEditNewItem(x => ({ ...x, weightKg: w, ...(autoPrice ? { price: autoPrice } : {}) }));
+                    }} style={{ flex: 1, padding: "9px 10px", borderRadius: 8, border: "2px solid #BAE6FD", fontSize: 14, boxSizing: "border-box" }}>
+                      <option value="">-- กก. --</option>
+                      {[...new Set([...ALL_WEIGHTS, ...gasStocks.map(s => Number(s.weightKg))])].sort((a,b)=>a-b).map(w => <option key={w} value={w}>{w} กก.</option>)}
+                    </select>
+                  </div>
+                )}
+                <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>จำนวน</div>
-                    <input type="number" min="1" value={editForm.qty || ""} onChange={e => setEditForm(f => ({ ...f, qty: e.target.value, total: Number(e.target.value) * Number(f.unitPrice || 0) }))}
-                      style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 14, boxSizing: "border-box" }} />
+                    <input type="number" min="1" value={editNewItem.qty} onChange={e => setEditNewItem(x => ({ ...x, qty: e.target.value }))}
+                      style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "2px solid #BAE6FD", fontSize: 14, boxSizing: "border-box" }} />
                   </div>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>ราคา/หน่วย (บาท)</div>
-                    <input type="number" value={editForm.unitPrice || ""} onChange={e => setEditForm(f => ({ ...f, unitPrice: e.target.value, total: Number(f.qty || 1) * Number(e.target.value) }))}
-                      style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 14, boxSizing: "border-box" }} />
+                    <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>ราคา/ชิ้น (บาท)</div>
+                    <input type="number" value={editNewItem.price} onChange={e => setEditNewItem(x => ({ ...x, price: e.target.value }))}
+                      style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "2px solid #BAE6FD", fontSize: 14, boxSizing: "border-box" }} />
                   </div>
                 </div>
+                <button onClick={() => {
+                  if (!editNewItem.price) return alert("กรุณาใส่ราคา");
+                  if (editNewItem.type !== "equipment" && (!editNewItem.brandName || !editNewItem.weightKg)) return alert("กรุณาเลือกยี่ห้อและน้ำหนัก");
+                  if (editNewItem.type === "equipment" && !editNewItem.equipId) return alert("กรุณาเลือกอุปกรณ์");
+                  setEditItems(arr => [...(arr || []), { type: editNewItem.type, brandName: editNewItem.brandName, weightKg: editNewItem.weightKg, qty: Number(editNewItem.qty) || 1, price: Number(editNewItem.price), name: editNewItem.name, equipId: editNewItem.equipId }]);
+                  setEditNewItem({ type: "gas", brandName: "", weightKg: "", qty: 1, price: "", name: "", equipId: "" });
+                }} style={{ width: "100%", padding: "10px 0", borderRadius: 10, border: "none", background: ORANGE, color: WHITE, fontWeight: 800, fontSize: 14, cursor: "pointer" }}>
+                  + เพิ่มใส่ตะกร้า
+                </button>
+              </div>
+            )}
 
-                <div style={{ background: "#F0FDF4", borderRadius: 10, padding: "10px 14px", marginBottom: 14, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <span style={{ fontWeight: 700, color: "#166534", fontSize: 13 }}>ยอดรวม</span>
-                  <span style={{ fontWeight: 900, fontSize: 18, color: "#059669" }}>฿{(Number(editForm.qty || 1) * Number(editForm.unitPrice || 0)).toLocaleString()}</span>
-                </div>
-              </>
+            {/* ── Total ── */}
+            {editItems && (
+              <div style={{ background: "#F0FDF4", borderRadius: 10, padding: "10px 14px", marginBottom: 14, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontWeight: 700, color: "#166534", fontSize: 13 }}>ยอดรวม</span>
+                <span style={{ fontWeight: 900, fontSize: 18, color: "#059669" }}>
+                  ฿{editItems.reduce((s, it) => s + Number(it.qty || 1) * Number(it.price || it.unitPrice || 0), 0).toLocaleString()}
+                </span>
+              </div>
             )}
 
             <div style={{ marginBottom: 12 }}>
