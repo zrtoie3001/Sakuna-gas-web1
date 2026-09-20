@@ -32,6 +32,7 @@ export default function Reports() {
     try { return new Set(JSON.parse(localStorage.getItem("reportVisibleCols") || "null") || ALL_COLS); } catch { return new Set(ALL_COLS); }
   });
   const [showColPicker, setShowColPicker] = useState(false);
+  const [showDailyOrders, setShowDailyOrders] = useState(false);
   function toggleCol(col) {
     setVisibleCols(prev => {
       const next = new Set(prev);
@@ -160,17 +161,20 @@ export default function Reports() {
 
       {/* Daily export */}
       <div style={{ background: WHITE, borderRadius: 14, padding: 20, boxShadow: "0 2px 12px rgba(0,0,0,.06)" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
-          <h2 style={{ fontSize: 15, fontWeight: 800, color: NAVY }}>ออเดอร์รายวัน</h2>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <h2 style={{ fontSize: 15, fontWeight: 800, color: NAVY, margin: 0 }}>ออเดอร์รายวัน</h2>
           <input type="date" value={date} onChange={e => setDate(e.target.value)}
             style={{ padding: "6px 10px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 13 }} />
-          <button onClick={exportCSV} style={{ marginLeft: "auto", padding: "8px 14px", borderRadius: 8, background: "#10B981", color: WHITE, border: "none", fontSize: 13, fontWeight: 700 }}>
+          <button onClick={exportCSV} style={{ padding: "8px 14px", borderRadius: 8, background: "#10B981", color: WHITE, border: "none", fontSize: 13, fontWeight: 700 }}>
             📥 Export CSV
+          </button>
+          <button onClick={() => setShowDailyOrders(v => !v)} style={{ marginLeft: "auto", padding: "6px 14px", borderRadius: 8, background: "none", border: "2px solid #E5E7EB", fontSize: 13, fontWeight: 700, cursor: "pointer", color: NAVY }}>
+            {showDailyOrders ? "▲ ซ่อน" : "▼ ดูรายการ"}
           </button>
         </div>
 
-        {/* Day summary: orders, tanks, revenue, expenses, net */}
-        {daySummary && (
+        {/* Day summary + table — collapsible */}
+        {showDailyOrders && daySummary && (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 10, marginBottom: 16 }}>
             {[
               { label: "ออเดอร์", value: parseInt(daySummary.count || 0) + " ออเดอร์", color: ORANGE },
@@ -188,7 +192,7 @@ export default function Reports() {
         )}
 
         {/* Expenses breakdown */}
-        {dayExpenses.length > 0 && (
+        {showDailyOrders && dayExpenses.length > 0 && (
           <div style={{ background: "#FEF2F2", borderRadius: 10, padding: "12px 14px", marginBottom: 14, border: "1.5px solid #FECACA" }}>
             <div style={{ fontSize: 13, fontWeight: 800, color: "#991B1B", marginBottom: 8 }}>🧾 ค่าใช้จ่ายวันนี้ — รวม ฿{dayTotalExpenses.toLocaleString()}</div>
             {dayExpenses.map((e, i) => (
@@ -201,7 +205,7 @@ export default function Reports() {
         )}
 
         {/* Payment method breakdown */}
-        {dayPayBreakdown.length > 0 && (
+        {showDailyOrders && dayPayBreakdown.length > 0 && (
           <div style={{ background: "#F8FAFC", borderRadius: 10, padding: "12px 14px", marginBottom: 14, border: "1.5px solid #E5E7EB" }}>
             <div style={{ fontSize: 13, fontWeight: 800, color: NAVY, marginBottom: 10 }}>💳 ช่องทางชำระเงิน</div>
             <div style={{ display: "flex", gap: 16, flexWrap: "wrap", alignItems: "center" }}>
@@ -233,7 +237,7 @@ export default function Reports() {
         )}
 
         {/* Unpaid orders (today) */}
-        {dayUnpaid.length > 0 && (
+        {showDailyOrders && dayUnpaid.length > 0 && (
           <div style={{ background: "#FEF3C7", borderRadius: 10, marginBottom: 14, border: "1.5px solid #FCD34D", overflow: "hidden" }}>
             <div style={{ padding: "12px 14px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <span onClick={() => setShowUnpaid(v => !v)} style={{ fontSize: 13, fontWeight: 800, color: "#92400E", cursor: "pointer" }}>⚠️ ค้างเงินวันนี้ ({dayUnpaid.length} รายการ)</span>
@@ -256,7 +260,7 @@ export default function Reports() {
           </div>
         )}
 
-        {dayOverdue.length > 0 && (
+        {showDailyOrders && dayOverdue.length > 0 && (
           <div style={{ background: "#FFF1F2", borderRadius: 10, marginBottom: 14, border: "1.5px solid #FECDD3", overflow: "hidden" }}>
             <div style={{ padding: "10px 14px", display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer" }} onClick={() => setShowOverdue(v => !v)}>
               <span style={{ fontSize: 13, fontWeight: 800, color: "#9F1239" }}>🔴 ค้างจากวันก่อน {dayOverdue.length} รายการ — ไม่รวมในยอดวันนี้</span>
@@ -280,8 +284,8 @@ export default function Reports() {
           </div>
         )}
 
-        {/* Column picker */}
-        <div style={{ position: "relative", marginBottom: 8, display: "flex", justifyContent: "flex-end" }}>
+        {/* Column picker + table */}
+        {showDailyOrders && (<><div style={{ position: "relative", marginBottom: 8, display: "flex", justifyContent: "flex-end" }}>
           <button onClick={() => setShowColPicker(v => !v)}
             style={{ padding: "5px 12px", borderRadius: 8, border: "1.5px solid #E5E7EB", background: WHITE, fontSize: 12, fontWeight: 700, color: NAVY, cursor: "pointer" }}>
             ⚙️ คอลัมน์
@@ -321,7 +325,7 @@ export default function Reports() {
             </tbody>
           </table>
           {!dayOrders.length && <p style={{ textAlign: "center", color: GRAY, padding: 20 }}>ไม่มีออเดอร์วันนี้</p>}
-        </div>
+        </div></>)}
       </div>
 
       {/* Payment method order list modal */}
