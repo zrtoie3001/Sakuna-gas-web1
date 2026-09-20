@@ -50,11 +50,11 @@ async function listCustomers(req, res) {
       : "";
     if (search) replacements.q = `%${search}%`;
 
-    // Group by (address, phone) — same address but different phone = different customer
-    // If no phone, fall back to grouping by (address, name) so different people at same address are separated
-    const addrKey = `LOWER(REGEXP_REPLACE(TRIM(delivery_address), '\\s+', ' ', 'g'))`;
-    const phoneKey = `LOWER(TRIM(COALESCE(NULLIF(TRIM(customer_phone),''), NULLIF(NULLIF(TRIM(customer_name),''),'ลูกค้าหน้าร้าน'), '')))`;
-    const groupKey = `${addrKey} || '|' || ${phoneKey}`;
+    // Group by (address + phone + name) all 3 — same address but different phone or name = different customer
+    const addrKey  = `LOWER(REGEXP_REPLACE(TRIM(delivery_address), '\\s+', ' ', 'g'))`;
+    const phoneKey = `LOWER(TRIM(COALESCE(NULLIF(TRIM(customer_phone),''), '')))`;
+    const nameKey  = `LOWER(TRIM(COALESCE(NULLIF(NULLIF(TRIM(customer_name),''),'ลูกค้าหน้าร้าน'), '')))`;
+    const groupKey = `${addrKey} || '|' || ${phoneKey} || '|' || ${nameKey}`;
 
     const rows = await seq.query(
       `SELECT
@@ -117,27 +117,22 @@ async function getCustomerOrdersByPhone(req, res) {
     let whereClause = `status != 'cancelled'`;
     const replacements = {};
 
-    if (address) {
-      const addrKey = address.toLowerCase().replace(/\s+/g, ' ').trim();
-      whereClause += ` AND ${addrNorm} = :addrKey`;
-      replacements.addrKey = addrKey;
+    // Normalize all 3 fields the same way as listCustomers grouping
+    const addrNormExpr  = `LOWER(REGEXP_REPLACE(TRIM(delivery_address), '\\s+', ' ', 'g'))`;
+    const phoneNormExpr = `LOWER(TRIM(COALESCE(NULLIF(TRIM(customer_phone),''), '')))`;
+    const nameNormExpr  = `LOWER(TRIM(COALESCE(NULLIF(NULLIF(TRIM(customer_name),''),'ลูกค้าหน้าร้าน'), '')))`;
 
-      if (phone) {
-        // Match phone OR orders where phone is empty (walkin orders stored phone in note)
-        const phoneKey = phone.toLowerCase().trim();
-        whereClause += ` AND (${phoneNorm} = :phoneKey OR COALESCE(NULLIF(TRIM(customer_phone),''),'') = '')`;
-        replacements.phoneKey = phoneKey;
-      } else if (name) {
-        const nameKey = name.toLowerCase().replace(/\s+/g, ' ').trim();
-        whereClause += ` AND ${phoneNorm} = :nameKey`;
-        replacements.nameKey = nameKey;
-      }
-    } else if (phone) {
-      whereClause += ` AND customer_phone = :phone`;
-      replacements.phone = phone;
-    } else {
-      whereClause += ` AND LOWER(customer_name) ILIKE :name`;
-      replacements.name = name;
+    if (address) {
+      whereClause += ` AND ${addrNormExpr} = :addrKey`;
+      replacements.addrKey = address.toLowerCase().replace(/\s+/g, ' ').trim();
+    }
+    if (phone) {
+      whereClause += ` AND ${phoneNormExpr} = :phoneKey`;
+      replacements.phoneKey = phone.toLowerCase().trim();
+    }
+    if (name) {
+      whereClause += ` AND ${nameNormExpr} = :nameKey`;
+      replacements.nameKey = name.toLowerCase().replace(/\s+/g, ' ').trim();
     }
 
     const rows = await seq.query(

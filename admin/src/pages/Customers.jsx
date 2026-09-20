@@ -72,7 +72,7 @@ export default function Customers() {
     const params = new URLSearchParams();
     if (c.lastAddress) params.set("address", c.lastAddress);
     if (c.phone) params.set("phone", c.phone);
-    else if (c.name) params.set("name", c.name);
+    if (c.name && c.name !== "ลูกค้าหน้าร้าน") params.set("name", c.name);
     const [ordersRes, noteRes] = await Promise.all([
       api.get(`/api/v1/customers/orders-by-contact?${params}`).catch(() => ({ data: { orders: [] } })),
       api.get(`/api/v1/customers/note?address=${encodeURIComponent(c.lastAddress || "")}&phone=${encodeURIComponent(c.phone || "")}`).catch(() => ({ data: { note: "" } })),
