@@ -47,6 +47,7 @@ function Card({ title, children }) {
 export default function Dashboard() {
   const [stats, setStats]   = useState(null);
   const [orders, setOrders] = useState([]);
+  const [showWalkin, setShowWalkin] = useState(false);
 
   useEffect(() => {
     api.get("/api/v1/reports/dashboard").then(r => setStats(r.data)).catch(() => {});
@@ -84,7 +85,103 @@ export default function Dashboard() {
         <StatCard icon="👥" label="ลูกค้าทั้งหมด"   value={stats?.totalCustomers ?? "—"} color="#F59E0B" />
         <StatCard icon="⏳" label="รอดำเนินการ"     value={stats?.pendingOrders ?? "—"} color="#EF4444"
           sub={stats?.pendingOrders > 0 ? "⚠️ มีออเดอร์รอ" : undefined} />
+        <div
+          onClick={() => stats?.todayWalkin && setShowWalkin(true)}
+          style={{ background: WHITE, borderRadius: 14, padding: "18px 20px", boxShadow: "0 2px 12px rgba(0,0,0,.06)", borderLeft: "4px solid #8B5CF6", cursor: stats?.todayWalkin ? "pointer" : "default" }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+            <span style={{ fontSize: 24 }}>🏪</span>
+            <span style={{ fontSize: 13, color: GRAY }}>ขายหน้าร้านวันนี้</span>
+          </div>
+          <div style={{ fontSize: 28, fontWeight: 900, color: NAVY }}>{stats?.todayWalkin?.tanks ?? 0} ถัง</div>
+          {stats?.todayWalkin?.tanks > 0 && <div style={{ fontSize: 11, color: "#8B5CF6", marginTop: 4 }}>กดเพื่อดูรายละเอียด</div>}
+        </div>
       </div>
+
+      {/* Walk-in Detail Modal */}
+      {showWalkin && stats?.todayWalkin && (
+        <div onClick={() => setShowWalkin(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.45)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: WHITE, borderRadius: 16, padding: 28, width: 480, maxWidth: "90vw", maxHeight: "80vh", overflowY: "auto", boxShadow: "0 8px 40px rgba(0,0,0,.2)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+              <h2 style={{ fontSize: 18, fontWeight: 900, color: NAVY, margin: 0 }}>🏪 ยอดขายหน้าร้านวันนี้</h2>
+              <button onClick={() => setShowWalkin(false)} style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer", color: GRAY }}>×</button>
+            </div>
+
+            {/* Gas by brand */}
+            {stats.todayWalkin.gasByBrand?.length > 0 && (
+              <div style={{ marginBottom: 20 }}>
+                <h3 style={{ fontSize: 14, fontWeight: 800, color: NAVY, marginBottom: 10 }}>🛢 แก๊สแยกยี่ห้อ</h3>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                  <thead>
+                    <tr style={{ borderBottom: "2px solid #F3F4F6" }}>
+                      <th style={{ textAlign: "left", padding: "6px 8px", color: GRAY }}>ยี่ห้อ / ขนาด</th>
+                      <th style={{ textAlign: "right", padding: "6px 8px", color: GRAY }}>จำนวน</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {stats.todayWalkin.gasByBrand.map((b, i) => (
+                      <tr key={i} style={{ borderBottom: "1px solid #F9FAFB" }}>
+                        <td style={{ padding: "8px 8px", color: NAVY, fontWeight: 600 }}>{b.name}</td>
+                        <td style={{ padding: "8px 8px", textAlign: "right", fontWeight: 700, color: ORANGE }}>{b.qty} ถัง</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* New tanks */}
+            {stats.todayWalkin.newTanks?.length > 0 && (
+              <div style={{ marginBottom: 20 }}>
+                <h3 style={{ fontSize: 14, fontWeight: 800, color: NAVY, marginBottom: 10 }}>🆕 ถังใหม่</h3>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                  <thead>
+                    <tr style={{ borderBottom: "2px solid #F3F4F6" }}>
+                      <th style={{ textAlign: "left", padding: "6px 8px", color: GRAY }}>รายการ</th>
+                      <th style={{ textAlign: "right", padding: "6px 8px", color: GRAY }}>จำนวน</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {stats.todayWalkin.newTanks.map((t, i) => (
+                      <tr key={i} style={{ borderBottom: "1px solid #F9FAFB" }}>
+                        <td style={{ padding: "8px 8px", color: NAVY }}>{t.brand} {t.weight}</td>
+                        <td style={{ padding: "8px 8px", textAlign: "right", fontWeight: 700, color: "#10B981" }}>{t.qty} ถัง</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* Equipment */}
+            {stats.todayWalkin.equipment?.length > 0 && (
+              <div style={{ marginBottom: 8 }}>
+                <h3 style={{ fontSize: 14, fontWeight: 800, color: NAVY, marginBottom: 10 }}>🔧 อะไหล่ / อุปกรณ์</h3>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                  <thead>
+                    <tr style={{ borderBottom: "2px solid #F3F4F6" }}>
+                      <th style={{ textAlign: "left", padding: "6px 8px", color: GRAY }}>รายการ</th>
+                      <th style={{ textAlign: "right", padding: "6px 8px", color: GRAY }}>จำนวน</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {stats.todayWalkin.equipment.map((e, i) => (
+                      <tr key={i} style={{ borderBottom: "1px solid #F9FAFB" }}>
+                        <td style={{ padding: "8px 8px", color: NAVY }}>{e.name}</td>
+                        <td style={{ padding: "8px 8px", textAlign: "right", fontWeight: 700, color: GRAY }}>{e.qty}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {stats.todayWalkin.tanks === 0 && (
+              <p style={{ textAlign: "center", color: GRAY, padding: 20 }}>ยังไม่มีการขายหน้าร้านวันนี้</p>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Cash vs Transfer today */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 14 }}>
