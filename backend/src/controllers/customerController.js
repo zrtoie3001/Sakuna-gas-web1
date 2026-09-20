@@ -114,7 +114,7 @@ async function getCustomerOrdersByPhone(req, res) {
       where: { ...where, status: { [Op.ne]: "cancelled" } },
       include: [{ model: Brand, as: "brand" }, { model: Product, as: "product" }],
       order: [["createdAt", "DESC"]],
-      limit: 50,
+      limit: 200,
     });
     res.json({ orders });
   } catch (e) { res.status(500).json({ error: e.message }); }

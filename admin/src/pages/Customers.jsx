@@ -44,8 +44,8 @@ export default function Customers() {
     setSelected(c);
     setEditing(false);
     const params = new URLSearchParams();
-    if (c.phone) params.set("phone", c.phone);
-    else if (c.lastAddress) params.set("address", c.lastAddress);
+    if (c.lastAddress) params.set("address", c.lastAddress);
+    else if (c.phone) params.set("phone", c.phone);
     else if (c.name) params.set("name", c.name);
     const r = await api.get(`/api/v1/customers/orders-by-contact?${params}`);
     setOrders(r.data.orders || []);
@@ -188,7 +188,7 @@ export default function Customers() {
           )}
 
           <p style={{ fontSize: 12, fontWeight: 700, color: NAVY, marginBottom: 6 }}>ประวัติออเดอร์</p>
-          {orders.slice(0, 10).map(o => (
+          {orders.map(o => (
             <div key={o.id} onClick={() => navigate(`/orders?q=${o.orderNumber}`)} style={{ padding: "8px 10px", borderRadius: 8, border: "1px solid #E5E7EB", marginBottom: 6, fontSize: 12, cursor: "pointer" }}
               onMouseEnter={e => e.currentTarget.style.background = "#F0F9FF"}
               onMouseLeave={e => e.currentTarget.style.background = WHITE}>
