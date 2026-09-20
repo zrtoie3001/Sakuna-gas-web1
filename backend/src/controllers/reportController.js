@@ -272,4 +272,42 @@ async function driverStats(req, res) {
   });
 }
 
-module.exports = { dailyReport, monthlyReport, dashboardStats, driverStats };
+async function topCustomers(req, res) {
+  const { year = new Date().getFullYear(), month } = req.query;
+  const { QueryTypes } = require("sequelize");
+
+  const addrNorm  = `LOWER(REGEXP_REPLACE(TRIM(delivery_address), '\\s+', ' ', 'g'))`;
+  const phoneNorm = `LOWER(TRIM(COALESCE(NULLIF(TRIM(customer_phone),''), '')))`;
+  const nameNorm  = `LOWER(TRIM(COALESCE(NULLIF(NULLIF(TRIM(customer_name),''),'ลูกค้าหน้าร้าน'), '')))`;
+  const groupKey  = `${addrNorm} || '|' || ${phoneNorm} || '|' || ${nameNorm}`;
+
+  let dateWhere = `EXTRACT(YEAR FROM created_at) = ${parseInt(year)}`;
+  if (month) dateWhere += ` AND EXTRACT(MONTH FROM created_at) = ${parseInt(month)}`;
+
+  const rows = await sequelize.query(
+    `SELECT
+       MAX(TRIM(delivery_address)) AS address,
+       MAX(NULLIF(NULLIF(TRIM(customer_name),''),'ลูกค้าหน้าร้าน')) AS name,
+       MAX(NULLIF(TRIM(customer_phone),'')) AS phone,
+       COUNT(id)::int AS orders,
+       SUM(total)::numeric AS revenue
+     FROM orders
+     WHERE status != 'cancelled'
+       AND NULLIF(TRIM(delivery_address),'') IS NOT NULL
+       AND ${dateWhere}
+     GROUP BY ${groupKey}
+     ORDER BY SUM(total) DESC
+     LIMIT 100`,
+    { type: QueryTypes.SELECT }
+  );
+
+  res.json(rows.map(r => ({
+    name: r.name || r.address || "-",
+    phone: r.phone || "",
+    address: r.address || "",
+    orders: parseInt(r.orders),
+    revenue: Number(r.revenue || 0),
+  })));
+}
+
+module.exports = { dailyReport, monthlyReport, dashboardStats, driverStats, topCustomers };

@@ -25,6 +25,10 @@ export default function Reports() {
   const [driverDate, setDriverDate]   = useState(now.toISOString().split("T")[0]);
   const [showUnpaid, setShowUnpaid]   = useState(false);
   const [payFilterMethod, setPayFilterMethod] = useState(null); // "cash"|"qr"|"cod"|null
+  const [topCustYear, setTopCustYear]   = useState(now.getFullYear());
+  const [topCustMonth, setTopCustMonth] = useState(0); // 0 = ทั้งปี
+  const [topCustomers, setTopCustomers] = useState([]);
+  const [topCustSort, setTopCustSort]   = useState("revenue"); // "revenue" | "orders"
 
   useEffect(() => {
     api.get(`/api/v1/reports/monthly?year=${year}&month=${month}`).then(r => {
@@ -49,6 +53,12 @@ export default function Reports() {
   useEffect(() => {
     api.get(`/api/v1/reports/driver-stats?date=${driverDate}`).then(r => setDriverStats(r.data.drivers || [])).catch(() => {});
   }, [driverDate]);
+
+  useEffect(() => {
+    const params = new URLSearchParams({ year: topCustYear });
+    if (topCustMonth) params.set("month", topCustMonth);
+    api.get(`/api/v1/reports/top-customers?${params}`).then(r => setTopCustomers(r.data || [])).catch(() => {});
+  }, [topCustYear, topCustMonth]);
 
   function exportCSV() {
     const rows = [["เลขออเดอร์", "ลูกค้า", "สินค้า", "จำนวน", "ยอดรวม", "สถานะ", "วันที่"]];
@@ -265,6 +275,67 @@ export default function Reports() {
       </div>
 
       {/* Payment method order list modal */}
+      {/* Top Customers */}
+      <div style={{ background: WHITE, borderRadius: 14, padding: 20, boxShadow: "0 2px 12px rgba(0,0,0,.06)", marginBottom: 16 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 14 }}>
+          <h2 style={{ fontSize: 15, fontWeight: 900, color: NAVY, margin: 0 }}>🏆 ลูกค้าสั่งมากสุด</h2>
+          <select value={topCustYear} onChange={e => setTopCustYear(Number(e.target.value))}
+            style={{ padding: "5px 10px", borderRadius: 8, border: "1.5px solid #E5E7EB", fontSize: 13 }}>
+            {[now.getFullYear(), now.getFullYear() - 1].map(y => <option key={y} value={y}>{y + 543}</option>)}
+          </select>
+          <select value={topCustMonth} onChange={e => setTopCustMonth(Number(e.target.value))}
+            style={{ padding: "5px 10px", borderRadius: 8, border: "1.5px solid #E5E7EB", fontSize: 13 }}>
+            <option value={0}>ทั้งปี</option>
+            {["ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."].map((m, i) => (
+              <option key={i+1} value={i+1}>{m}</option>
+            ))}
+          </select>
+          <div style={{ display: "flex", gap: 6, marginLeft: "auto" }}>
+            {[["revenue", "เรียงยอดเงิน"], ["orders", "เรียงจำนวนครั้ง"]].map(([val, label]) => (
+              <button key={val} onClick={() => setTopCustSort(val)}
+                style={{ padding: "5px 12px", borderRadius: 8, border: "none", fontSize: 12, fontWeight: 700, cursor: "pointer",
+                  background: topCustSort === val ? NAVY : "#F3F4F6", color: topCustSort === val ? WHITE : GRAY }}>
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+            <thead>
+              <tr style={{ background: "#F8FAFC" }}>
+                <th style={{ padding: "8px 12px", textAlign: "left", color: NAVY, fontWeight: 700 }}>อันดับ</th>
+                <th style={{ padding: "8px 12px", textAlign: "left", color: NAVY, fontWeight: 700 }}>ลูกค้า</th>
+                <th style={{ padding: "8px 12px", textAlign: "left", color: NAVY, fontWeight: 700 }}>เบอร์</th>
+                <th style={{ padding: "8px 12px", textAlign: "right", color: NAVY, fontWeight: 700, cursor: "pointer" }} onClick={() => setTopCustSort("orders")}>
+                  จำนวนครั้ง {topCustSort === "orders" ? "▼" : ""}
+                </th>
+                <th style={{ padding: "8px 12px", textAlign: "right", color: NAVY, fontWeight: 700, cursor: "pointer" }} onClick={() => setTopCustSort("revenue")}>
+                  ยอดรวม {topCustSort === "revenue" ? "▼" : ""}
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {[...topCustomers].sort((a, b) => b[topCustSort] - a[topCustSort]).map((c, i) => (
+                <tr key={i} style={{ borderBottom: "1px solid #F3F4F6", background: i % 2 === 0 ? WHITE : "#FAFAFA" }}>
+                  <td style={{ padding: "9px 12px", fontWeight: 800, color: i < 3 ? ORANGE : GRAY }}>
+                    {i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `#${i + 1}`}
+                  </td>
+                  <td style={{ padding: "9px 12px" }}>
+                    <div style={{ fontWeight: 700, color: NAVY }}>{c.name}</div>
+                    {c.address && <div style={{ fontSize: 11, color: GRAY }}>📍 {c.address}</div>}
+                  </td>
+                  <td style={{ padding: "9px 12px", color: GRAY }}>{c.phone || "-"}</td>
+                  <td style={{ padding: "9px 12px", textAlign: "right", fontWeight: 700 }}>{c.orders} ครั้ง</td>
+                  <td style={{ padding: "9px 12px", textAlign: "right", fontWeight: 800, color: ORANGE }}>฿{c.revenue.toLocaleString()}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {!topCustomers.length && <p style={{ textAlign: "center", color: GRAY, padding: 20 }}>ยังไม่มีข้อมูล</p>}
+        </div>
+      </div>
+
       {payFilterMethod && (() => {
         const label = payFilterMethod === "cash" ? "เงินสด" : payFilterMethod === "qr" ? "QR โอน" : "เก็บปลายทาง";
         const color = payFilterMethod === "cash" ? "#10B981" : payFilterMethod === "qr" ? "#3B82F6" : "#F59E0B";

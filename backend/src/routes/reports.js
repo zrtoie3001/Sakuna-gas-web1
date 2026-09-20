@@ -6,6 +6,7 @@ const ah = require("../middleware/asyncHandler");
 router.get("/dashboard",    requireAuth, requireRole("admin"), ah(ctrl.dashboardStats));
 router.get("/daily",        requireAuth, requireRole("admin"), ah(ctrl.dailyReport));
 router.get("/monthly",      requireAuth, requireRole("admin"), ah(ctrl.monthlyReport));
-router.get("/driver-stats", requireAuth, requireRole("admin"), ah(ctrl.driverStats));
+router.get("/driver-stats",    requireAuth, requireRole("admin"), ah(ctrl.driverStats));
+router.get("/top-customers",  requireAuth, requireRole("admin"), ah(ctrl.topCustomers));
 
 module.exports = router;
