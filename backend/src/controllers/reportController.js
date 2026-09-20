@@ -207,6 +207,40 @@ async function dashboardStats(req, res) {
     return o.productId ? sum + (Number(o.qty) || 0) : sum;
   }, 0);
 
+  // Compute today's walk-in store breakdown (note starts __walkin: not __phone_walkin:)
+  const walkinBrandMap = {};
+  let walkinTankCount = 0;
+  const walkinEquipList = [];
+  const walkinNewTankList = [];
+
+  for (const o of todayPaidOrders) {
+    const n = o.note || "";
+    if (!n.match(/^__walkin:/)) continue; // skip phone orders and non-walkin
+    try {
+      const w = JSON.parse(n.replace(/^__walkin:/, "").split("\n")[0]);
+      const items = w.type === "mixed" ? (w.items || []) : [w];
+      for (const i of items) {
+        if (i.type === "gas") {
+          const key = `${i.brandName || ""} ${i.weightKg || ""}kg`.trim();
+          walkinBrandMap[key] = (walkinBrandMap[key] || 0) + (Number(i.qty) || 1);
+          walkinTankCount += Number(i.qty) || 1;
+        } else if (i.type === "new_tank") {
+          walkinNewTankList.push({ name: `ถังใหม่ ${i.brandName || ""} ${i.weightKg || ""}kg`.trim(), qty: Number(i.qty) || 1, price: Number(i.price || 0) });
+          walkinTankCount += Number(i.qty) || 1;
+        } else if (i.type === "equipment") {
+          walkinEquipList.push({ name: i.itemName || "อุปกรณ์", qty: Number(i.qty) || 1, price: Number(i.price || 0) });
+        }
+      }
+    } catch {}
+  }
+
+  const todayWalkin = {
+    tanks: walkinTankCount,
+    gasByBrand: Object.entries(walkinBrandMap).map(([name, qty]) => ({ name, qty })).sort((a, b) => b.qty - a.qty),
+    equipment: walkinEquipList,
+    newTanks: walkinNewTankList,
+  };
+
   // Fill missing days in trend
   const trendMap = {};
   trend7.forEach(r => { trendMap[r.date] = r; });
@@ -268,8 +302,55 @@ async function dashboardStats(req, res) {
   const topProducts = Object.values(productMap).sort((a, b) => b.qty - a.qty).slice(0, 5);
   const brandBreakdown = Object.values(brandMap).sort((a, b) => b.count - a.count);
 
+  // Compute month walk-in store breakdown (note starts __walkin: not __phone_walkin:)
+  const monthWalkinBrandMap = {};
+  let monthWalkinTankCount = 0;
+  const monthWalkinEquipMap = {};
+  const monthWalkinNewTankMap = {};
+  let monthWalkinRevenue = 0;
+  let monthWalkinOrderCount = 0;
+
+  for (const o of allMonthOrders) {
+    const n = o.note || "";
+    if (!n.match(/^__walkin:/)) continue;
+    monthWalkinOrderCount++;
+    monthWalkinRevenue += Number(o.total || 0);
+    try {
+      const w = JSON.parse(n.replace(/^__walkin:/, "").split("\n")[0]);
+      const items = w.type === "mixed" ? (w.items || []) : [w];
+      for (const i of items) {
+        if (i.type === "gas") {
+          const key = `${i.brandName || ""} ${i.weightKg || ""}kg`.trim();
+          if (!monthWalkinBrandMap[key]) monthWalkinBrandMap[key] = { name: key, qty: 0 };
+          monthWalkinBrandMap[key].qty += Number(i.qty) || 1;
+          monthWalkinTankCount += Number(i.qty) || 1;
+        } else if (i.type === "new_tank") {
+          const key = `ถังใหม่ ${i.brandName || ""} ${i.weightKg || ""}kg`.trim();
+          if (!monthWalkinNewTankMap[key]) monthWalkinNewTankMap[key] = { name: key, qty: 0 };
+          monthWalkinNewTankMap[key].qty += Number(i.qty) || 1;
+          monthWalkinTankCount += Number(i.qty) || 1;
+        } else if (i.type === "equipment") {
+          const key = i.itemName || "อุปกรณ์";
+          if (!monthWalkinEquipMap[key]) monthWalkinEquipMap[key] = { name: key, qty: 0 };
+          monthWalkinEquipMap[key].qty += Number(i.qty) || 1;
+        }
+      }
+    } catch {}
+  }
+
+  const monthWalkin = {
+    tanks: monthWalkinTankCount,
+    count: monthWalkinOrderCount,
+    revenue: monthWalkinRevenue,
+    gasByBrand: Object.values(monthWalkinBrandMap).sort((a, b) => b.qty - a.qty),
+    newTanks: Object.values(monthWalkinNewTankMap).sort((a, b) => b.qty - a.qty),
+    equipment: Object.values(monthWalkinEquipMap).sort((a, b) => b.qty - a.qty),
+  };
+
   res.json({
     today: { orders: parseInt(todaySummary?.count || 0), revenue: Number(todaySummary?.revenue || 0), tanks: todayGasTanks },
+    todayWalkin,
+    monthWalkin,
     month: { revenue: Number(monthRevenue?.revenue || 0) },
     totalCustomers,
     pendingOrders,
