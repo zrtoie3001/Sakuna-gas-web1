@@ -294,6 +294,8 @@ async function topCustomers(req, res) {
      FROM orders
      WHERE status != 'cancelled'
        AND NULLIF(TRIM(delivery_address),'') IS NOT NULL
+       AND NULLIF(NULLIF(TRIM(customer_name),''),'ลูกค้าหน้าร้าน') IS NOT NULL
+       AND (note NOT LIKE '__walkin:%' OR note LIKE '__phone_walkin:%')
        AND ${dateWhere}
      GROUP BY ${groupKey}
      ORDER BY SUM(total) DESC
