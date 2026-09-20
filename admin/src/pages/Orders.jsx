@@ -1110,7 +1110,12 @@ ${noteText ? `<div style="margin-top:8px; padding:6px 8px; border:1.5px dashed #
                             {(it.type === "gas" || it.type === "new_tank") && (
                               <div style={{ flex: 1 }}>
                                 <div style={{ fontSize: 10, color: GRAY, fontWeight: 700, marginBottom: 3 }}>น้ำหนัก (กก.)</div>
-                                <select value={it.weightKg || ""} onChange={e => setEditItems(arr => arr.map((x, i) => i === idx ? { ...x, weightKg: e.target.value } : x))}
+                                <select value={it.weightKg || ""} onChange={e => {
+                                  const w = e.target.value;
+                                  const stock = findStockByBrand(gasStocks, it.brandName, w);
+                                  const autoPrice = stock?.unitPrice || stock?.price || "";
+                                  setEditItems(arr => arr.map((x, i) => i === idx ? { ...x, weightKg: w, ...(autoPrice ? { price: autoPrice, unitPrice: autoPrice } : {}) } : x));
+                                }}
                                   style={{ width: "100%", padding: "7px 10px", borderRadius: 7, border: "1.5px solid #E5E7EB", fontSize: 13, boxSizing: "border-box" }}>
                                   <option value="">-- กก. --</option>
                                   {allWeights.map(w => <option key={w} value={w}>{w} กก.</option>)}
@@ -1153,10 +1158,14 @@ ${noteText ? `<div style="margin-top:8px; padding:6px 8px; border:1.5px dashed #
                   </div>
                   {editNewItem.type === "equipment" ? (
                     <div style={{ marginBottom: 6 }}>
-                      <div style={{ fontSize: 10, color: GRAY, fontWeight: 700, marginBottom: 3 }}>ชื่ออุปกรณ์</div>
-                      <input value={editNewItem.name} onChange={e => setEditNewItem(x => ({ ...x, name: e.target.value }))}
-                        placeholder="เช่น หัวปรับ, สายแก๊ส"
-                        style={{ width: "100%", padding: "7px 10px", borderRadius: 7, border: "1.5px solid #BAE6FD", fontSize: 13, boxSizing: "border-box" }} />
+                      <div style={{ fontSize: 10, color: GRAY, fontWeight: 700, marginBottom: 3 }}>อุปกรณ์</div>
+                      <select value={editNewItem.equipId || ""} onChange={e => {
+                        const eq = equipList.find(x => x.id === e.target.value);
+                        setEditNewItem(x => ({ ...x, equipId: e.target.value, name: eq?.name || "", price: eq?.price || "" }));
+                      }} style={{ width: "100%", padding: "7px 10px", borderRadius: 7, border: "1.5px solid #BAE6FD", fontSize: 13, boxSizing: "border-box" }}>
+                        <option value="">-- เลือกอุปกรณ์ --</option>
+                        {equipList.map(eq => <option key={eq.id} value={eq.id}>{eq.name} (มี {eq.qty} ชิ้น · ฿{Number(eq.price).toLocaleString()})</option>)}
+                      </select>
                     </div>
                   ) : (
                     <div style={{ display: "flex", gap: 8, marginBottom: 6 }}>
@@ -1193,9 +1202,9 @@ ${noteText ? `<div style="margin-top:8px; padding:6px 8px; border:1.5px dashed #
                   <button onClick={() => {
                     if (!editNewItem.price) return alert("กรุณาใส่ราคา");
                     if (editNewItem.type !== "equipment" && (!editNewItem.brandName || !editNewItem.weightKg)) return alert("กรุณาเลือกยี่ห้อและน้ำหนัก");
-                    if (editNewItem.type === "equipment" && !editNewItem.name) return alert("กรุณาใส่ชื่ออุปกรณ์");
-                    setEditItems(arr => [...arr, { type: editNewItem.type, brandName: editNewItem.brandName, weightKg: editNewItem.weightKg, qty: Number(editNewItem.qty) || 1, price: Number(editNewItem.price), name: editNewItem.name }]);
-                    setEditNewItem({ type: "gas", brandName: "", weightKg: "", qty: 1, price: "", name: "" });
+                    if (editNewItem.type === "equipment" && !editNewItem.equipId) return alert("กรุณาเลือกอุปกรณ์");
+                    setEditItems(arr => [...arr, { type: editNewItem.type, brandName: editNewItem.brandName, weightKg: editNewItem.weightKg, qty: Number(editNewItem.qty) || 1, price: Number(editNewItem.price), name: editNewItem.name, equipId: editNewItem.equipId }]);
+                    setEditNewItem({ type: "gas", brandName: "", weightKg: "", qty: 1, price: "", name: "", equipId: "" });
                   }} style={{ width: "100%", padding: "8px 0", borderRadius: 8, border: "none", background: "#0284C7", color: WHITE, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
                     + เพิ่มสินค้า
                   </button>
