@@ -43,6 +43,7 @@ export default function Customers() {
   const [selected, setSelected]   = useState(null);
   const [orders, setOrders]       = useState([]);
   const [total, setTotal]         = useState(0);
+  const [editing, setEditing]     = useState(false);
   const [saving, setSaving]       = useState(false);
   const [editForm, setEditForm]   = useState({ name: "", phone: "", address: "" });
   const [customerNote, setCustomerNote] = useState("");
@@ -65,6 +66,7 @@ export default function Customers() {
 
   async function selectCustomer(c) {
     setSelected(c);
+    setEditing(false);
     setEditForm({ name: c.name || "", phone: c.phone || "", address: c.lastAddress || "" });
     setCustomerNote("");
     const params = new URLSearchParams();
@@ -79,18 +81,20 @@ export default function Customers() {
     setCustomerNote(noteRes.data.note || "");
   }
 
-  async function saveField(field, value) {
-    if (!selected) return;
+  async function saveEdit() {
     setSaving(true);
     try {
-      const updates = { oldAddress: selected.lastAddress || "", oldPhone: selected.phone || "" };
-      if (field === "name") updates.newName = value;
-      if (field === "phone") updates.newPhone = value;
-      if (field === "address") updates.newAddress = value;
-      await api.patch("/api/v1/customers/update-contact", updates);
-      const updated = { ...selected, name: field === "name" ? value : selected.name, phone: field === "phone" ? value : selected.phone, lastAddress: field === "address" ? value : selected.lastAddress };
+      await api.patch("/api/v1/customers/update-contact", {
+        oldAddress: selected.lastAddress || "",
+        oldPhone: selected.phone || "",
+        newName: editForm.name || null,
+        newPhone: editForm.phone || null,
+        newAddress: editForm.address || null,
+      });
+      const updated = { ...selected, name: editForm.name || null, phone: editForm.phone || null, lastAddress: editForm.address || selected.lastAddress };
       setSelected(updated);
       setCustomers(prev => prev.map(c => c.id === selected.id ? updated : c));
+      setEditing(false);
     } catch (e) {
       alert(e.response?.data?.error || "เกิดข้อผิดพลาด");
     } finally { setSaving(false); }
@@ -176,26 +180,40 @@ export default function Customers() {
             <button onClick={() => setSelected(null)} style={{ background: "none", border: "none", fontSize: 20, color: GRAY }}>✕</button>
           </div>
 
-          <p style={{ fontSize: 12, color: GRAY, marginBottom: 10 }}>สั่งทั้งหมด <b>{selected.totalOrders}</b> ครั้ง {saving && <span style={{ color: ORANGE }}>· กำลังบันทึก...</span>}</p>
-
-          {/* Inline edit fields */}
-          {[
-            { label: "👤 ชื่อ", field: "name", type: "text", placeholder: "ชื่อลูกค้า" },
-            { label: "📞 เบอร์โทร", field: "phone", type: "tel", placeholder: "เบอร์โทรศัพท์" },
-            { label: "📍 ที่อยู่", field: "address", type: "text", placeholder: "ที่อยู่จัดส่ง" },
-          ].map(({ label, field, type, placeholder }) => (
-            <div key={field} style={{ marginBottom: 10 }}>
-              <label style={{ fontSize: 11, fontWeight: 700, color: NAVY, display: "block", marginBottom: 3 }}>{label}</label>
-              <input
-                type={type}
-                value={editForm[field]}
-                onChange={e => setEditForm(f => ({ ...f, [field]: e.target.value }))}
-                onBlur={e => { if (e.target.value !== (field === "address" ? selected.lastAddress : selected[field]) || "") saveField(field, e.target.value); }}
-                placeholder={placeholder}
-                style={{ width: "100%", padding: "7px 10px", borderRadius: 8, border: "1.5px solid #E5E7EB", fontSize: 13, boxSizing: "border-box", background: "#FAFAFA" }}
-              />
+          {!editing ? (
+            <>
+              {selected.phone && <p style={{ fontSize: 13, color: GRAY, marginBottom: 4 }}>📞 {selected.phone}</p>}
+              {selected.name && selected.name !== "ลูกค้าหน้าร้าน" && <p style={{ fontSize: 13, color: GRAY, marginBottom: 4 }}>👤 {selected.name}</p>}
+              <p style={{ fontSize: 13, color: GRAY, marginBottom: 8 }}>สั่งทั้งหมด {selected.totalOrders} ครั้ง</p>
+              {selected.lastAddress && (
+                <div style={{ marginBottom: 10 }}>
+                  <p style={{ fontSize: 12, fontWeight: 700, color: NAVY, marginBottom: 4 }}>ที่อยู่ล่าสุด</p>
+                  <div style={{ padding: "8px 10px", background: "#F8FAFC", borderRadius: 8, fontSize: 12, color: GRAY }}>📍 {selected.lastAddress}</div>
+                </div>
+              )}
+              <button onClick={() => setEditing(true)} style={{ width: "100%", padding: "8px", borderRadius: 8, border: `1.5px solid ${NAVY}`, background: WHITE, color: NAVY, fontWeight: 700, fontSize: 13, cursor: "pointer", marginBottom: 8 }}>
+                ✏️ แก้ไขข้อมูลลูกค้า
+              </button>
+            </>
+          ) : (
+            <div style={{ marginBottom: 14 }}>
+              {[["👤 ชื่อ", "name", "text"], ["📞 เบอร์โทร", "phone", "tel"], ["📍 ที่อยู่", "address", "text"]].map(([label, field, type]) => (
+                <div key={field} style={{ marginBottom: 10 }}>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: NAVY, display: "block", marginBottom: 3 }}>{label}</label>
+                  <input type={type} value={editForm[field]} onChange={e => setEditForm(f => ({ ...f, [field]: e.target.value }))}
+                    style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 13, boxSizing: "border-box" }} />
+                </div>
+              ))}
+              <div style={{ display: "flex", gap: 8 }}>
+                <button onClick={saveEdit} disabled={saving} style={{ flex: 1, padding: "8px", borderRadius: 8, border: "none", background: NAVY, color: WHITE, fontWeight: 800, fontSize: 13, cursor: "pointer" }}>
+                  {saving ? "กำลังบันทึก..." : "บันทึก"}
+                </button>
+                <button onClick={() => setEditing(false)} style={{ flex: 1, padding: "8px", borderRadius: 8, border: "1.5px solid #E5E7EB", background: WHITE, color: GRAY, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
+                  ยกเลิก
+                </button>
+              </div>
             </div>
-          ))}
+          )}
 
           {/* Customer note */}
           <div style={{ marginBottom: 14 }}>
