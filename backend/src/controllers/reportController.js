@@ -98,7 +98,7 @@ async function dashboardStats(req, res) {
   const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
   const day7Start  = new Date(); day7Start.setDate(day7Start.getDate() - 6); day7Start.setHours(0,0,0,0);
 
-  const [todaySummary, todayPaidOrders, monthRevenue, totalCustomers, pendingOrders, trend7, topProducts, paymentBreakdown, brandBreakdown, todayPayBreakdown, monthPayBreakdown] = await Promise.all([
+  const [todaySummary, todayPaidOrders, monthRevenue, totalCustomers, pendingOrders, trend7, allMonthOrders, paymentBreakdown, , todayPayBreakdown, monthPayBreakdown] = await Promise.all([
     Order.findOne({
       where: { createdAt: { [Op.between]: [todayStart, todayEnd] }, status: { [Op.ne]: "cancelled" } },
       attributes: [[fn("COUNT", col("id")), "count"], [fn("SUM", col("total")), "revenue"]],
@@ -124,14 +124,14 @@ async function dashboardStats(req, res) {
       order: [[literal("date"), "ASC"]],
       raw: true,
     }),
-    // Top products (this month)
+    // All orders this month for parsing walkin notes (topProducts + brandBreakdown)
     Order.findAll({
-      where: { createdAt: { [Op.gte]: monthStart }, status: { [Op.ne]: "cancelled" }, productId: { [Op.ne]: null } },
-      attributes: ["productId", [fn("SUM", col("qty")), "totalQty"], [fn("SUM", col("total")), "revenue"]],
-      include: [{ model: Product, as: "product", attributes: ["name", "kg"] }],
-      group: ["productId", "product.id"],
-      order: [[literal("\"totalQty\""), "DESC"]],
-      limit: 5,
+      where: { createdAt: { [Op.gte]: monthStart }, status: { [Op.ne]: "cancelled" } },
+      attributes: ["note", "qty", "total", "productId", "brandId"],
+      include: [
+        { model: Product, as: "product", attributes: ["name", "kg"], required: false },
+        { model: Brand, as: "brand", attributes: ["name"], required: false },
+      ],
       raw: false,
     }),
     // Payment method breakdown (this month) — paid only
@@ -141,15 +141,8 @@ async function dashboardStats(req, res) {
       group: ["paymentMethod"],
       raw: true,
     }),
-    // Brand breakdown (this month)
-    Order.findAll({
-      where: { createdAt: { [Op.gte]: monthStart }, status: { [Op.ne]: "cancelled" }, brandId: { [Op.ne]: null } },
-      attributes: ["brandId", [fn("COUNT", col("Order.id")), "count"], [fn("SUM", col("total")), "revenue"]],
-      include: [{ model: Brand, as: "brand", attributes: ["name"] }],
-      group: ["brandId", "brand.id"],
-      order: [[literal("count"), "DESC"]],
-      raw: false,
-    }),
+    // placeholder (was brandBreakdown — now computed from allMonthOrders)
+    Promise.resolve([]),
     // Today payment breakdown (cash vs transfer) — paid only
     Order.findAll({
       where: { createdAt: { [Op.between]: [todayStart, todayEnd] }, status: { [Op.ne]: "cancelled" }, isPaid: true },
@@ -190,15 +183,66 @@ async function dashboardStats(req, res) {
     trendFilled.push({ date: key, count: parseInt(trendMap[key]?.count || 0), revenue: Number(trendMap[key]?.revenue || 0), tanks: parseInt(trendMap[key]?.tanks || 0) });
   }
 
+  // Parse all month orders (including walkin notes) for topProducts and brandBreakdown
+  const productMap = {};
+  const brandMap = {};
+
+  function parseOrderItems(order) {
+    const n = order.note || "";
+    if (n.match(/^__(?:phone_)?walkin:/)) {
+      try {
+        const w = JSON.parse(n.replace(/^__(?:phone_)?walkin:/, "").split("\n")[0]);
+        if (w.type === "mixed") {
+          return (w.items || []).map(i => ({
+            productName: `${i.brandName || ""} ${i.weightKg || ""}kg`.trim(),
+            brandName: i.brandName || "-",
+            qty: Number(i.qty) || 1,
+            revenue: Number(i.total || i.price || 0),
+          }));
+        }
+        return [{
+          productName: `${w.brandName || ""} ${w.weightKg || ""}kg`.trim(),
+          brandName: w.brandName || "-",
+          qty: Number(w.qty) || 1,
+          revenue: Number(order.total || 0),
+        }];
+      } catch { return []; }
+    }
+    if (order.product) {
+      return [{
+        productName: `${order.product.name || ""} ${order.product.kg || ""}kg`.trim(),
+        brandName: order.brand?.name || "-",
+        qty: Number(order.qty) || 1,
+        revenue: Number(order.total || 0),
+      }];
+    }
+    return [];
+  }
+
+  for (const order of allMonthOrders) {
+    for (const item of parseOrderItems(order)) {
+      if (!productMap[item.productName]) productMap[item.productName] = { name: item.productName, qty: 0, revenue: 0 };
+      productMap[item.productName].qty += item.qty;
+      productMap[item.productName].revenue += item.revenue;
+
+      if (!brandMap[item.brandName]) brandMap[item.brandName] = { name: item.brandName, count: 0, revenue: 0 };
+      brandMap[item.brandName].count += item.qty;
+      brandMap[item.brandName].revenue += item.revenue;
+    }
+  }
+
+  const topProducts = Object.values(productMap).sort((a, b) => b.qty - a.qty).slice(0, 5);
+  const brandBreakdown = Object.values(brandMap).sort((a, b) => b.count - a.count);
+
   res.json({
     today: { orders: parseInt(todaySummary?.count || 0), revenue: Number(todaySummary?.revenue || 0), tanks: todayGasTanks },
     month: { revenue: Number(monthRevenue?.revenue || 0) },
     totalCustomers,
     pendingOrders,
     trend7: trendFilled,
-    topProducts: topProducts.map(p => ({ name: p.product?.name || "-", qty: parseInt(p.dataValues.totalQty || 0), revenue: Number(p.dataValues.revenue || 0) })),
+    topProducts,
     paymentBreakdown: paymentBreakdown.map(p => ({ method: p.paymentMethod, count: parseInt(p.count), revenue: Number(p.revenue) })),
-    brandBreakdown: brandBreakdown.map(b => ({ name: b.brand?.name || "-", count: parseInt(b.dataValues.count || 0), revenue: Number(b.dataValues.revenue || 0) })),
+    brandBreakdown,
     todayPayBreakdown: todayPayBreakdown.map(p => ({ method: p.paymentMethod, count: parseInt(p.count), revenue: Number(p.revenue) })),
     monthPayBreakdown: monthPayBreakdown.map(p => ({ method: p.paymentMethod, count: parseInt(p.count), revenue: Number(p.revenue) })),
   });
