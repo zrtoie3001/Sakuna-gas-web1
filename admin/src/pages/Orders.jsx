@@ -1144,14 +1144,21 @@ ${noteText ? `<div style="margin-top:8px; padding:6px 8px; border:1.5px dashed #
                   </div>
                 ) : (
                   <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
-                    <select value={editNewItem.brandName} onChange={e => setEditNewItem(x => ({ ...x, brandName: e.target.value }))}
-                      style={{ flex: 1, padding: "9px 10px", borderRadius: 8, border: "2px solid #BAE6FD", fontSize: 14, boxSizing: "border-box" }}>
+                    <select value={editNewItem.brandName} onChange={e => {
+                      const bn = e.target.value;
+                      const matchBrand = brands.find(b => b.name.toLowerCase() === bn.toLowerCase());
+                      const prod = matchBrand && editNewItem.weightKg
+                        ? products.find(p => (p.brandId || p.brand_id) === matchBrand.id && Number(p.kg) === Number(editNewItem.weightKg))
+                        : null;
+                      const autoPrice = prod?.homePrice ? Number(prod.homePrice) : "";
+                      setEditNewItem(x => ({ ...x, brandName: bn, ...(autoPrice ? { price: autoPrice } : {}) }));
+                    }} style={{ flex: 1, padding: "9px 10px", borderRadius: 8, border: "2px solid #BAE6FD", fontSize: 14, boxSizing: "border-box" }}>
                       <option value="">-- ยี่ห้อ --</option>
                       {[...new Set([...brands.map(b => b.name), ...gasStocks.map(s => s.brandName)])].sort().map(b => <option key={b} value={b}>{b}</option>)}
                     </select>
                     <select value={editNewItem.weightKg} onChange={e => {
                       const w = e.target.value;
-                      const matchBrand = brands.find(b => b.name === editNewItem.brandName);
+                      const matchBrand = brands.find(b => b.name.toLowerCase() === (editNewItem.brandName || "").toLowerCase());
                       const prod = products.find(p => (p.brandId || p.brand_id) === matchBrand?.id && Number(p.kg) === Number(w));
                       const autoPrice = prod?.homePrice ? Number(prod.homePrice) : "";
                       setEditNewItem(x => ({ ...x, weightKg: w, ...(autoPrice ? { price: autoPrice } : {}) }));
