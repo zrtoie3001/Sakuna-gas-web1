@@ -209,7 +209,15 @@ export default function Stock() {
                             {FIELDS.map(f => (
                               <td key={f.key} style={{ padding: "4px 6px", textAlign: "center" }}>
                                 <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 3 }}>
-                                  <button onClick={() => adjust(primaryBrand, w, f.key, -1)} style={{ width: 22, height: 22, borderRadius: 4, border: "none", background: "#EF4444", color: WHITE, cursor: "pointer", fontSize: 13, lineHeight: 1, flexShrink: 0 }}>−</button>
+                                  <button onClick={async () => {
+                                    if (isMerged) {
+                                      // หักจาก secondary ก่อน ถ้าหมดแล้วค่อยหักจาก primary
+                                      for (const other of [...subBrands].reverse()) {
+                                        const cur = Number(getCell(other, w)[f.key] || 0);
+                                        if (cur > 0) { await adjust(other, w, f.key, -1); return; }
+                                      }
+                                    } else { await adjust(primaryBrand, w, f.key, -1); }
+                                  }} style={{ width: 22, height: 22, borderRadius: 4, border: "none", background: "#EF4444", color: WHITE, cursor: "pointer", fontSize: 13, lineHeight: 1, flexShrink: 0 }}>−</button>
                                   <input
                                     type="number" min="0"
                                     defaultValue={row[f.key] || 0}
@@ -219,10 +227,14 @@ export default function Stock() {
                                       const old = Number(row[f.key] || 0);
                                       if (val === old) return;
                                       if (isMerged) {
-                                        // Set primaryBrand to (val - other brands' sum), min 0
-                                        const othersSum = subBrands.slice(1).reduce((s, b) => s + Number(getCell(b, w)[f.key] || 0), 0);
-                                        const newPrimary = Math.max(0, val - othersSum);
-                                        await api.post("/api/v1/stock/gas", { brandName: primaryBrand, weightKg: w, ...primaryRow, [f.key]: newPrimary });
+                                        // เซ็ตค่าทั้งหมดไว้ที่ primary brand, zero-out secondary brands
+                                        await api.post("/api/v1/stock/gas", { brandName: primaryBrand, weightKg: w, ...primaryRow, [f.key]: val });
+                                        for (const other of subBrands.slice(1)) {
+                                          const otherRow = getCell(other, w);
+                                          if (Number(otherRow[f.key] || 0) !== 0) {
+                                            await api.post("/api/v1/stock/gas", { brandName: other, weightKg: w, ...otherRow, [f.key]: 0 });
+                                          }
+                                        }
                                       } else {
                                         await api.post("/api/v1/stock/gas", { brandName: primaryBrand, weightKg: w, ...primaryRow, [f.key]: val });
                                       }
