@@ -136,7 +136,10 @@ async function getCustomerOrdersByPhone(req, res) {
     }
 
     const rows = await seq.query(
-      `SELECT o.*,
+      `SELECT o.id, o.order_number AS "orderNumber", o.note, o.qty, o.total,
+        o.is_paid AS "isPaid", o.status, o.payment_method AS "paymentMethod",
+        o.customer_name AS "customerName", o.customer_phone AS "customerPhone",
+        o.delivery_address AS "deliveryAddress", o.created_at AS "createdAt",
         p.name AS "product_name", p.kg AS "product_kg",
         b.name AS "brand_name"
        FROM orders o
@@ -148,7 +151,6 @@ async function getCustomerOrdersByPhone(req, res) {
       { replacements, type: QueryTypes.SELECT }
     );
 
-    // Shape into the format frontend expects
     const orders = rows.map(r => ({
       ...r,
       product: r.product_name ? { name: r.product_name, kg: r.product_kg } : null,
