@@ -1,6 +1,11 @@
 const { Op, fn, col, literal } = require("sequelize");
 const { Order, Product, Brand, Customer, User, Expense, sequelize } = require("../models");
 
+function fmtKg(val) {
+  const n = parseFloat(val || 0);
+  return n === Math.floor(n) ? String(Math.floor(n)) : String(n);
+}
+
 async function dailyReport(req, res) {
   const { date = new Date().toISOString().split("T")[0] } = req.query;
   const start = new Date(date); start.setHours(0, 0, 0, 0);
@@ -110,7 +115,7 @@ async function monthlyReport(req, res) {
       const items = w.type === "mixed" ? (w.items || []) : [w];
       for (const i of items) {
         if (i.type === "equipment") continue;
-        const key = `${i.brandName || ""} ${i.weightKg || ""}kg`.trim();
+        const key = `${i.brandName || ""} ${fmtKg(i.weightKg)}kg`.trim();
         if (!walkinMap[key]) walkinMap[key] = { name: key, qty: 0, revenue: 0 };
         walkinMap[key].qty += Number(i.qty) || 1;
         walkinMap[key].revenue += Number(i.total || i.price || r.total || 0);
@@ -221,11 +226,11 @@ async function dashboardStats(req, res) {
       const items = w.type === "mixed" ? (w.items || []) : [w];
       for (const i of items) {
         if (i.type === "gas") {
-          const key = `${i.brandName || ""} ${i.weightKg || ""}kg`.trim();
+          const key = `${i.brandName || ""} ${fmtKg(i.weightKg)}kg`.trim();
           walkinBrandMap[key] = (walkinBrandMap[key] || 0) + (Number(i.qty) || 1);
           walkinTankCount += Number(i.qty) || 1;
         } else if (i.type === "new_tank") {
-          walkinNewTankList.push({ name: `ถังใหม่ ${i.brandName || ""} ${i.weightKg || ""}kg`.trim(), qty: Number(i.qty) || 1, price: Number(i.price || 0) });
+          walkinNewTankList.push({ name: `ถังใหม่ ${i.brandName || ""} ${fmtKg(i.weightKg)}kg`.trim(), qty: Number(i.qty) || 1, price: Number(i.price || 0) });
           walkinTankCount += Number(i.qty) || 1;
         } else if (i.type === "equipment") {
           walkinEquipList.push({ name: i.itemName || "อุปกรณ์", qty: Number(i.qty) || 1, price: Number(i.price || 0) });
@@ -262,14 +267,14 @@ async function dashboardStats(req, res) {
         const w = JSON.parse(n.replace(/^__(?:phone_)?walkin:/, "").split("\n")[0]);
         if (w.type === "mixed") {
           return (w.items || []).map(i => ({
-            productName: `${i.brandName || ""} ${i.weightKg || ""}kg`.trim(),
+            productName: `${i.brandName || ""} ${fmtKg(i.weightKg)}kg`.trim(),
             brandName: i.brandName || "-",
             qty: Number(i.qty) || 1,
             revenue: Number(i.total || i.price || 0),
           }));
         }
         return [{
-          productName: `${w.brandName || ""} ${w.weightKg || ""}kg`.trim(),
+          productName: `${w.brandName || ""} ${fmtKg(w.weightKg)}kg`.trim(),
           brandName: w.brandName || "-",
           qty: Number(w.qty) || 1,
           revenue: Number(order.total || 0),
@@ -278,7 +283,7 @@ async function dashboardStats(req, res) {
     }
     if (order.product) {
       return [{
-        productName: `${order.product.name || ""} ${order.product.kg || ""}kg`.trim(),
+        productName: `${order.product.name || ""} ${fmtKg(order.product.kg)}kg`.trim(),
         brandName: order.brand?.name || "-",
         qty: Number(order.qty) || 1,
         revenue: Number(order.total || 0),
@@ -320,12 +325,12 @@ async function dashboardStats(req, res) {
       const items = w.type === "mixed" ? (w.items || []) : [w];
       for (const i of items) {
         if (i.type === "gas") {
-          const key = `${i.brandName || ""} ${i.weightKg || ""}kg`.trim();
+          const key = `${i.brandName || ""} ${fmtKg(i.weightKg)}kg`.trim();
           if (!monthWalkinBrandMap[key]) monthWalkinBrandMap[key] = { name: key, qty: 0 };
           monthWalkinBrandMap[key].qty += Number(i.qty) || 1;
           monthWalkinTankCount += Number(i.qty) || 1;
         } else if (i.type === "new_tank") {
-          const key = `ถังใหม่ ${i.brandName || ""} ${i.weightKg || ""}kg`.trim();
+          const key = `ถังใหม่ ${i.brandName || ""} ${fmtKg(i.weightKg)}kg`.trim();
           if (!monthWalkinNewTankMap[key]) monthWalkinNewTankMap[key] = { name: key, qty: 0 };
           monthWalkinNewTankMap[key].qty += Number(i.qty) || 1;
           monthWalkinTankCount += Number(i.qty) || 1;
