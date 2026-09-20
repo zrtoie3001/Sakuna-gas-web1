@@ -1,4 +1,39 @@
 const { GasStock, GasStockLog, GasRefill, Equipment, EquipmentSale } = require("../models");
+const { Op } = require("sequelize");
+
+const SHARED_BRANDS = ["สยาม", "ยูนิค"];
+
+// หักถังเปล่าจาก shared pool (ยูนิค+สยาม) หรือยี่ห้อเดี่ยว
+async function deductEmptyTank(brandName, weightKg, qty) {
+  const wkg = Number(weightKg);
+  if (SHARED_BRANDS.includes(brandName)) {
+    const stocks = await GasStock.findAll({ where: { brandName: { [Op.in]: SHARED_BRANDS }, weightKg: wkg }, order: [["emptyTank", "DESC"]] });
+    let remaining = qty;
+    for (const s of stocks) {
+      if (remaining <= 0) break;
+      const take = Math.min(remaining, Number(s.emptyTank || 0));
+      if (take > 0) { await s.update({ emptyTank: Number(s.emptyTank) - take }); remaining -= take; }
+    }
+    // ถ้าถังเปล่ารวมไม่พอ ให้ set เป็น 0 (ไม่ error)
+  } else {
+    const stock = await GasStock.findOne({ where: { brandName, weightKg: wkg } });
+    if (!stock) return;
+    await stock.update({ emptyTank: Math.max(0, Number(stock.emptyTank || 0) - qty) });
+  }
+}
+
+// คืนถังเปล่าให้ shared pool เมื่อลบรายการเติม
+async function restoreEmptyTank(brandName, weightKg, qty) {
+  const wkg = Number(weightKg);
+  if (SHARED_BRANDS.includes(brandName)) {
+    // คืนให้ยี่ห้อที่บันทึกเติม (ไม่ต้องกระจาย)
+    const stock = await GasStock.findOne({ where: { brandName, weightKg: wkg } });
+    if (stock) await stock.update({ emptyTank: Number(stock.emptyTank || 0) + qty });
+  } else {
+    const stock = await GasStock.findOne({ where: { brandName, weightKg: wkg } });
+    if (stock) await stock.update({ emptyTank: Number(stock.emptyTank || 0) + qty });
+  }
+}
 const { syncStockToSheet, appendStockLog } = require("../services/sheetsService");
 
 const STOCK_FIELDS = ["hasGas", "newTank", "emptyTank", "damagedTank", "heldTank"];
@@ -78,9 +113,8 @@ async function addRefill(req, res) {
   if (!stock) stock = await GasStock.create({ brandName, weightKg });
   const oldHas = Number(stock.hasGas);
   const newHas = oldHas + Number(qty);
-  const oldEmpty = Number(stock.emptyTank || 0);
-  const newEmpty = Math.max(0, oldEmpty - Number(qty));
-  await stock.update({ hasGas: newHas, emptyTank: newEmpty });
+  await stock.update({ hasGas: newHas });
+  await deductEmptyTank(brandName, weightKg, Number(qty));
   await writeLog(brandName, weightKg, "hasGas", oldHas, newHas, "refill", note);
   appendStockLog({ brandName, weightKg, field: "hasGas", oldValue: oldHas, newValue: newHas, delta: Number(qty), action: "refill", note }).catch(() => {});
   syncStockToSheet().catch(() => {});
@@ -96,9 +130,8 @@ async function deleteRefill(req, res) {
     if (stock) {
       const oldHas = Number(stock.hasGas);
       const newHas = Math.max(0, oldHas - Number(refill.qty));
-      const oldEmpty = Number(stock.emptyTank || 0);
-      const newEmpty = oldEmpty + Number(refill.qty); // คืนถังเปล่ากลับ
-      await stock.update({ hasGas: newHas, emptyTank: newEmpty });
+      await stock.update({ hasGas: newHas });
+      await restoreEmptyTank(refill.brandName, refill.weightKg, Number(refill.qty));
       await writeLog(refill.brandName, refill.weightKg, "hasGas", oldHas, newHas, "refill-delete", `ลบรายการเติม ${refill.qty} ถัง`);
     }
     await refill.destroy();
