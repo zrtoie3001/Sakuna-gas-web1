@@ -2,11 +2,22 @@ const { GasStock, GasStockLog, GasRefill, Equipment, EquipmentSale } = require("
 const { Op } = require("sequelize");
 
 const SHARED_BRANDS = ["สยาม", "ยูนิค"];
+const SHARED_GROUP_NAME = "ยูนิค/สยาม";
+const SHARED_PRIMARY = "ยูนิค"; // brand ที่เก็บสต็อกหลักเมื่อเติมแบบ shared
+
+function resolveSharedBrand(brandName) {
+  // "ยูนิค/สยาม" → ยูนิค (primary), "สยาม" หรือ "ยูนิค" → ตัวเอง
+  if (brandName === SHARED_GROUP_NAME) return SHARED_PRIMARY;
+  return brandName;
+}
+function isSharedBrand(brandName) {
+  return SHARED_BRANDS.includes(brandName) || brandName === SHARED_GROUP_NAME;
+}
 
 // หักถังเปล่าจาก shared pool (ยูนิค+สยาม) หรือยี่ห้อเดี่ยว
 async function deductEmptyTank(brandName, weightKg, qty) {
   const wkg = Number(weightKg);
-  if (SHARED_BRANDS.includes(brandName)) {
+  if (isSharedBrand(brandName)) {
     const stocks = await GasStock.findAll({ where: { brandName: { [Op.in]: SHARED_BRANDS }, weightKg: wkg }, order: [["emptyTank", "DESC"]] });
     let remaining = qty;
     for (const s of stocks) {
@@ -22,17 +33,12 @@ async function deductEmptyTank(brandName, weightKg, qty) {
   }
 }
 
-// คืนถังเปล่าให้ shared pool เมื่อลบรายการเติม
+// คืนถังเปล่าให้ primary brand เมื่อลบรายการเติม
 async function restoreEmptyTank(brandName, weightKg, qty) {
   const wkg = Number(weightKg);
-  if (SHARED_BRANDS.includes(brandName)) {
-    // คืนให้ยี่ห้อที่บันทึกเติม (ไม่ต้องกระจาย)
-    const stock = await GasStock.findOne({ where: { brandName, weightKg: wkg } });
-    if (stock) await stock.update({ emptyTank: Number(stock.emptyTank || 0) + qty });
-  } else {
-    const stock = await GasStock.findOne({ where: { brandName, weightKg: wkg } });
-    if (stock) await stock.update({ emptyTank: Number(stock.emptyTank || 0) + qty });
-  }
+  const target = resolveSharedBrand(brandName);
+  const stock = await GasStock.findOne({ where: { brandName: target, weightKg: wkg } });
+  if (stock) await stock.update({ emptyTank: Number(stock.emptyTank || 0) + qty });
 }
 const { syncStockToSheet, appendStockLog } = require("../services/sheetsService");
 
@@ -104,19 +110,21 @@ async function getRefills(_req, res) {
 }
 
 async function addRefill(req, res) {
-  const { brandName, weightKg, qty, note } = req.body;
+  const { weightKg, qty, note } = req.body;
+  const brandName = req.body.brandName; // อาจเป็น "ยูนิค/สยาม"
+  const resolvedBrand = resolveSharedBrand(brandName); // เก็บในสต็อก primary brand
   const costPerUnit = req.body.costPerUnit !== "" && req.body.costPerUnit != null ? Number(req.body.costPerUnit) : null;
   const totalCost = (costPerUnit || 0) * Number(qty);
-  const refill = await GasRefill.create({ brandName, weightKg, qty, costPerUnit, totalCost, note });
+  const refill = await GasRefill.create({ brandName: resolvedBrand, weightKg, qty, costPerUnit, totalCost, note });
 
-  let stock = await GasStock.findOne({ where: { brandName, weightKg } });
-  if (!stock) stock = await GasStock.create({ brandName, weightKg });
+  let stock = await GasStock.findOne({ where: { brandName: resolvedBrand, weightKg } });
+  if (!stock) stock = await GasStock.create({ brandName: resolvedBrand, weightKg });
   const oldHas = Number(stock.hasGas);
   const newHas = oldHas + Number(qty);
   await stock.update({ hasGas: newHas });
-  await deductEmptyTank(brandName, weightKg, Number(qty));
-  await writeLog(brandName, weightKg, "hasGas", oldHas, newHas, "refill", note);
-  appendStockLog({ brandName, weightKg, field: "hasGas", oldValue: oldHas, newValue: newHas, delta: Number(qty), action: "refill", note }).catch(() => {});
+  await deductEmptyTank(resolvedBrand, weightKg, Number(qty));
+  await writeLog(resolvedBrand, weightKg, "hasGas", oldHas, newHas, "refill", note);
+  appendStockLog({ brandName: resolvedBrand, weightKg, field: "hasGas", oldValue: oldHas, newValue: newHas, delta: Number(qty), action: "refill", note }).catch(() => {});
   syncStockToSheet().catch(() => {});
   res.status(201).json(refill);
 }

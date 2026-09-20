@@ -32,7 +32,7 @@ export default function Stock() {
   // modals
   const [editCell, setEditCell] = useState(null); // { brandName, weightKg, row }
   const [showRefill, setShowRefill] = useState(false);
-  const [refillForm, setRefillForm] = useState({ brandName: BRANDS[0], weightKg: 15, qty: 1, costPerUnit: "", note: "" });
+  const [refillForm, setRefillForm] = useState({ brandName: BRAND_GROUPS[0], weightKg: 15, qty: 1, costPerUnit: "", note: "" });
   const [equipCategory, setEquipCategory] = useState("equipment"); // equipment | stove
   const [equipSearch, setEquipSearch] = useState("");
   const [showEquipForm, setShowEquipForm] = useState(false);
@@ -83,7 +83,7 @@ export default function Stock() {
   async function submitRefill() {
     await api.post("/api/v1/stock/refills", refillForm);
     setShowRefill(false);
-    setRefillForm({ brandName: BRANDS[0], weightKg: 15, qty: 1, costPerUnit: "", note: "" });
+    setRefillForm({ brandName: BRAND_GROUPS[0], weightKg: 15, qty: 1, costPerUnit: "", note: "" });
     fetchStock(); fetchRefills();
   }
 
@@ -428,7 +428,7 @@ export default function Stock() {
                 <label style={{ fontSize: 13, color: GRAY, display: "block", marginBottom: 4 }}>{label}</label>
                 {key === "brandName" ? (
                   <select value={refillForm.brandName} onChange={e => setRefillForm(f => ({ ...f, brandName: e.target.value }))} style={inp}>
-                    {BRANDS.map(b => <option key={b}>{b}</option>)}
+                    {BRAND_GROUPS.map(b => <option key={b}>{b}</option>)}
                   </select>
                 ) : key === "weightKg" ? (
                   <select value={refillForm.weightKg} onChange={e => setRefillForm(f => ({ ...f, weightKg: Number(e.target.value) }))} style={inp}>
