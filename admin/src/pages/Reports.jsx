@@ -123,8 +123,8 @@ export default function Reports() {
           {topProducts.map((p, i) => (
             <div key={i} style={{ display: "flex", alignItems: "center", gap: 12, padding: "8px 0", borderBottom: "1px solid #F3F4F6" }}>
               <span style={{ width: 24, height: 24, borderRadius: "50%", background: [ORANGE, NAVY, "#6366F1", "#10B981", "#F59E0B"][i], color: WHITE, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 900, flexShrink: 0 }}>{i+1}</span>
-              <span style={{ flex: 1, fontSize: 13, fontWeight: 700, color: NAVY }}>{p.product?.name}</span>
-              <span style={{ fontSize: 13, color: GRAY }}>{p.count} ออเดอร์</span>
+              <span style={{ flex: 1, fontSize: 13, fontWeight: 700, color: NAVY }}>{p.name || p.product?.name}</span>
+              <span style={{ fontSize: 13, color: GRAY }}>{p.qty ?? p.count} ถัง</span>
               <span style={{ fontSize: 13, fontWeight: 700, color: ORANGE }}>฿{Number(p.revenue).toLocaleString()}</span>
             </div>
           ))}
