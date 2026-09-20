@@ -45,7 +45,7 @@ export default function Customers() {
     setEditing(false);
     const params = new URLSearchParams();
     if (c.lastAddress) params.set("address", c.lastAddress);
-    else if (c.phone) params.set("phone", c.phone);
+    if (c.phone) params.set("phone", c.phone);
     else if (c.name) params.set("name", c.name);
     const r = await api.get(`/api/v1/customers/orders-by-contact?${params}`);
     setOrders(r.data.orders || []);

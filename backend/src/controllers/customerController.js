@@ -50,12 +50,15 @@ async function listCustomers(req, res) {
       : "";
     if (search) replacements.q = `%${search}%`;
 
-    // Group by address only — one address = one customer row (take max phone if available)
+    // Group by (address, phone) — same address but different phone = different customer
+    // If no phone, fall back to grouping by (address, name) so different people at same address are separated
     const addrKey = `LOWER(REGEXP_REPLACE(TRIM(delivery_address), '\\s+', ' ', 'g'))`;
+    const phoneKey = `LOWER(TRIM(COALESCE(NULLIF(TRIM(customer_phone),''), NULLIF(NULLIF(TRIM(customer_name),''),'ลูกค้าหน้าร้าน'), '')))`;
+    const groupKey = `${addrKey} || '|' || ${phoneKey}`;
 
     const rows = await seq.query(
       `SELECT
-         ${addrKey} AS id,
+         ${groupKey} AS id,
          MAX(TRIM(delivery_address)) AS "lastAddress",
          MAX(NULLIF(NULLIF(TRIM(customer_name),''),'ลูกค้าหน้าร้าน')) AS name,
          MAX(NULLIF(TRIM(customer_phone),'')) AS phone,
@@ -65,7 +68,7 @@ async function listCustomers(req, res) {
        WHERE status != 'cancelled'
          AND NULLIF(TRIM(delivery_address),'') IS NOT NULL
          ${searchSqlAddr}
-       GROUP BY ${addrKey}
+       GROUP BY ${groupKey}
        ORDER BY MAX(created_at) DESC
        LIMIT :limit OFFSET :offset`,
       { replacements, type: QueryTypes.SELECT }
@@ -73,12 +76,12 @@ async function listCustomers(req, res) {
 
     const [countRow] = await seq.query(
       `SELECT COUNT(*) AS total FROM (
-         SELECT ${addrKey}
+         SELECT ${groupKey}
          FROM orders
          WHERE status != 'cancelled'
            AND NULLIF(TRIM(delivery_address),'') IS NOT NULL
            ${searchSqlAddr}
-         GROUP BY ${addrKey}
+         GROUP BY ${groupKey}
        ) sub`,
       { replacements: search ? { q: `%${search}%` } : {}, type: QueryTypes.SELECT }
     );
@@ -99,19 +102,30 @@ async function listCustomers(req, res) {
   } catch (e) { res.status(500).json({ error: e.message }); }
 }
 
-// Admin: orders for a customer looked up by phone, name, or address (from orders table)
+// Admin: orders for a customer looked up by address + phone/name combination
 async function getCustomerOrdersByPhone(req, res) {
   try {
     const { phone, name, address } = req.query;
     if (!phone && !name && !address) return res.json({ customer: null, orders: [] });
     const { Op } = require("sequelize");
-    const where = phone
-      ? { customerPhone: phone }
-      : address
-        ? { deliveryAddress: { [Op.iLike]: `%${address}%` } }
-        : { customerName: { [Op.iLike]: name } };
+    const where = { status: { [Op.ne]: "cancelled" } };
+
+    if (address) {
+      // Match address (primary key) + phone or name to distinguish same-address customers
+      where.deliveryAddress = { [Op.iLike]: address };
+      if (phone) {
+        where.customerPhone = phone;
+      } else if (name) {
+        where.customerName = { [Op.iLike]: name };
+      }
+    } else if (phone) {
+      where.customerPhone = phone;
+    } else {
+      where.customerName = { [Op.iLike]: name };
+    }
+
     const orders = await Order.findAll({
-      where: { ...where, status: { [Op.ne]: "cancelled" } },
+      where,
       include: [{ model: Brand, as: "brand" }, { model: Product, as: "product" }],
       order: [["createdAt", "DESC"]],
       limit: 200,
