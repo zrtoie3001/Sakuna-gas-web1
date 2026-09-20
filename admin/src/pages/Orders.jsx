@@ -1126,8 +1126,9 @@ ${noteText ? `<div style="margin-top:8px; padding:6px 8px; border:1.5px dashed #
                                 <div style={{ fontSize: 10, color: GRAY, fontWeight: 700, marginBottom: 3 }}>น้ำหนัก (กก.)</div>
                                 <select value={it.weightKg || ""} onChange={e => {
                                   const w = e.target.value;
-                                  const stock = findStockByBrand(gasStocks, it.brandName, w);
-                                  const autoPrice = stock?.unitPrice || stock?.price || "";
+                                  const matchBrand = brands.find(b => b.name.toLowerCase() === (it.brandName || "").toLowerCase());
+                                  const prod = products.find(p => p.brandId === matchBrand?.id && Number(p.kg) === Number(w));
+                                  const autoPrice = prod?.homePrice ? Number(prod.homePrice) : "";
                                   setEditItems(arr => arr.map((x, i) => i === idx ? { ...x, weightKg: w, ...(autoPrice ? { price: autoPrice, unitPrice: autoPrice } : {}) } : x));
                                 }}
                                   style={{ width: "100%", padding: "7px 10px", borderRadius: 7, border: "1.5px solid #E5E7EB", fontSize: 13, boxSizing: "border-box" }}>
