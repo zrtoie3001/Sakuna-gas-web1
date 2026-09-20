@@ -216,7 +216,11 @@ export default function Orders() {
       if (k === historyKey) return;
       if (!phone && !name && !address) { setCustHistory([]); setHistoryKey(""); setHiddenHistKeys(new Set()); return; }
       setHistoryKey(k);
-      setHiddenHistKeys(new Set());
+      // Load permanently hidden items for this customer from localStorage
+      try {
+        const stored = JSON.parse(localStorage.getItem(`hiddenHist:${k}`) || "[]");
+        setHiddenHistKeys(new Set(stored));
+      } catch { setHiddenHistKeys(new Set()); }
       const params = new URLSearchParams();
       if (phone) params.set("phone", phone);
       else if (address) params.set("address", address);
@@ -1612,7 +1616,11 @@ ${noteText ? `<div style="margin-top:8px; padding:6px 8px; border:1.5px dashed #
                         <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
                           <button onClick={() => setHistoryQtyPicker({ h, label, hk })}
                             style={{ padding: "5px 12px", borderRadius: 7, border: "none", background: NAVY, color: WHITE, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>+ เพิ่ม</button>
-                          <button onClick={() => setHiddenHistKeys(s => new Set([...s, hk]))}
+                          <button onClick={() => {
+                            const next = new Set([...hiddenHistKeys, hk]);
+                            setHiddenHistKeys(next);
+                            try { localStorage.setItem(`hiddenHist:${historyKey}`, JSON.stringify([...next])); } catch {}
+                          }}
                             style={{ padding: "5px 8px", borderRadius: 7, border: "1.5px solid #E5E7EB", background: WHITE, color: GRAY, fontSize: 13, fontWeight: 700, cursor: "pointer", lineHeight: 1 }}>×</button>
                         </div>
                       </div>
