@@ -99,7 +99,7 @@ export default function Customers() {
         <input value={search} onChange={e => setSearch(e.target.value)} placeholder="🔍 ค้นหาชื่อ เบอร์ หรือที่อยู่"
           style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: "2px solid #E5E7EB", fontSize: 14, marginBottom: 12, boxSizing: "border-box" }} />
 
-        <div style={{ background: WHITE, borderRadius: 14, overflow: "hidden", boxShadow: "0 2px 12px rgba(0,0,0,.06)", flex: 1 }}>
+        <div style={{ background: WHITE, borderRadius: 14, overflowY: "auto", boxShadow: "0 2px 12px rgba(0,0,0,.06)", flex: 1 }}>
           {customers.map(c => (
             <div key={c.id} onClick={() => selectCustomer(c)} style={{
               padding: "12px 16px", borderBottom: "1px solid #F3F4F6", cursor: "pointer",
