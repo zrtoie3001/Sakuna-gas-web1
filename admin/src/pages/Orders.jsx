@@ -1098,7 +1098,20 @@ ${noteText ? `<div style="margin-top:8px; padding:6px 8px; border:1.5px dashed #
                         const allBrands = [...new Set([...brands.map(b => b.name), ...gasStocks.map(s => s.brandName)])].sort();
                         const allWeights = [...new Set([...ALL_WEIGHTS, ...gasStocks.filter(s => !it.brandName || s.brandName === it.brandName || (SHARED_BRANDS.includes(it.brandName) && SHARED_BRANDS.includes(s.brandName))).map(s => Number(s.weightKg))])].sort((a,b)=>a-b);
                         return (
+                          <>{it.type === "equipment" && (
+                            <div style={{ marginBottom: 8 }}>
+                              <div style={{ fontSize: 10, color: GRAY, fontWeight: 700, marginBottom: 3 }}>อุปกรณ์</div>
+                              <select value={it.equipId || ""} onChange={e => {
+                                const eq = equipList.find(x => x.id === e.target.value);
+                                setEditItems(arr => arr.map((x, i) => i === idx ? { ...x, equipId: e.target.value, name: eq?.name || x.name, price: eq?.price || x.price } : x));
+                              }} style={{ width: "100%", padding: "7px 10px", borderRadius: 7, border: "1.5px solid #E5E7EB", fontSize: 13, boxSizing: "border-box" }}>
+                                <option value="">{it.name || "-- เลือกอุปกรณ์ --"}</option>
+                                {equipList.map(eq => <option key={eq.id} value={eq.id}>{eq.name} (฿{Number(eq.price).toLocaleString()})</option>)}
+                              </select>
+                            </div>
+                          )}
                           <div style={{ display: "flex", gap: 8 }}>
+                            {it.type !== "equipment" && (
                             <div style={{ flex: 1 }}>
                               <div style={{ fontSize: 10, color: GRAY, fontWeight: 700, marginBottom: 3 }}>ยี่ห้อ</div>
                               <select value={it.brandName || ""} onChange={e => setEditItems(arr => arr.map((x, i) => i === idx ? { ...x, brandName: e.target.value } : x))}
@@ -1107,6 +1120,7 @@ ${noteText ? `<div style="margin-top:8px; padding:6px 8px; border:1.5px dashed #
                                 {allBrands.map(b => <option key={b} value={b}>{b}</option>)}
                               </select>
                             </div>
+                            )}
                             {(it.type === "gas" || it.type === "new_tank") && (
                               <div style={{ flex: 1 }}>
                                 <div style={{ fontSize: 10, color: GRAY, fontWeight: 700, marginBottom: 3 }}>น้ำหนัก (กก.)</div>
@@ -1122,7 +1136,7 @@ ${noteText ? `<div style="margin-top:8px; padding:6px 8px; border:1.5px dashed #
                                 </select>
                               </div>
                             )}
-                          </div>
+                          </div></>
                         );
                       })()}
                       <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
