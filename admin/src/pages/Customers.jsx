@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../utils/api.js";
 
@@ -12,6 +12,29 @@ function displayName(c) {
   return "ไม่ระบุ";
 }
 
+function parseOrderLabel(o) {
+  const n = o.note || "";
+  if (n.match(/^__(?:phone_)?walkin:/)) {
+    try {
+      const w = JSON.parse(n.replace(/^__(?:phone_)?walkin:/, "").split("\n")[0]);
+      if (w.type === "mixed") {
+        return (w.items || []).map(i => `${i.brandName || ""} ${i.weightKg || ""}kg ×${i.qty || 1}`).join(", ");
+      }
+      if (w.type === "new_tank") return `ถังใหม่ ${w.brandName || ""} ${w.weightKg || ""}kg ×${w.qty || 1}`;
+      if (w.type === "equipment") return w.itemName || "อุปกรณ์";
+      return `${w.brandName || ""} ${w.weightKg || ""}kg ×${w.qty || 1}`;
+    } catch { return "-"; }
+  }
+  if (o.product) return `${o.product.name || ""} ×${o.qty || 1}`;
+  return `×${o.qty || 1}`;
+}
+
+function fmtDatetime(iso) {
+  const d = new Date(iso);
+  return d.toLocaleDateString("th-TH", { day: "2-digit", month: "short", year: "2-digit" })
+    + " " + d.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
+}
+
 export default function Customers() {
   const navigate = useNavigate();
   const [customers, setCustomers] = useState([]);
@@ -20,15 +43,15 @@ export default function Customers() {
   const [selected, setSelected]   = useState(null);
   const [orders, setOrders]       = useState([]);
   const [total, setTotal]         = useState(0);
-  const [editing, setEditing]     = useState(false);
-  const [editForm, setEditForm]   = useState({ name: "", phone: "", address: "" });
   const [saving, setSaving]       = useState(false);
+  const [editForm, setEditForm]   = useState({ name: "", phone: "", address: "" });
+  const [customerNote, setCustomerNote] = useState("");
+  const [noteSaving, setNoteSaving]     = useState(false);
+  const noteTimer = useRef(null);
 
   const totalPages = Math.ceil(total / PAGE_SIZE);
 
-  useEffect(() => {
-    setPage(1);
-  }, [search]);
+  useEffect(() => { setPage(1); }, [search]);
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -42,37 +65,45 @@ export default function Customers() {
 
   async function selectCustomer(c) {
     setSelected(c);
-    setEditing(false);
+    setEditForm({ name: c.name || "", phone: c.phone || "", address: c.lastAddress || "" });
+    setCustomerNote("");
     const params = new URLSearchParams();
     if (c.lastAddress) params.set("address", c.lastAddress);
     if (c.phone) params.set("phone", c.phone);
     else if (c.name) params.set("name", c.name);
-    const r = await api.get(`/api/v1/customers/orders-by-contact?${params}`);
-    setOrders(r.data.orders || []);
+    const [ordersRes, noteRes] = await Promise.all([
+      api.get(`/api/v1/customers/orders-by-contact?${params}`).catch(() => ({ data: { orders: [] } })),
+      api.get(`/api/v1/customers/note?address=${encodeURIComponent(c.lastAddress || "")}&phone=${encodeURIComponent(c.phone || "")}`).catch(() => ({ data: { note: "" } })),
+    ]);
+    setOrders(ordersRes.data.orders || []);
+    setCustomerNote(noteRes.data.note || "");
   }
 
-  function startEdit() {
-    setEditForm({ name: selected.name || "", phone: selected.phone || "", address: selected.lastAddress || "" });
-    setEditing(true);
-  }
-
-  async function saveEdit() {
+  async function saveField(field, value) {
+    if (!selected) return;
     setSaving(true);
     try {
-      await api.patch("/api/v1/customers/update-contact", {
-        oldAddress: selected.lastAddress || "",
-        oldPhone:   selected.phone || "",
-        newName:    editForm.name || null,
-        newPhone:   editForm.phone || null,
-        newAddress: editForm.address || null,
-      });
-      const updated = { ...selected, name: editForm.name || null, phone: editForm.phone || null, lastAddress: editForm.address || selected.lastAddress };
+      const updates = { oldAddress: selected.lastAddress || "", oldPhone: selected.phone || "" };
+      if (field === "name") updates.newName = value;
+      if (field === "phone") updates.newPhone = value;
+      if (field === "address") updates.newAddress = value;
+      await api.patch("/api/v1/customers/update-contact", updates);
+      const updated = { ...selected, name: field === "name" ? value : selected.name, phone: field === "phone" ? value : selected.phone, lastAddress: field === "address" ? value : selected.lastAddress };
       setSelected(updated);
       setCustomers(prev => prev.map(c => c.id === selected.id ? updated : c));
-      setEditing(false);
     } catch (e) {
       alert(e.response?.data?.error || "เกิดข้อผิดพลาด");
     } finally { setSaving(false); }
+  }
+
+  function onNoteChange(val) {
+    setCustomerNote(val);
+    clearTimeout(noteTimer.current);
+    noteTimer.current = setTimeout(async () => {
+      setNoteSaving(true);
+      await api.put("/api/v1/customers/note", { address: selected?.lastAddress || "", phone: selected?.phone || "", note: val }).catch(() => {});
+      setNoteSaving(false);
+    }, 800);
   }
 
   async function deleteCustomer() {
@@ -124,13 +155,13 @@ export default function Customers() {
         {/* Pagination */}
         {totalPages > 1 && (
           <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "12px 0" }}>
-            <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
-              style={{ padding: "6px 14px", borderRadius: 8, border: "1.5px solid #E5E7EB", background: page === 1 ? "#F3F4F6" : WHITE, color: page === 1 ? GRAY : NAVY, fontWeight: 700, fontSize: 13, cursor: page === 1 ? "default" : "pointer" }}>
+            <button disabled={page <= 1} onClick={() => setPage(p => p - 1)}
+              style={{ padding: "6px 14px", borderRadius: 8, border: "1.5px solid #E5E7EB", background: page <= 1 ? "#F9FAFB" : WHITE, color: page <= 1 ? GRAY : NAVY, cursor: page <= 1 ? "default" : "pointer", fontWeight: 700 }}>
               ← ก่อน
             </button>
             <span style={{ fontSize: 13, color: GRAY }}>หน้า {page} / {totalPages}</span>
-            <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}
-              style={{ padding: "6px 14px", borderRadius: 8, border: "1.5px solid #E5E7EB", background: page === totalPages ? "#F3F4F6" : WHITE, color: page === totalPages ? GRAY : NAVY, fontWeight: 700, fontSize: 13, cursor: page === totalPages ? "default" : "pointer" }}>
+            <button disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}
+              style={{ padding: "6px 14px", borderRadius: 8, border: "1.5px solid #E5E7EB", background: page >= totalPages ? "#F9FAFB" : WHITE, color: page >= totalPages ? GRAY : NAVY, cursor: page >= totalPages ? "default" : "pointer", fontWeight: 700 }}>
               ถัดไป →
             </button>
           </div>
@@ -139,64 +170,72 @@ export default function Customers() {
 
       {/* Right: detail panel */}
       {selected && (
-        <div style={{ flex: "0 0 320px", background: WHITE, borderRadius: 14, padding: 20, boxShadow: "0 2px 12px rgba(0,0,0,.06)", overflowY: "auto" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+        <div style={{ flex: "0 0 340px", background: WHITE, borderRadius: 14, padding: 20, boxShadow: "0 2px 12px rgba(0,0,0,.06)", overflowY: "auto" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}>
             <h2 style={{ fontSize: 16, fontWeight: 900, color: NAVY }}>{displayName(selected)}</h2>
-            <button onClick={() => { setSelected(null); setEditing(false); }} style={{ background: "none", border: "none", fontSize: 20, color: GRAY }}>✕</button>
+            <button onClick={() => setSelected(null)} style={{ background: "none", border: "none", fontSize: 20, color: GRAY }}>✕</button>
           </div>
 
-          {!editing ? (
-            <>
-              {selected.phone && <p style={{ fontSize: 13, color: GRAY, marginBottom: 4 }}>📞 {selected.phone}</p>}
-              {selected.name && selected.name !== "ลูกค้าหน้าร้าน" && <p style={{ fontSize: 13, color: GRAY, marginBottom: 4 }}>👤 {selected.name}</p>}
-              <p style={{ fontSize: 13, color: GRAY, marginBottom: 8 }}>สั่งทั้งหมด {selected.totalOrders} ครั้ง</p>
+          <p style={{ fontSize: 12, color: GRAY, marginBottom: 10 }}>สั่งทั้งหมด <b>{selected.totalOrders}</b> ครั้ง {saving && <span style={{ color: ORANGE }}>· กำลังบันทึก...</span>}</p>
 
-              {selected.lastAddress && (
-                <div style={{ marginBottom: 10 }}>
-                  <p style={{ fontSize: 12, fontWeight: 700, color: NAVY, marginBottom: 4 }}>ที่อยู่ล่าสุด</p>
-                  <div style={{ padding: "8px 10px", background: "#F8FAFC", borderRadius: 8, fontSize: 12, color: GRAY }}>
-                    📍 {selected.lastAddress}
-                  </div>
-                </div>
-              )}
-
-              <button onClick={startEdit} style={{ width: "100%", padding: "8px", borderRadius: 8, border: `1.5px solid ${NAVY}`, background: WHITE, color: NAVY, fontWeight: 700, fontSize: 13, cursor: "pointer", marginBottom: 8 }}>
-                ✏️ แก้ไขข้อมูลลูกค้า
-              </button>
-              <button onClick={deleteCustomer} style={{ width: "100%", padding: "8px", borderRadius: 8, border: "1.5px solid #FCA5A5", background: "#FFF5F5", color: "#DC2626", fontWeight: 700, fontSize: 13, cursor: "pointer", marginBottom: 14 }}>
-                🗑️ ลบออกจากรายการ
-              </button>
-            </>
-          ) : (
-            <div style={{ marginBottom: 14 }}>
-              {[["👤 ชื่อ", "name", "text"], ["📞 เบอร์โทร", "phone", "tel"], ["📍 ที่อยู่", "address", "text"]].map(([label, field, type]) => (
-                <div key={field} style={{ marginBottom: 10 }}>
-                  <label style={{ fontSize: 11, fontWeight: 700, color: NAVY, display: "block", marginBottom: 3 }}>{label}</label>
-                  <input type={type} value={editForm[field]} onChange={e => setEditForm(f => ({ ...f, [field]: e.target.value }))}
-                    style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 13, boxSizing: "border-box" }} />
-                </div>
-              ))}
-              <div style={{ display: "flex", gap: 8 }}>
-                <button onClick={saveEdit} disabled={saving} style={{ flex: 1, padding: "8px", borderRadius: 8, border: "none", background: NAVY, color: WHITE, fontWeight: 800, fontSize: 13, cursor: "pointer" }}>
-                  {saving ? "กำลังบันทึก..." : "บันทึก"}
-                </button>
-                <button onClick={() => setEditing(false)} style={{ flex: 1, padding: "8px", borderRadius: 8, border: "1.5px solid #E5E7EB", background: WHITE, color: GRAY, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
-                  ยกเลิก
-                </button>
-              </div>
+          {/* Inline edit fields */}
+          {[
+            { label: "👤 ชื่อ", field: "name", type: "text", placeholder: "ชื่อลูกค้า" },
+            { label: "📞 เบอร์โทร", field: "phone", type: "tel", placeholder: "เบอร์โทรศัพท์" },
+            { label: "📍 ที่อยู่", field: "address", type: "text", placeholder: "ที่อยู่จัดส่ง" },
+          ].map(({ label, field, type, placeholder }) => (
+            <div key={field} style={{ marginBottom: 10 }}>
+              <label style={{ fontSize: 11, fontWeight: 700, color: NAVY, display: "block", marginBottom: 3 }}>{label}</label>
+              <input
+                type={type}
+                value={editForm[field]}
+                onChange={e => setEditForm(f => ({ ...f, [field]: e.target.value }))}
+                onBlur={e => { if (e.target.value !== (field === "address" ? selected.lastAddress : selected[field]) || "") saveField(field, e.target.value); }}
+                placeholder={placeholder}
+                style={{ width: "100%", padding: "7px 10px", borderRadius: 8, border: "1.5px solid #E5E7EB", fontSize: 13, boxSizing: "border-box", background: "#FAFAFA" }}
+              />
             </div>
-          )}
+          ))}
 
+          {/* Customer note */}
+          <div style={{ marginBottom: 14 }}>
+            <label style={{ fontSize: 11, fontWeight: 700, color: NAVY, display: "block", marginBottom: 3 }}>
+              📝 โน้ตลูกค้า {noteSaving && <span style={{ color: ORANGE, fontWeight: 400 }}>กำลังบันทึก...</span>}
+            </label>
+            <textarea
+              value={customerNote}
+              onChange={e => onNoteChange(e.target.value)}
+              placeholder="เช่น บ้านชั้น 2, ระวังสุนัข, รับเฉพาะช่วงเช้า..."
+              rows={3}
+              style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: "1.5px solid #E5E7EB", fontSize: 12, boxSizing: "border-box", resize: "vertical", background: customerNote ? "#FFFBEB" : "#FAFAFA" }}
+            />
+          </div>
+
+          <button onClick={deleteCustomer} style={{ width: "100%", padding: "8px", borderRadius: 8, border: "1.5px solid #FCA5A5", background: "#FFF5F5", color: "#DC2626", fontWeight: 700, fontSize: 13, cursor: "pointer", marginBottom: 16 }}>
+            🗑️ ลบออกจากรายการ
+          </button>
+
+          {/* Order history */}
           <p style={{ fontSize: 12, fontWeight: 700, color: NAVY, marginBottom: 6 }}>ประวัติออเดอร์</p>
           {orders.map(o => (
-            <div key={o.id} onClick={() => navigate(`/orders?q=${o.orderNumber}`)} style={{ padding: "8px 10px", borderRadius: 8, border: "1px solid #E5E7EB", marginBottom: 6, fontSize: 12, cursor: "pointer" }}
+            <div key={o.id} onClick={() => navigate(`/orders?q=${o.orderNumber}`)}
+              style={{ padding: "8px 10px", borderRadius: 8, border: "1px solid #E5E7EB", marginBottom: 6, fontSize: 12, cursor: "pointer" }}
               onMouseEnter={e => e.currentTarget.style.background = "#F0F9FF"}
               onMouseLeave={e => e.currentTarget.style.background = WHITE}>
-              <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 2 }}>
                 <span style={{ color: ORANGE, fontWeight: 700 }}>{o.orderNumber}</span>
-                <span style={{ color: GRAY }}>{new Date(o.createdAt).toLocaleDateString("th-TH")}</span>
+                <span style={{ color: GRAY, fontSize: 11 }}>{fmtDatetime(o.createdAt)}</span>
               </div>
-              <p style={{ color: NAVY, marginTop: 2 }}>{o.product?.name} × {o.qty} · ฿{Number(o.total).toLocaleString()}</p>
+              <p style={{ color: NAVY, marginBottom: 1 }}>{parseOrderLabel(o)}</p>
+              <div style={{ display: "flex", justifyContent: "space-between", color: GRAY }}>
+                <span>฿{Number(o.total).toLocaleString()}</span>
+                <span style={{ fontSize: 10, background: o.isPaid ? "#D1FAE5" : "#FEF3C7", color: o.isPaid ? "#065F46" : "#92400E", padding: "1px 5px", borderRadius: 4 }}>
+                  {o.isPaid ? "ชำระแล้ว" : "ค้างชำระ"}
+                </span>
+              </div>
+              {o.note && !o.note.match(/^__/) && (
+                <p style={{ color: GRAY, fontSize: 10, marginTop: 2, fontStyle: "italic" }}>📝 {o.note}</p>
+              )}
             </div>
           ))}
           {!orders.length && <p style={{ color: GRAY, fontSize: 12 }}>ยังไม่มีประวัติ</p>}

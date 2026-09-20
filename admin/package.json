@@ -7,7 +7,10 @@
     "preview": "vite preview --port 5174"
   },
   "dependencies": {
+    "@nuintun/qrcode": "^5.0.3",
+    "@zxing/library": "^0.23.0",
     "axios": "^1.6.7",
+    "jimp": "^1.6.1",
     "qrcode": "^1.5.4",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",

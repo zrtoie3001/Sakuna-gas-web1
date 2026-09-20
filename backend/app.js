@@ -152,6 +152,17 @@ const PORT = process.env.PORT || 3001;
       );
     `).catch(() => {});
     await sequelize.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS scheduled_date DATE;`).catch(() => {});
+    await sequelize.query(`
+      CREATE TABLE IF NOT EXISTS customer_notes (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        address_key TEXT NOT NULL,
+        phone TEXT NOT NULL DEFAULT '',
+        note TEXT NOT NULL DEFAULT '',
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW(),
+        UNIQUE(address_key, phone)
+      );
+    `).catch(() => {});
     await sequelize.query(`ALTER TABLE gas_stocks ADD COLUMN IF NOT EXISTS new_tank_price DECIMAL(10,2);`).catch(() => {});
     // Performance indexes — idempotent
     await sequelize.query(`CREATE INDEX IF NOT EXISTS idx_orders_created_at ON orders(created_at DESC);`).catch(() => {});

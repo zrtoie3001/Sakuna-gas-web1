@@ -13,6 +13,8 @@ router.get("/",        requireAuth, requireRole("admin"), ah(ctrl.listCustomers)
 router.get("/orders-by-contact", requireAuth, requireRole("admin"), ah(ctrl.getCustomerOrdersByPhone));
 router.patch("/update-contact", requireAuth, requireRole("admin"), ah(ctrl.updateCustomerContact));
 router.delete("/delete-customer", requireAuth, requireRole("admin"), ah(ctrl.deleteCustomer));
+router.get("/note", requireAuth, requireRole("admin"), ah(ctrl.getCustomerNote));
+router.put("/note", requireAuth, requireRole("admin"), ah(ctrl.upsertCustomerNote));
 router.get("/:id/orders", requireAuth, requireRole("admin"), ah(ctrl.getCustomerOrders));
 
 module.exports = router;

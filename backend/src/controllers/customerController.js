@@ -183,6 +183,38 @@ async function updateCustomerContact(req, res) {
   } catch (e) { res.status(500).json({ error: e.message }); }
 }
 
+async function getCustomerNote(req, res) {
+  try {
+    const { address, phone = "" } = req.query;
+    if (!address) return res.json({ note: "" });
+    const { sequelize: seq } = require("../config/database");
+    const { QueryTypes } = require("sequelize");
+    const addrKey = address.toLowerCase().replace(/\s+/g, " ").trim();
+    const [row] = await seq.query(
+      `SELECT note FROM customer_notes WHERE address_key = :addrKey AND phone = :phone LIMIT 1`,
+      { replacements: { addrKey, phone: phone || "" }, type: QueryTypes.SELECT }
+    );
+    res.json({ note: row?.note || "" });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+}
+
+async function upsertCustomerNote(req, res) {
+  try {
+    const { address, phone = "", note } = req.body;
+    if (!address) return res.status(400).json({ error: "address required" });
+    const { sequelize: seq } = require("../config/database");
+    const { QueryTypes } = require("sequelize");
+    const addrKey = address.toLowerCase().replace(/\s+/g, " ").trim();
+    await seq.query(
+      `INSERT INTO customer_notes (address_key, phone, note, updated_at)
+       VALUES (:addrKey, :phone, :note, NOW())
+       ON CONFLICT (address_key, phone) DO UPDATE SET note = :note, updated_at = NOW()`,
+      { replacements: { addrKey, phone: phone || "", note: note || "" }, type: QueryTypes.INSERT }
+    );
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+}
+
 async function getCustomerOrders(req, res) {
   const customer = await Customer.findByPk(req.params.id);
   if (!customer) return res.status(404).json({ error: "Not found" });
@@ -194,4 +226,4 @@ async function getCustomerOrders(req, res) {
   res.json({ customer, orders });
 }
 
-module.exports = { getOrCreateCustomer, addAddress, getAddresses, listCustomers, getCustomerOrders, getCustomerOrdersByPhone, updateCustomerContact, deleteCustomer };
+module.exports = { getOrCreateCustomer, addAddress, getAddresses, listCustomers, getCustomerOrders, getCustomerOrdersByPhone, updateCustomerContact, deleteCustomer, getCustomerNote, upsertCustomerNote };
