@@ -107,29 +107,59 @@ async function getCustomerOrdersByPhone(req, res) {
   try {
     const { phone, name, address } = req.query;
     if (!phone && !name && !address) return res.json({ customer: null, orders: [] });
-    const { Op } = require("sequelize");
-    const where = { status: { [Op.ne]: "cancelled" } };
+
+    const { sequelize: seq } = require("../config/database");
+    const { QueryTypes } = require("sequelize");
+
+    const addrNorm = `LOWER(REGEXP_REPLACE(TRIM(delivery_address), '\\s+', ' ', 'g'))`;
+    const phoneNorm = `LOWER(TRIM(COALESCE(NULLIF(TRIM(customer_phone),''), NULLIF(NULLIF(TRIM(customer_name),''),'ลูกค้าหน้าร้าน'), '')))`;
+
+    let whereClause = `status != 'cancelled'`;
+    const replacements = {};
 
     if (address) {
-      // Match address (primary key) + phone or name to distinguish same-address customers
-      where.deliveryAddress = { [Op.iLike]: address };
+      const addrKey = address.toLowerCase().replace(/\s+/g, ' ').trim();
+      whereClause += ` AND ${addrNorm} = :addrKey`;
+      replacements.addrKey = addrKey;
+
       if (phone) {
-        where.customerPhone = phone;
+        // Match phone OR orders where phone is empty (walkin orders stored phone in note)
+        const phoneKey = phone.toLowerCase().trim();
+        whereClause += ` AND (${phoneNorm} = :phoneKey OR COALESCE(NULLIF(TRIM(customer_phone),''),'') = '')`;
+        replacements.phoneKey = phoneKey;
       } else if (name) {
-        where.customerName = { [Op.iLike]: name };
+        const nameKey = name.toLowerCase().replace(/\s+/g, ' ').trim();
+        whereClause += ` AND ${phoneNorm} = :nameKey`;
+        replacements.nameKey = nameKey;
       }
     } else if (phone) {
-      where.customerPhone = phone;
+      whereClause += ` AND customer_phone = :phone`;
+      replacements.phone = phone;
     } else {
-      where.customerName = { [Op.iLike]: name };
+      whereClause += ` AND LOWER(customer_name) ILIKE :name`;
+      replacements.name = name;
     }
 
-    const orders = await Order.findAll({
-      where,
-      include: [{ model: Brand, as: "brand" }, { model: Product, as: "product" }],
-      order: [["createdAt", "DESC"]],
-      limit: 200,
-    });
+    const rows = await seq.query(
+      `SELECT o.*,
+        p.name AS "product_name", p.kg AS "product_kg",
+        b.name AS "brand_name"
+       FROM orders o
+       LEFT JOIN products p ON o.product_id = p.id
+       LEFT JOIN brands b ON o.brand_id = b.id
+       WHERE ${whereClause}
+       ORDER BY o.created_at DESC
+       LIMIT 200`,
+      { replacements, type: QueryTypes.SELECT }
+    );
+
+    // Shape into the format frontend expects
+    const orders = rows.map(r => ({
+      ...r,
+      product: r.product_name ? { name: r.product_name, kg: r.product_kg } : null,
+      brand: r.brand_name ? { name: r.brand_name } : null,
+    }));
+
     res.json({ orders });
   } catch (e) { res.status(500).json({ error: e.message }); }
 }
