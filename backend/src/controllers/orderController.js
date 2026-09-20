@@ -526,6 +526,16 @@ async function createWalkinOrder(req, res) {
 }
 
 // ── Admin: update order fields ────────────────────────────────────────────────
+function parseWalkinItems(note) {
+  if (!note) return [];
+  if (!note.startsWith("__walkin:") && !note.startsWith("__phone_walkin:")) return [];
+  try {
+    const w = JSON.parse(note.replace(/^__(?:phone_)?walkin:/, "").split("\n")[0]);
+    if (w.type === "mixed" && Array.isArray(w.items)) return w.items;
+    return [w];
+  } catch { return []; }
+}
+
 async function updateOrder(req, res) {
   try {
     const order = await Order.findByPk(req.params.id);
@@ -546,6 +556,57 @@ async function updateOrder(req, res) {
     else if (qty !== undefined && unitPrice !== undefined) {
       updates.subtotal = Number(qty) * Number(unitPrice);
       updates.total    = Number(qty) * Number(unitPrice);
+    }
+
+    // Reconcile equipment stock when note changes
+    if (note !== undefined && note !== order.note) {
+      try {
+        const { Equipment, EquipmentSale, GasStock } = require("../models");
+
+        const oldItems = parseWalkinItems(order.note);
+        const newItems = parseWalkinItems(note);
+
+        // Restore old equipment stock
+        for (const it of oldItems) {
+          if (it.type === "equipment" && it.equipId) {
+            const eq = await Equipment.findByPk(it.equipId);
+            if (eq) await eq.update({ qty: eq.qty + (Number(it.qty) || 1) });
+          }
+        }
+
+        // Restore old gas/new_tank stock
+        for (const it of oldItems) {
+          if (it.type === "gas") {
+            const stock = await GasStock.findOne({ where: { brandName: it.brandName, weightKg: Number(it.weightKg) } });
+            if (stock) await stock.update({ hasGas: stock.hasGas + (Number(it.qty) || 1) });
+          } else if (it.type === "new_tank") {
+            const stock = await GasStock.findOne({ where: { brandName: it.brandName, weightKg: Number(it.weightKg) } });
+            if (stock) await stock.update({ newTank: stock.newTank + (Number(it.qty) || 1) });
+          }
+        }
+
+        // Deduct new equipment stock
+        for (const it of newItems) {
+          if (it.type === "equipment" && it.equipId) {
+            const eq = await Equipment.findByPk(it.equipId);
+            if (!eq) return res.status(400).json({ error: `ไม่พบสินค้า: ${it.name}` });
+            if (eq.qty < (Number(it.qty) || 1)) return res.status(400).json({ error: `สต็อก ${it.name || eq.name} ไม่พอ` });
+            await eq.update({ qty: eq.qty - (Number(it.qty) || 1) });
+            await EquipmentSale.create({ equipmentId: eq.id, qty: Number(it.qty) || 1, salePrice: Number(it.price) || 0, note: `แก้ไขออเดอร์ ${order.orderNumber}` }).catch(() => {});
+          }
+        }
+
+        // Deduct new gas/new_tank stock
+        for (const it of newItems) {
+          if (it.type === "gas") {
+            const stock = await GasStock.findOne({ where: { brandName: it.brandName, weightKg: Number(it.weightKg) } });
+            if (stock) await stock.update({ hasGas: Math.max(0, stock.hasGas - (Number(it.qty) || 1)) });
+          } else if (it.type === "new_tank") {
+            const stock = await GasStock.findOne({ where: { brandName: it.brandName, weightKg: Number(it.weightKg) } });
+            if (stock) await stock.update({ newTank: Math.max(0, stock.newTank - (Number(it.qty) || 1)) });
+          }
+        }
+      } catch (e) { console.error("Stock reconcile error:", e.message); }
     }
 
     await order.update(updates);
