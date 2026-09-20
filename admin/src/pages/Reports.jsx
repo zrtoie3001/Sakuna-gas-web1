@@ -173,13 +173,18 @@ export default function Reports() {
         {/* Day summary — always visible */}
         {daySummary && (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 10, marginBottom: 16 }}>
-            {[
-              { label: "ออเดอร์", value: parseInt(daySummary.count || 0) + " ออเดอร์", color: ORANGE },
-              { label: "จำนวนถัง", value: parseInt(daySummary.gasTanks ?? daySummary.units ?? 0) + " ถัง", color: "#0EA5E9" },
-              { label: "ยอดขายรวม", value: "฿" + Number(daySummary.revenue || 0).toLocaleString(), color: "#10B981" },
-              { label: "ค่าใช้จ่าย", value: "฿" + dayTotalExpenses.toLocaleString(), color: "#EF4444" },
-              { label: "เงินสุทธิ", value: "฿" + dayNetRevenue.toLocaleString(), color: dayNetRevenue >= 0 ? "#059669" : "#EF4444" },
-            ].map(({ label, value, color }) => (
+            {(() => {
+              const cashRevenue = dayPayBreakdown.find(p => p.method === "cash")?.revenue || 0;
+              const cashRemaining = Number(cashRevenue) - Number(dayTotalExpenses);
+              return [
+                { label: "ออเดอร์", value: parseInt(daySummary.count || 0) + " ออเดอร์", color: ORANGE },
+                { label: "จำนวนถัง", value: parseInt(daySummary.gasTanks ?? daySummary.units ?? 0) + " ถัง", color: "#0EA5E9" },
+                { label: "ยอดขายรวม", value: "฿" + Number(daySummary.revenue || 0).toLocaleString(), color: "#10B981" },
+                { label: "ค่าใช้จ่าย", value: "฿" + dayTotalExpenses.toLocaleString(), color: "#EF4444" },
+                { label: "เงินสุทธิ", value: "฿" + dayNetRevenue.toLocaleString(), color: dayNetRevenue >= 0 ? "#059669" : "#EF4444" },
+                { label: "เงินสดคงเหลือ", value: "฿" + cashRemaining.toLocaleString(), color: cashRemaining >= 0 ? "#0369A1" : "#EF4444" },
+              ];
+            })().map(({ label, value, color }) => (
               <div key={label} style={{ background: "#F8FAFC", borderRadius: 10, padding: "12px 14px", borderLeft: `4px solid ${color}` }}>
                 <div style={{ fontSize: 11, color: GRAY, marginBottom: 4 }}>{label}</div>
                 <div style={{ fontSize: 16, fontWeight: 900, color }}>{value}</div>
