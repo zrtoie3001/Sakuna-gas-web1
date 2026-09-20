@@ -233,7 +233,7 @@ async function dashboardStats(req, res) {
           walkinNewTankList.push({ name: `ถังใหม่ ${i.brandName || ""} ${fmtKg(i.weightKg)}kg`.trim(), qty: Number(i.qty) || 1, price: Number(i.price || 0) });
           walkinTankCount += Number(i.qty) || 1;
         } else if (i.type === "equipment") {
-          walkinEquipList.push({ name: i.itemName || "อุปกรณ์", qty: Number(i.qty) || 1, price: Number(i.price || 0) });
+          walkinEquipList.push({ name: i.name || i.itemName || "อุปกรณ์", qty: Number(i.qty) || 1, price: Number(i.price || 0) });
         }
       }
     } catch {}
@@ -335,7 +335,7 @@ async function dashboardStats(req, res) {
           monthWalkinNewTankMap[key].qty += Number(i.qty) || 1;
           monthWalkinTankCount += Number(i.qty) || 1;
         } else if (i.type === "equipment") {
-          const key = i.itemName || "อุปกรณ์";
+          const key = i.name || i.itemName || "อุปกรณ์";
           if (!monthWalkinEquipMap[key]) monthWalkinEquipMap[key] = { name: key, qty: 0 };
           monthWalkinEquipMap[key].qty += Number(i.qty) || 1;
         }
