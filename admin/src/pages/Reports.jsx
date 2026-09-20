@@ -24,7 +24,8 @@ export default function Reports() {
   const [dayPayBreakdown, setDayPayBreakdown] = useState([]);
   const [driverStats, setDriverStats] = useState([]);
   const [driverDate, setDriverDate]   = useState(now.toISOString().split("T")[0]);
-  const [showUnpaid, setShowUnpaid]   = useState(false);
+  const [showUnpaid, setShowUnpaid]     = useState(false);
+  const [showOverdue, setShowOverdue]   = useState(false);
   const [payFilterMethod, setPayFilterMethod] = useState(null); // "cash"|"qr"|"cod"|null
   const ALL_COLS = ["เลขออเดอร์", "ลูกค้า", "ที่อยู่", "สินค้า", "จำนวน (ถัง)", "ยอดรวม", "สถานะ"];
   const [visibleCols, setVisibleCols] = useState(() => {
@@ -297,9 +298,26 @@ export default function Reports() {
         )}
 
         {dayOverdue.length > 0 && (
-          <div style={{ background: "#FFF1F2", borderRadius: 10, marginBottom: 14, border: "1.5px solid #FECDD3", padding: "10px 14px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span style={{ fontSize: 13, fontWeight: 800, color: "#9F1239" }}>🔴 ค้างจากวันก่อน {dayOverdue.length} รายการ — ไม่รวมในยอดวันนี้</span>
-            <span onClick={() => navigate("/orders?unpaid=1")} style={{ fontSize: 12, fontWeight: 700, color: "#BE123C", cursor: "pointer", textDecoration: "underline" }}>💸 ดูรายการ</span>
+          <div style={{ background: "#FFF1F2", borderRadius: 10, marginBottom: 14, border: "1.5px solid #FECDD3", overflow: "hidden" }}>
+            <div style={{ padding: "10px 14px", display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer" }} onClick={() => setShowOverdue(v => !v)}>
+              <span style={{ fontSize: 13, fontWeight: 800, color: "#9F1239" }}>🔴 ค้างจากวันก่อน {dayOverdue.length} รายการ — ไม่รวมในยอดวันนี้</span>
+              <div style={{ display: "flex", gap: 10 }}>
+                <span style={{ fontSize: 12, color: "#BE123C" }}>{showOverdue ? "▲ ซ่อน" : "▼ ดูรายการ"}</span>
+                <span onClick={e => { e.stopPropagation(); navigate("/orders?unpaid=1"); }} style={{ fontSize: 12, fontWeight: 700, color: "#BE123C", cursor: "pointer", textDecoration: "underline" }}>💸 ไปหน้าออเดอร์</span>
+              </div>
+            </div>
+            {showOverdue && (
+              <div style={{ borderTop: "1px solid #FECDD3", padding: "8px 14px 12px" }}>
+                {dayOverdue.map((o, i) => (
+                  <div key={i} style={{ fontSize: 12, color: "#9F1239", padding: "6px 0", borderBottom: i < dayOverdue.length - 1 ? "1px solid #FFE4E6" : "none", display: "flex", justifyContent: "space-between" }}>
+                    <span style={{ fontWeight: 700 }}>{o.orderNumber}</span>
+                    <span>{o.customerName}</span>
+                    <span style={{ color: GRAY, fontSize: 11 }}>{new Date(o.createdAt).toLocaleDateString("th-TH")}</span>
+                    <span style={{ fontWeight: 700 }}>฿{Number(o.total).toLocaleString()}</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
