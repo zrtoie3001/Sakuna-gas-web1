@@ -89,7 +89,41 @@ async function monthlyReport(req, res) {
     raw: false,
   });
 
-  res.json({ year, month, daily, topProducts });
+  // Walk-in store orders (note starts with __walkin: but NOT __phone_walkin:)
+  const { QueryTypes } = require("sequelize");
+  const walkinRows = await sequelize.query(
+    `SELECT note, total FROM orders
+     WHERE status != 'cancelled'
+       AND created_at BETWEEN :start AND :end
+       AND note LIKE '__walkin:%'
+       AND note NOT LIKE '__phone_walkin:%'`,
+    { replacements: { start, end }, type: QueryTypes.SELECT }
+  );
+
+  // Parse walkin notes to aggregate by product
+  const walkinMap = {};
+  let walkinTotal = 0;
+  for (const r of walkinRows) {
+    walkinTotal += Number(r.total || 0);
+    try {
+      const w = JSON.parse(r.note.replace(/^__walkin:/, "").split("\n")[0]);
+      const items = w.type === "mixed" ? (w.items || []) : [w];
+      for (const i of items) {
+        if (i.type === "equipment") continue;
+        const key = `${i.brandName || ""} ${i.weightKg || ""}kg`.trim();
+        if (!walkinMap[key]) walkinMap[key] = { name: key, qty: 0, revenue: 0 };
+        walkinMap[key].qty += Number(i.qty) || 1;
+        walkinMap[key].revenue += Number(i.total || i.price || r.total || 0);
+      }
+    } catch {}
+  }
+  const walkinStats = {
+    count: walkinRows.length,
+    revenue: walkinTotal,
+    breakdown: Object.values(walkinMap).sort((a, b) => b.qty - a.qty),
+  };
+
+  res.json({ year, month, daily, topProducts, walkinStats });
 }
 
 async function dashboardStats(req, res) {

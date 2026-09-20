@@ -12,6 +12,7 @@ export default function Reports() {
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [daily, setDaily] = useState([]);
   const [topProducts, setTopProducts] = useState([]);
+  const [walkinStats, setWalkinStats] = useState(null);
   const [date, setDate]   = useState(now.toISOString().split("T")[0]);
   const [dayOrders, setDayOrders] = useState([]);
   const [dayExpenses, setDayExpenses] = useState([]);
@@ -47,6 +48,7 @@ export default function Reports() {
     api.get(`/api/v1/reports/monthly?year=${year}&month=${month}`).then(r => {
       setDaily(r.data.daily || []);
       setTopProducts(r.data.topProducts || []);
+      setWalkinStats(r.data.walkinStats || null);
     }).catch(() => {});
   }, [year, month]);
 
@@ -124,6 +126,47 @@ export default function Reports() {
               <span style={{ fontSize: 13, fontWeight: 700, color: ORANGE }}>฿{Number(p.revenue).toLocaleString()}</span>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Walk-in Store Stats */}
+      {walkinStats && (
+        <div style={{ background: WHITE, borderRadius: 14, padding: 20, boxShadow: "0 2px 12px rgba(0,0,0,.06)", marginBottom: 16 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14, flexWrap: "wrap" }}>
+            <h2 style={{ fontSize: 15, fontWeight: 900, color: NAVY, margin: 0 }}>🏪 ยอดขายหน้าร้าน</h2>
+            <span style={{ fontSize: 13, color: GRAY }}>{months[month - 1]} {year + 543}</span>
+            <div style={{ marginLeft: "auto", display: "flex", gap: 16 }}>
+              <div style={{ textAlign: "right" }}>
+                <div style={{ fontSize: 11, color: GRAY }}>จำนวนรายการ</div>
+                <div style={{ fontSize: 18, fontWeight: 900, color: NAVY }}>{walkinStats.count} ครั้ง</div>
+              </div>
+              <div style={{ textAlign: "right" }}>
+                <div style={{ fontSize: 11, color: GRAY }}>ยอดรวม</div>
+                <div style={{ fontSize: 18, fontWeight: 900, color: ORANGE }}>฿{walkinStats.revenue.toLocaleString()}</div>
+              </div>
+            </div>
+          </div>
+          {walkinStats.breakdown.length > 0 && (
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+              <thead>
+                <tr style={{ background: "#F8FAFC" }}>
+                  <th style={{ padding: "8px 12px", textAlign: "left", color: GRAY, fontWeight: 700 }}>สินค้า</th>
+                  <th style={{ padding: "8px 12px", textAlign: "right", color: GRAY, fontWeight: 700 }}>จำนวน (ถัง)</th>
+                  <th style={{ padding: "8px 12px", textAlign: "right", color: GRAY, fontWeight: 700 }}>ยอดรวม</th>
+                </tr>
+              </thead>
+              <tbody>
+                {walkinStats.breakdown.map((b, i) => (
+                  <tr key={i} style={{ borderBottom: "1px solid #F3F4F6", background: i % 2 === 0 ? WHITE : "#FAFAFA" }}>
+                    <td style={{ padding: "9px 12px", fontWeight: 700, color: NAVY }}>⛽ {b.name}</td>
+                    <td style={{ padding: "9px 12px", textAlign: "right" }}>{b.qty} ถัง</td>
+                    <td style={{ padding: "9px 12px", textAlign: "right", fontWeight: 700, color: ORANGE }}>฿{b.revenue.toLocaleString()}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+          {!walkinStats.breakdown.length && <p style={{ color: GRAY, fontSize: 13 }}>ไม่มีรายการขายหน้าร้านเดือนนี้</p>}
         </div>
       )}
 
