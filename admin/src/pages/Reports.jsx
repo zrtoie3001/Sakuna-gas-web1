@@ -25,6 +25,19 @@ export default function Reports() {
   const [driverDate, setDriverDate]   = useState(now.toISOString().split("T")[0]);
   const [showUnpaid, setShowUnpaid]   = useState(false);
   const [payFilterMethod, setPayFilterMethod] = useState(null); // "cash"|"qr"|"cod"|null
+  const ALL_COLS = ["เลขออเดอร์", "ลูกค้า", "ที่อยู่", "สินค้า", "จำนวน (ถัง)", "ยอดรวม", "สถานะ"];
+  const [visibleCols, setVisibleCols] = useState(() => {
+    try { return new Set(JSON.parse(localStorage.getItem("reportVisibleCols") || "null") || ALL_COLS); } catch { return new Set(ALL_COLS); }
+  });
+  const [showColPicker, setShowColPicker] = useState(false);
+  function toggleCol(col) {
+    setVisibleCols(prev => {
+      const next = new Set(prev);
+      next.has(col) ? next.delete(col) : next.add(col);
+      try { localStorage.setItem("reportVisibleCols", JSON.stringify([...next])); } catch {}
+      return next;
+    });
+  }
   const [topCustYear, setTopCustYear]   = useState(now.getFullYear());
   const [topCustMonth, setTopCustMonth] = useState(0); // 0 = ทั้งปี
   const [topCustomers, setTopCustomers] = useState([]);
@@ -247,11 +260,28 @@ export default function Reports() {
           </div>
         )}
 
-        <div style={{ overflowX: "auto" }}>
+        {/* Column picker */}
+        <div style={{ position: "relative", marginBottom: 8, display: "flex", justifyContent: "flex-end" }}>
+          <button onClick={() => setShowColPicker(v => !v)}
+            style={{ padding: "5px 12px", borderRadius: 8, border: "1.5px solid #E5E7EB", background: WHITE, fontSize: 12, fontWeight: 700, color: NAVY, cursor: "pointer" }}>
+            ⚙️ คอลัมน์
+          </button>
+          {showColPicker && (
+            <div style={{ position: "absolute", top: 32, right: 0, background: WHITE, border: "1.5px solid #E5E7EB", borderRadius: 10, padding: "10px 14px", zIndex: 100, boxShadow: "0 4px 16px rgba(0,0,0,.12)", minWidth: 180 }}>
+              {ALL_COLS.map(col => (
+                <label key={col} style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0", cursor: "pointer", fontSize: 13 }}>
+                  <input type="checkbox" checked={visibleCols.has(col)} onChange={() => toggleCol(col)} />
+                  {col}
+                </label>
+              ))}
+            </div>
+          )}
+        </div>
+        <div style={{ overflowX: "auto" }} onClick={() => setShowColPicker(false)}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
             <thead>
               <tr style={{ background: "#F8FAFC", borderBottom: "2px solid #E5E7EB" }}>
-                {["เลขออเดอร์", "ลูกค้า", "ที่อยู่", "สินค้า", "จำนวน (ถัง)", "ยอดรวม", "สถานะ"].map(h => (
+                {ALL_COLS.filter(h => visibleCols.has(h)).map(h => (
                   <th key={h} style={{ padding: "10px 12px", textAlign: "left", color: GRAY, fontWeight: 700 }}>{h}</th>
                 ))}
               </tr>
@@ -259,13 +289,13 @@ export default function Reports() {
             <tbody>
               {dayOrders.map(o => (
                 <tr key={o.id} style={{ borderBottom: "1px solid #F3F4F6" }}>
-                  <td style={{ padding: "9px 12px", fontWeight: 700, color: ORANGE }}>{o.orderNumber}</td>
-                  <td style={{ padding: "9px 12px" }}>{o.customerName}</td>
-                  <td style={{ padding: "9px 12px", color: GRAY, maxWidth: 200 }}>{o.deliveryAddress || "-"}</td>
-                  <td style={{ padding: "9px 12px", color: GRAY }}>{o.product?.name}</td>
-                  <td style={{ padding: "9px 12px" }}>{o.qty} ถัง</td>
-                  <td style={{ padding: "9px 12px", fontWeight: 700 }}>฿{Number(o.total).toLocaleString()}</td>
-                  <td style={{ padding: "9px 12px" }}>{o.status}</td>
+                  {visibleCols.has("เลขออเดอร์") && <td style={{ padding: "9px 12px", fontWeight: 700, color: ORANGE }}>{o.orderNumber}</td>}
+                  {visibleCols.has("ลูกค้า") && <td style={{ padding: "9px 12px" }}>{o.customerName}</td>}
+                  {visibleCols.has("ที่อยู่") && <td style={{ padding: "9px 12px", color: GRAY, maxWidth: 200 }}>{o.deliveryAddress || "-"}</td>}
+                  {visibleCols.has("สินค้า") && <td style={{ padding: "9px 12px", color: GRAY }}>{o.product?.name}</td>}
+                  {visibleCols.has("จำนวน (ถัง)") && <td style={{ padding: "9px 12px" }}>{o.qty} ถัง</td>}
+                  {visibleCols.has("ยอดรวม") && <td style={{ padding: "9px 12px", fontWeight: 700 }}>฿{Number(o.total).toLocaleString()}</td>}
+                  {visibleCols.has("สถานะ") && <td style={{ padding: "9px 12px" }}>{o.status}</td>}
                 </tr>
               ))}
             </tbody>
