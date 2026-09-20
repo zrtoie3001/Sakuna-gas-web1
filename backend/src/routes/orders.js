@@ -163,12 +163,13 @@ router.get("/customer-history", requireAuth, async (req, res) => {
 
     for (const r of rows) {
       let walkin = null;
-      if (r.note?.startsWith("__walkin:")) {
-        try { walkin = JSON.parse(r.note.replace(/^__walkin:/, "").split("\n")[0]); } catch {}
+      if (r.note?.startsWith("__walkin:") || r.note?.startsWith("__phone_walkin:")) {
+        try { walkin = JSON.parse(r.note.replace(/^__(?:phone_)?walkin:/, "").split("\n")[0]); } catch {}
       }
 
       if (walkin?.type === "mixed" && Array.isArray(walkin.items)) {
         for (const it of walkin.items) {
+          if (it.type === "equipment") continue; // skip equipment from history
           if (!it.brandName || !it.weightKg) continue;
           const k = key(it.type || "gas", it.brandName, it.weightKg, it.price || it.unitPrice);
           const entry = itemMap.get(k);
