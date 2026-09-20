@@ -165,16 +165,13 @@ export default function Reports() {
           <h2 style={{ fontSize: 15, fontWeight: 800, color: NAVY, margin: 0 }}>ออเดอร์รายวัน</h2>
           <input type="date" value={date} onChange={e => setDate(e.target.value)}
             style={{ padding: "6px 10px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 13 }} />
-          <button onClick={exportCSV} style={{ padding: "8px 14px", borderRadius: 8, background: "#10B981", color: WHITE, border: "none", fontSize: 13, fontWeight: 700 }}>
+          <button onClick={exportCSV} style={{ marginLeft: "auto", padding: "8px 14px", borderRadius: 8, background: "#10B981", color: WHITE, border: "none", fontSize: 13, fontWeight: 700 }}>
             📥 Export CSV
-          </button>
-          <button onClick={() => setShowDailyOrders(v => !v)} style={{ marginLeft: "auto", padding: "6px 14px", borderRadius: 8, background: "none", border: "2px solid #E5E7EB", fontSize: 13, fontWeight: 700, cursor: "pointer", color: NAVY }}>
-            {showDailyOrders ? "▲ ซ่อน" : "▼ ดูรายการ"}
           </button>
         </div>
 
-        {/* Day summary + table — collapsible */}
-        {showDailyOrders && daySummary && (
+        {/* Day summary — always visible */}
+        {daySummary && (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 10, marginBottom: 16 }}>
             {[
               { label: "ออเดอร์", value: parseInt(daySummary.count || 0) + " ออเดอร์", color: ORANGE },
@@ -191,8 +188,8 @@ export default function Reports() {
           </div>
         )}
 
-        {/* Expenses breakdown */}
-        {showDailyOrders && dayExpenses.length > 0 && (
+        {/* Expenses breakdown — always visible */}
+        {dayExpenses.length > 0 && (
           <div style={{ background: "#FEF2F2", borderRadius: 10, padding: "12px 14px", marginBottom: 14, border: "1.5px solid #FECACA" }}>
             <div style={{ fontSize: 13, fontWeight: 800, color: "#991B1B", marginBottom: 8 }}>🧾 ค่าใช้จ่ายวันนี้ — รวม ฿{dayTotalExpenses.toLocaleString()}</div>
             {dayExpenses.map((e, i) => (
@@ -204,8 +201,8 @@ export default function Reports() {
           </div>
         )}
 
-        {/* Payment method breakdown */}
-        {showDailyOrders && dayPayBreakdown.length > 0 && (
+        {/* Payment method breakdown — always visible */}
+        {dayPayBreakdown.length > 0 && (
           <div style={{ background: "#F8FAFC", borderRadius: 10, padding: "12px 14px", marginBottom: 14, border: "1.5px solid #E5E7EB" }}>
             <div style={{ fontSize: 13, fontWeight: 800, color: NAVY, marginBottom: 10 }}>💳 ช่องทางชำระเงิน</div>
             <div style={{ display: "flex", gap: 16, flexWrap: "wrap", alignItems: "center" }}>
@@ -235,6 +232,13 @@ export default function Reports() {
             </div>
           </div>
         )}
+
+        {/* Toggle for orders table */}
+        <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 8, marginTop: 4 }}>
+          <button onClick={() => setShowDailyOrders(v => !v)} style={{ padding: "5px 14px", borderRadius: 8, background: "none", border: "2px solid #E5E7EB", fontSize: 13, fontWeight: 700, cursor: "pointer", color: NAVY }}>
+            {showDailyOrders ? "▲ ซ่อนรายการ" : "▼ ดูรายการออเดอร์"}
+          </button>
+        </div>
 
         {/* Unpaid orders (today) */}
         {showDailyOrders && dayUnpaid.length > 0 && (
