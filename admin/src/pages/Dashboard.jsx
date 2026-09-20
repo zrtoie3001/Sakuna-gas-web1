@@ -84,8 +84,7 @@ export default function Dashboard() {
         <StatCard icon="🛢" label="จำนวนถังวันนี้"  value={stats ? `${stats.today.tanks ?? 0} ถัง` : "—"} color="#0EA5E9" />
         <StatCard icon="💰" label="ยอดขายวันนี้"    value={stats ? `฿${stats.today.revenue.toLocaleString()}` : "—"} color="#10B981" />
         <StatCard icon="📅" label="ยอดขายเดือนนี้"  value={stats ? `฿${stats.month.revenue.toLocaleString()}` : "—"} color="#6366F1" />
-        <StatCard icon="👥" label="ลูกค้าทั้งหมด"   value={stats?.totalCustomers ?? "—"} color="#F59E0B" />
-        <StatCard icon="⏳" label="รอดำเนินการ"     value={stats?.pendingOrders ?? "—"} color="#EF4444"
+<StatCard icon="⏳" label="รอดำเนินการ"     value={stats?.pendingOrders ?? "—"} color="#EF4444"
           sub={stats?.pendingOrders > 0 ? "⚠️ มีออเดอร์รอ" : undefined} />
         <div
           onClick={() => stats?.monthWalkin && setShowWalkin(true)}
