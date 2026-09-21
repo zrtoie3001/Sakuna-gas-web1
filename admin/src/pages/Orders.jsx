@@ -333,23 +333,25 @@ export default function Orders() {
       }]);
       setCreateForm(f => ({ ...f, equipId: "", unitPrice: "", qty: 1 }));
     } else {
-      if (!createForm.brandId || !createForm.productId) return alert("กรุณาเลือกยี่ห้อและน้ำหนัก");
+      const hasWeight = createForm.productId || createForm._weightKg;
+      if (!createForm.brandId || !hasWeight) return alert("กรุณาเลือกยี่ห้อและน้ำหนัก");
       if (!createForm.unitPrice) return alert("กรุณาใส่ราคา");
       const brand = brands.find(b => b.id === createForm.brandId);
       const prod = products.find(p => p.id === createForm.productId);
-      weightForLifting = prod?.kg;
+      const wKg = prod?.kg != null ? Number(prod.kg) : (createForm._weightKg ? Number(createForm._weightKg) : undefined);
+      weightForLifting = wKg;
       setCreateCart(c => [...c, {
         type: "gas",
         brandId: createForm.brandId,
-        productId: createForm.productId,
+        productId: createForm.productId || undefined,
         brandName: brand?.name || "",
-        productName: prod?.name || "",
-        weightKg: prod?.kg != null ? Number(prod.kg) : undefined,
+        productName: prod?.name || (wKg ? `${wKg}กก.` : ""),
+        weightKg: wKg,
         qty: Number(createForm.qty || 1),
         price: Number(createForm.unitPrice),
-        label: `${brand?.name || ""} ${prod?.name || ""}`,
+        label: `${brand?.name || ""} ${wKg ? wKg + "กก." : prod?.name || ""}`,
       }]);
-      setCreateForm(f => ({ ...f, brandId: "", productId: "", unitPrice: "", qty: 1, liftingFloors: "" }));
+      setCreateForm(f => ({ ...f, brandId: "", productId: "", _weightKg: "", unitPrice: "", qty: 1, liftingFloors: "" }));
     }
     // Add lifting fee if applicable
     const floors = Number(createForm.liftingFloors) || 0;
@@ -1688,24 +1690,39 @@ ${noteText ? `<div style="margin-top:8px; padding:6px 8px; border:1.5px dashed #
                   </div>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>น้ำหนัก *</div>
-                    <select value={createForm.productId} onChange={e => {
-                      const pid = e.target.value;
-                      const p = products.find(x => x.id === pid);
-                      setCreateForm(f => ({ ...f, productId: pid, unitPrice: p?.homePrice ? String(p.homePrice) : f.unitPrice }));
-                    }} style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 14, boxSizing: "border-box" }}>
-                      <option value="">-- เลือก --</option>
-                      {(() => {
-                        const brandProds = createForm.brandId
-                          ? products.filter(p => (p.brandId || p.brand_id) === createForm.brandId)
-                          : products;
-                        const prodKgs = new Set(brandProds.map(p => Number(p.kg)));
-                        const allKgs = [...new Set([...ALL_WEIGHTS, ...prodKgs])].sort((a,b)=>a-b);
-                        return allKgs.map(kg => {
-                          const prod = brandProds.find(p => Number(p.kg) === kg);
-                          return <option key={kg} value={prod?.id || `__kg_${kg}`}>{kg} กก.{prod ? "" : " (ไม่มีในระบบ)"}</option>;
-                        });
-                      })()}
-                    </select>
+                    {(() => {
+                      const selBrand = brands.find(b => b.id === createForm.brandId);
+                      const stockWeights = gasStocks
+                        .filter(s => !selBrand || s.brandName === selBrand.name || (SHARED_BRANDS.includes(selBrand.name) && SHARED_BRANDS.includes(s.brandName)))
+                        .map(s => Number(s.weightKg));
+                      const allKgs = [...new Set([...ALL_WEIGHTS, ...stockWeights])].sort((a,b)=>a-b);
+                      return (
+                        <select value={createForm.productId || createForm._weightKg || ""} onChange={e => {
+                          const val = e.target.value;
+                          const prod = products.find(x => x.id === val);
+                          if (prod) {
+                            setCreateForm(f => ({ ...f, productId: val, _weightKg: "", unitPrice: prod.homePrice ? String(prod.homePrice) : f.unitPrice }));
+                          } else {
+                            // val is a kg number — find matching product for this brand
+                            const kg = Number(val);
+                            const matchProd = products.find(p => (p.brandId || p.brand_id) === createForm.brandId && Number(p.kg) === kg);
+                            if (matchProd) {
+                              setCreateForm(f => ({ ...f, productId: matchProd.id, _weightKg: "", unitPrice: matchProd.homePrice ? String(matchProd.homePrice) : f.unitPrice }));
+                            } else {
+                              // stock-only weight — store kg directly, clear productId
+                              const stock = findStockByBrand(gasStocks, selBrand?.name || "", kg);
+                              setCreateForm(f => ({ ...f, productId: "", _weightKg: String(kg), unitPrice: stock?.homePrice ? String(stock.homePrice) : f.unitPrice }));
+                            }
+                          }
+                        }} style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 14, boxSizing: "border-box" }}>
+                          <option value="">-- เลือก --</option>
+                          {allKgs.map(kg => {
+                            const prod = products.find(p => (p.brandId || p.brand_id) === createForm.brandId && Number(p.kg) === kg);
+                            return <option key={kg} value={prod?.id || String(kg)}>{kg} กก.</option>;
+                          })}
+                        </select>
+                      );
+                    })()}
                   </div>
                 </div>
                 {createForm.productId && (
