@@ -1,8 +1,127 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../utils/api.js";
 
 const NAVY = "#1A2B6B"; const NAVY2 = "#0F1D52"; const ORANGE = "#F47B20"; const WHITE = "#FFFFFF"; const GRAY = "#6B7280";
+
+// Load Leaflet once globally
+let leafletLoaded = false;
+function ensureLeaflet(cb) {
+  if (window.L) { cb(); return; }
+  if (leafletLoaded) { const iv = setInterval(() => { if (window.L) { clearInterval(iv); cb(); } }, 100); return; }
+  leafletLoaded = true;
+  const link = document.createElement("link");
+  link.rel = "stylesheet";
+  link.href = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css";
+  document.head.appendChild(link);
+  const script = document.createElement("script");
+  script.src = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js";
+  script.onload = cb;
+  document.head.appendChild(script);
+}
+
+function MapModal({ order, savedLoc, onClose, onSavePin }) {
+  const mapRef = useRef(null);
+  const mapObjRef = useRef(null);
+  const markerRef = useRef(null);
+  const [pinLat, setPinLat] = useState(savedLoc?.latitude || order.deliveryLat || null);
+  const [pinLng, setPinLng] = useState(savedLoc?.longitude || order.deliveryLng || null);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    ensureLeaflet(() => {
+      if (mapObjRef.current || !mapRef.current) return;
+      const lat = Number(savedLoc?.latitude || order.deliveryLat || 13.75);
+      const lng = Number(savedLoc?.longitude || order.deliveryLng || 100.5);
+      const map = window.L.map(mapRef.current, { zoomControl: true }).setView([lat, lng], lat === 13.75 ? 11 : 16);
+      window.L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        attribution: "© OpenStreetMap contributors", maxZoom: 19,
+      }).addTo(map);
+      mapObjRef.current = map;
+
+      if (lat !== 13.75) {
+        markerRef.current = window.L.marker([lat, lng], { draggable: true }).addTo(map)
+          .bindPopup(savedLoc?.locationName || order.deliveryAddress || "ตำแหน่งลูกค้า").openPopup();
+        markerRef.current.on("dragend", e => {
+          const p = e.target.getLatLng();
+          setPinLat(p.lat); setPinLng(p.lng);
+        });
+      }
+
+      map.on("click", e => {
+        const { lat, lng } = e.latlng;
+        setPinLat(lat); setPinLng(lng);
+        if (markerRef.current) { markerRef.current.setLatLng([lat, lng]); }
+        else {
+          markerRef.current = window.L.marker([lat, lng], { draggable: true }).addTo(map)
+            .bindPopup("📍 ตำแหน่งที่เลือก").openPopup();
+          markerRef.current.on("dragend", e2 => {
+            const p = e2.target.getLatLng();
+            setPinLat(p.lat); setPinLng(p.lng);
+          });
+        }
+      });
+    });
+    return () => { if (mapObjRef.current) { mapObjRef.current.remove(); mapObjRef.current = null; } };
+  }, []);
+
+  async function savePin() {
+    if (!pinLat || !pinLng) return;
+    setSaving(true);
+    try {
+      const r = await api.post("/api/v1/customers/location/save", {
+        customerPhone: order.customerPhone,
+        customerAddress: order.deliveryAddress,
+        latitude: pinLat, longitude: pinLng,
+        locationAccuracy: "APPROXIMATE",
+        source: "CUSTOMER_MAP_PIN",
+      });
+      setSaved(true);
+      onSavePin(r.data);
+    } catch {}
+    setSaving(false);
+  }
+
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(0,0,0,.6)", display: "flex", flexDirection: "column" }}>
+      {/* Header */}
+      <div style={{ background: NAVY, padding: "12px 16px", display: "flex", alignItems: "center", gap: 10 }}>
+        <button onClick={onClose} style={{ background: "none", border: "none", color: WHITE, fontSize: 20, cursor: "pointer", lineHeight: 1 }}>←</button>
+        <div style={{ flex: 1 }}>
+          <div style={{ color: WHITE, fontWeight: 800, fontSize: 14 }}>🗺️ แผนที่ลูกค้า</div>
+          <div style={{ color: "rgba(255,255,255,.6)", fontSize: 11 }}>{order.customerName} · {order.customerPhone}</div>
+        </div>
+        {pinLat && (
+          <a href={`https://www.google.com/maps/dir/?api=1&destination=${pinLat},${pinLng}`} target="_blank" rel="noreferrer"
+            style={{ padding: "6px 10px", borderRadius: 8, background: "#1D4ED8", color: WHITE, fontSize: 12, fontWeight: 700, textDecoration: "none" }}>
+            🧭 นำทาง
+          </a>
+        )}
+      </div>
+
+      {/* Map */}
+      <div ref={mapRef} style={{ flex: 1 }} />
+
+      {/* Footer */}
+      <div style={{ background: WHITE, padding: "12px 16px", display: "flex", gap: 10, alignItems: "center" }}>
+        <div style={{ flex: 1, fontSize: 12, color: GRAY }}>
+          {pinLat ? `📍 ${pinLat.toFixed(6)}, ${pinLng.toFixed(6)}` : "แตะบนแผนที่เพื่อปักหมุด"}
+          {savedLoc && <div style={{ color: "#0369A1", fontWeight: 700 }}>🏠 {savedLoc.locationName || "มีพิกัดอยู่แล้ว"}</div>}
+        </div>
+        {saved ? (
+          <span style={{ fontSize: 12, color: "#059669", fontWeight: 700 }}>✅ บันทึกแล้ว</span>
+        ) : (
+          <button onClick={savePin} disabled={!pinLat || saving} style={{
+            padding: "8px 16px", borderRadius: 10, border: "none",
+            background: !pinLat ? "#E5E7EB" : ORANGE, color: WHITE, fontSize: 13, fontWeight: 700,
+            cursor: !pinLat ? "default" : "pointer",
+          }}>{saving ? "⏳..." : "📍 บันทึกหมุด"}</button>
+        )}
+      </div>
+    </div>
+  );
+}
 
 const STATUS_NEXT = {
   pending:          { next: "preparing",       label: "รับงาน",       color: "#1E40AF", bg: "#DBEAFE" },
@@ -133,6 +252,7 @@ export default function Dashboard() {
     const [savedLoc, setSavedLoc] = useState(null);
     const [locSaving, setLocSaving] = useState(false);
     const [locStatus, setLocStatus] = useState(null);
+    const [showMap, setShowMap] = useState(false);
 
     // Load saved location for this customer
     useEffect(() => {
@@ -176,6 +296,10 @@ export default function Dashboard() {
     const navLng = savedLoc?.longitude || order.deliveryLng;
 
     return (
+      <>
+      {showMap && (
+        <MapModal order={order} savedLoc={savedLoc} onClose={() => setShowMap(false)} onSavePin={loc => { setSavedLoc(loc); setShowMap(false); }} />
+      )}
       <div style={{
         background: WHITE, borderRadius: 14, padding: 14, marginBottom: 10,
         boxShadow: isFirst ? "0 4px 16px rgba(244,123,32,.2)" : "0 2px 10px rgba(0,0,0,.07)",
@@ -248,6 +372,11 @@ export default function Dashboard() {
 
         {/* Actions */}
         <div style={{ display: "flex", gap: 8 }}>
+          <button onClick={() => setShowMap(true)} style={{
+            flex: 1, padding: "10px 6px", borderRadius: 10, border: "none",
+            background: "#F0F9FF", color: "#0369A1", fontSize: 12, fontWeight: 700, cursor: "pointer",
+            border: "1.5px solid #BAE6FD",
+          }}>🗺️ แผนที่</button>
           {navLat && (
             <button onClick={() => openNavigation(navLat, navLng)} style={{
               flex: 1, padding: "10px 6px", borderRadius: 10, border: "none",
@@ -271,6 +400,7 @@ export default function Dashboard() {
           )}
         </div>
       </div>
+      </>
     );
   };
 
