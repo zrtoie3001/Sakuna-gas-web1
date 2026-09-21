@@ -4,11 +4,28 @@ import api from "../utils/api.js";
 
 const NAVY = "#1A2B6B"; const NAVY2 = "#0F1D52"; const ORANGE = "#F47B20"; const WHITE = "#FFFFFF"; const GRAY = "#6B7280";
 
-// Load Leaflet once globally
+const STATUS_NEXT = {
+  pending:          { next: "preparing",       label: "รับงาน",       color: "#1E40AF", bg: "#DBEAFE" },
+  preparing:        { next: "out_for_delivery", label: "ออกส่งแล้ว",  color: "#075985", bg: "#E0F2FE" },
+  out_for_delivery: { next: "delivered",        label: "ส่งสำเร็จ ✅", color: "#065F46", bg: "#D1FAE5" },
+};
+
+const STATUS_LABEL = {
+  pending:          "⏳ รอรับงาน",
+  preparing:        "📦 เตรียมสินค้า",
+  out_for_delivery: "🛵 กำลังส่ง",
+  near_destination: "🛵 กำลังส่ง",
+  delivered:        "✅ ส่งสำเร็จ",
+};
+
+// ─── Leaflet loader (singleton) ───────────────────────────────────────────────
 let leafletLoaded = false;
 function ensureLeaflet(cb) {
   if (window.L) { cb(); return; }
-  if (leafletLoaded) { const iv = setInterval(() => { if (window.L) { clearInterval(iv); cb(); } }, 100); return; }
+  if (leafletLoaded) {
+    const iv = setInterval(() => { if (window.L) { clearInterval(iv); cb(); } }, 100);
+    return;
+  }
   leafletLoaded = true;
   const link = document.createElement("link");
   link.rel = "stylesheet";
@@ -20,50 +37,90 @@ function ensureLeaflet(cb) {
   document.head.appendChild(script);
 }
 
+// ─── MapModal — module-level so React never remounts it during zoom ───────────
 function MapModal({ order, savedLoc, onClose, onSavePin }) {
-  const mapRef = useRef(null);
+  const mapRef    = useRef(null);
   const mapObjRef = useRef(null);
-  const markerRef = useRef(null);
-  const [pinLat, setPinLat] = useState(savedLoc?.latitude || order.deliveryLat || null);
-  const [pinLng, setPinLng] = useState(savedLoc?.longitude || order.deliveryLng || null);
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
+  const pinMarkerRef = useRef(null);  // customer pin (orange)
+  const gpsMarkerRef = useRef(null);  // my location (blue dot)
+  const [pinLat, setPinLat] = useState(null);
+  const [pinLng, setPinLng] = useState(null);
+  const [gpsStatus, setGpsStatus] = useState("loading"); // loading | ok | error
+  const [saving, setSaving]   = useState(false);
+  const [saved, setSaved]     = useState(false);
+
+  function placePinMarker(map, lat, lng, label) {
+    if (pinMarkerRef.current) pinMarkerRef.current.remove();
+    const icon = window.L.divIcon({
+      className: "",
+      html: `<div style="font-size:28px;line-height:1;filter:drop-shadow(0 2px 4px rgba(0,0,0,.4))">📍</div>`,
+      iconSize: [28, 28], iconAnchor: [14, 28],
+    });
+    pinMarkerRef.current = window.L.marker([lat, lng], { icon, draggable: true })
+      .addTo(map)
+      .bindPopup(label || "📍 ตำแหน่งลูกค้า").openPopup();
+    pinMarkerRef.current.on("dragend", e => {
+      const p = e.target.getLatLng();
+      setPinLat(p.lat); setPinLng(p.lng);
+    });
+    setPinLat(lat); setPinLng(lng);
+  }
+
+  function placeGpsMarker(map, lat, lng) {
+    if (gpsMarkerRef.current) gpsMarkerRef.current.remove();
+    const icon = window.L.divIcon({
+      className: "",
+      html: `<div style="width:16px;height:16px;border-radius:50%;background:#1D4ED8;border:3px solid #fff;box-shadow:0 2px 8px rgba(29,78,216,.6)"></div>`,
+      iconSize: [16, 16], iconAnchor: [8, 8],
+    });
+    gpsMarkerRef.current = window.L.marker([lat, lng], { icon, zIndexOffset: -100 }).addTo(map)
+      .bindPopup("📡 ตำแหน่งของคุณ");
+  }
 
   useEffect(() => {
     ensureLeaflet(() => {
       if (mapObjRef.current || !mapRef.current) return;
-      const lat = Number(savedLoc?.latitude || order.deliveryLat || 13.75);
-      const lng = Number(savedLoc?.longitude || order.deliveryLng || 100.5);
-      const map = window.L.map(mapRef.current, { zoomControl: true }).setView([lat, lng], lat === 13.75 ? 11 : 16);
+
+      // Default center: existing pin > delivery coords > Bangkok
+      const defLat = Number(savedLoc?.latitude || order.deliveryLat || 13.75);
+      const defLng = Number(savedLoc?.longitude || order.deliveryLng || 100.5);
+      const hasDefault = !!(savedLoc?.latitude || order.deliveryLat);
+
+      const map = window.L.map(mapRef.current, { zoomControl: true })
+        .setView([defLat, defLng], hasDefault ? 16 : 11);
       window.L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
         attribution: "© OpenStreetMap contributors", maxZoom: 19,
       }).addTo(map);
       mapObjRef.current = map;
 
-      if (lat !== 13.75) {
-        markerRef.current = window.L.marker([lat, lng], { draggable: true }).addTo(map)
-          .bindPopup(savedLoc?.locationName || order.deliveryAddress || "ตำแหน่งลูกค้า").openPopup();
-        markerRef.current.on("dragend", e => {
-          const p = e.target.getLatLng();
-          setPinLat(p.lat); setPinLng(p.lng);
-        });
+      // Place existing saved/delivery pin
+      if (hasDefault) {
+        placePinMarker(map, defLat, defLng, savedLoc?.locationName || order.deliveryAddress || "ตำแหน่งลูกค้า");
       }
 
+      // Auto-get GPS location
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(pos => {
+          const { latitude: glat, longitude: glng } = pos.coords;
+          placeGpsMarker(map, glat, glng);
+          setGpsStatus("ok");
+          // If no existing pin, center map on GPS and let user tap
+          if (!hasDefault) map.setView([glat, glng], 16);
+        }, () => setGpsStatus("error"), { enableHighAccuracy: true, timeout: 10000 });
+      } else {
+        setGpsStatus("error");
+      }
+
+      // Tap map to place/move pin
       map.on("click", e => {
         const { lat, lng } = e.latlng;
-        setPinLat(lat); setPinLng(lng);
-        if (markerRef.current) { markerRef.current.setLatLng([lat, lng]); }
-        else {
-          markerRef.current = window.L.marker([lat, lng], { draggable: true }).addTo(map)
-            .bindPopup("📍 ตำแหน่งที่เลือก").openPopup();
-          markerRef.current.on("dragend", e2 => {
-            const p = e2.target.getLatLng();
-            setPinLat(p.lat); setPinLng(p.lng);
-          });
-        }
+        placePinMarker(map, lat, lng, "📍 ตำแหน่งที่เลือก");
       });
     });
-    return () => { if (mapObjRef.current) { mapObjRef.current.remove(); mapObjRef.current = null; } };
+
+    return () => {
+      if (mapObjRef.current) { mapObjRef.current.remove(); mapObjRef.current = null; }
+    };
   }, []);
 
   async function savePin() {
@@ -83,39 +140,72 @@ function MapModal({ order, savedLoc, onClose, onSavePin }) {
     setSaving(false);
   }
 
+  function goToMyGps() {
+    if (gpsMarkerRef.current) {
+      const p = gpsMarkerRef.current.getLatLng();
+      mapObjRef.current?.setView([p.lat, p.lng], 17);
+    } else if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(pos => {
+        const { latitude: glat, longitude: glng } = pos.coords;
+        placeGpsMarker(mapObjRef.current, glat, glng);
+        mapObjRef.current?.setView([glat, glng], 17);
+        setGpsStatus("ok");
+      }, () => setGpsStatus("error"), { enableHighAccuracy: true, timeout: 8000 });
+    }
+  }
+
   return (
-    <div style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(0,0,0,.6)", display: "flex", flexDirection: "column" }}>
+    <div style={{ position: "fixed", inset: 0, zIndex: 1000, background: "#000", display: "flex", flexDirection: "column" }}>
       {/* Header */}
-      <div style={{ background: NAVY, padding: "12px 16px", display: "flex", alignItems: "center", gap: 10 }}>
-        <button onClick={onClose} style={{ background: "none", border: "none", color: WHITE, fontSize: 20, cursor: "pointer", lineHeight: 1 }}>←</button>
-        <div style={{ flex: 1 }}>
+      <div style={{ background: NAVY, padding: "12px 14px", display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
+        <button onClick={onClose} style={{ background: "none", border: "none", color: WHITE, fontSize: 22, cursor: "pointer", lineHeight: 1, padding: 0 }}>←</button>
+        <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ color: WHITE, fontWeight: 800, fontSize: 14 }}>🗺️ แผนที่ลูกค้า</div>
-          <div style={{ color: "rgba(255,255,255,.6)", fontSize: 11 }}>{order.customerName} · {order.customerPhone}</div>
+          <div style={{ color: "rgba(255,255,255,.6)", fontSize: 11, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {order.customerName} · {order.deliveryAddress}
+          </div>
         </div>
         {pinLat && (
           <a href={`https://www.google.com/maps/dir/?api=1&destination=${pinLat},${pinLng}`} target="_blank" rel="noreferrer"
-            style={{ padding: "6px 10px", borderRadius: 8, background: "#1D4ED8", color: WHITE, fontSize: 12, fontWeight: 700, textDecoration: "none" }}>
+            style={{ padding: "6px 10px", borderRadius: 8, background: "#1D4ED8", color: WHITE, fontSize: 12, fontWeight: 700, textDecoration: "none", whiteSpace: "nowrap" }}>
             🧭 นำทาง
           </a>
         )}
       </div>
 
       {/* Map */}
-      <div ref={mapRef} style={{ flex: 1 }} />
+      <div style={{ position: "relative", flex: 1 }}>
+        <div ref={mapRef} style={{ width: "100%", height: "100%" }} />
+        {/* GPS button overlay */}
+        <button onClick={goToMyGps} style={{
+          position: "absolute", bottom: 16, right: 16, zIndex: 500,
+          width: 44, height: 44, borderRadius: "50%", border: "none",
+          background: WHITE, boxShadow: "0 2px 8px rgba(0,0,0,.3)",
+          fontSize: 20, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+        }}>
+          {gpsStatus === "loading" ? "⏳" : gpsStatus === "error" ? "📵" : "📡"}
+        </button>
+        <div style={{ position: "absolute", top: 10, left: "50%", transform: "translateX(-50%)", zIndex: 500, background: "rgba(0,0,0,.55)", color: WHITE, fontSize: 11, padding: "4px 10px", borderRadius: 20, pointerEvents: "none", whiteSpace: "nowrap" }}>
+          แตะแผนที่เพื่อปักหมุด · ลากหมุดเพื่อเลื่อน
+        </div>
+      </div>
 
       {/* Footer */}
-      <div style={{ background: WHITE, padding: "12px 16px", display: "flex", gap: 10, alignItems: "center" }}>
-        <div style={{ flex: 1, fontSize: 12, color: GRAY }}>
-          {pinLat ? `📍 ${pinLat.toFixed(6)}, ${pinLng.toFixed(6)}` : "แตะบนแผนที่เพื่อปักหมุด"}
-          {savedLoc && <div style={{ color: "#0369A1", fontWeight: 700 }}>🏠 {savedLoc.locationName || "มีพิกัดอยู่แล้ว"}</div>}
+      <div style={{ background: WHITE, padding: "12px 14px", display: "flex", gap: 10, alignItems: "center", flexShrink: 0 }}>
+        <div style={{ flex: 1, fontSize: 12, color: GRAY, minWidth: 0 }}>
+          {pinLat
+            ? <span style={{ color: "#059669" }}>📍 {pinLat.toFixed(5)}, {pinLng.toFixed(5)}</span>
+            : <span>แตะบนแผนที่เพื่อปักหมุด</span>}
+          {savedLoc?.locationName && <div style={{ color: "#0369A1", fontWeight: 700, marginTop: 2 }}>🏠 {savedLoc.locationName}</div>}
         </div>
         {saved ? (
-          <span style={{ fontSize: 12, color: "#059669", fontWeight: 700 }}>✅ บันทึกแล้ว</span>
+          <span style={{ fontSize: 13, color: "#059669", fontWeight: 700, whiteSpace: "nowrap" }}>✅ บันทึกแล้ว</span>
         ) : (
           <button onClick={savePin} disabled={!pinLat || saving} style={{
-            padding: "8px 16px", borderRadius: 10, border: "none",
-            background: !pinLat ? "#E5E7EB" : ORANGE, color: WHITE, fontSize: 13, fontWeight: 700,
-            cursor: !pinLat ? "default" : "pointer",
+            padding: "9px 18px", borderRadius: 10, border: "none",
+            background: !pinLat ? "#E5E7EB" : ORANGE,
+            color: !pinLat ? GRAY : WHITE, fontSize: 13, fontWeight: 700,
+            cursor: !pinLat ? "default" : "pointer", whiteSpace: "nowrap",
           }}>{saving ? "⏳..." : "📍 บันทึกหมุด"}</button>
         )}
       </div>
@@ -123,182 +213,63 @@ function MapModal({ order, savedLoc, onClose, onSavePin }) {
   );
 }
 
-const STATUS_NEXT = {
-  pending:          { next: "preparing",       label: "รับงาน",       color: "#1E40AF", bg: "#DBEAFE" },
-  preparing:        { next: "out_for_delivery", label: "ออกส่งแล้ว",  color: "#075985", bg: "#E0F2FE" },
-  out_for_delivery: { next: "delivered",        label: "ส่งสำเร็จ ✅", color: "#065F46", bg: "#D1FAE5" },
-};
-
-const STATUS_LABEL = {
-  pending:          "⏳ รอรับงาน",
-  preparing:        "📦 เตรียมสินค้า",
-  out_for_delivery: "🛵 กำลังส่ง",
-  near_destination: "🛵 กำลังส่ง",
-  delivered:        "✅ ส่งสำเร็จ",
-};
-
-export default function Dashboard() {
-  const [tab, setTab]             = useState("pending");
-  const [pendingOrders, setPending] = useState([]);
-  const [myOrders, setMyOrders]   = useState([]);
-  const [doneOrders, setDone]     = useState([]);
-  const [updating, setUpdating]   = useState(null);
-  const [location, setLocation]   = useState(null);
-  // routeOrder: orderId[] in optimized sequence
-  const [routeOrder, setRouteOrder] = useState([]);
-  const [routeLoading, setRouteLoading] = useState(false);
-  const navigate = useNavigate();
-  const user = JSON.parse(localStorage.getItem("driver_user") || "{}");
-
-  const loadOrders = useCallback(async () => {
-    const [pend, mine] = await Promise.all([
-      api.get("/api/v1/drivers/pending").then(r => r.data).catch(() => []),
-      api.get("/api/v1/drivers/my-orders").then(r => r.data).catch(() => []),
-    ]);
-    setPending(pend);
-    setMyOrders(mine.filter(o => o.status !== "delivered"));
-    setDone(mine.filter(o => o.status === "delivered"));
-  }, []);
+// ─── OrderCard — module-level to prevent remount on parent re-render ──────────
+function OrderCard({ order, showAccept, showStatus, routeIndex, sortedActiveOrdersLen, updating, onAccept, onUpdateStatus, onNavigate }) {
+  const nextAction = STATUS_NEXT[order.status];
+  const isFirst = routeIndex === 0 && sortedActiveOrdersLen > 1;
+  const [savedLoc, setSavedLoc] = useState(null);
+  const [locSaving, setLocSaving] = useState(false);
+  const [locStatus, setLocStatus] = useState(null);
+  const [showMap, setShowMap] = useState(false);
 
   useEffect(() => {
-    loadOrders();
-    const iv = setInterval(loadOrders, 20000);
-    return () => clearInterval(iv);
-  }, [loadOrders]);
+    if (!order.customerPhone) return;
+    api.get(`/api/v1/customers/location/by-contact?phone=${encodeURIComponent(order.customerPhone)}`)
+      .then(r => setSavedLoc(r.data || null)).catch(() => {});
+  }, [order.customerPhone]);
 
-  // GPS tracking
-  useEffect(() => {
-    if (!navigator.geolocation) return;
-    const wid = navigator.geolocation.watchPosition(pos => {
-      const { latitude: lat, longitude: lng } = pos.coords;
-      setLocation({ lat, lng });
-      api.put("/api/v1/drivers/location", { lat, lng }).catch(() => {});
-    }, null, { enableHighAccuracy: true, maximumAge: 10000 });
-    return () => navigator.geolocation.clearWatch(wid);
-  }, []);
-
-  // Fetch optimized route whenever active orders change or location changes
-  useEffect(() => {
-    const activeOrders = myOrders.filter(o => o.status === "out_for_delivery" || o.status === "preparing");
-    if (activeOrders.length < 2) {
-      setRouteOrder(activeOrders.map(o => o.id));
-      return;
-    }
-    const lat = location?.lat || 13.8; // fallback to Bangkok area
-    const lng = location?.lng || 100.5;
-    setRouteLoading(true);
-    api.get(`/api/v1/drivers/route?lat=${lat}&lng=${lng}`)
-      .then(r => {
-        const ordered = r.data;
-        if (Array.isArray(ordered) && ordered.length) setRouteOrder(ordered.map(s => s.orderId));
-        else setRouteOrder(activeOrders.map(o => o.id));
-      })
-      .catch(() => setRouteOrder(activeOrders.map(o => o.id)))
-      .finally(() => setRouteLoading(false));
-  }, [myOrders.length, location?.lat, location?.lng]);
-
-  // Sort active orders by optimized route order
-  const sortedActiveOrders = routeOrder.length
-    ? [...myOrders].sort((a, b) => {
-        const ia = routeOrder.indexOf(a.id);
-        const ib = routeOrder.indexOf(b.id);
-        return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);
-      })
-    : myOrders;
-
-  async function acceptOrder(orderId) {
-    setUpdating(orderId);
-    await api.post(`/api/v1/orders/${orderId}/accept`).catch(() => {});
-    setUpdating(null); loadOrders();
+  const noteRaw = order.note || "";
+  let walkinItems = null;
+  let userNote = noteRaw;
+  if (noteRaw.match(/^__(?:phone_)?walkin:/)) {
+    try {
+      const w = JSON.parse(noteRaw.replace(/^__(?:phone_)?walkin:/, "").split("\n")[0]);
+      walkinItems = w.type === "mixed" ? (w.items || []) : [w];
+      userNote = noteRaw.split("\n").slice(1).join("\n").trim();
+    } catch { walkinItems = null; }
   }
 
-  async function updateStatus(orderId, status) {
-    setUpdating(orderId);
-    await api.put(`/api/v1/orders/${orderId}/status`, { status }).catch(() => {});
-    setUpdating(null); loadOrders();
-  }
-
-  function openNavigation(lat, lng) {
-    window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`, "_blank");
-  }
-
-  // Open Google Maps with all stops in optimized order
-  function openFullRoute() {
-    if (sortedActiveOrders.length === 0) return;
-    const waypoints = sortedActiveOrders.slice(0, -1).map(o => `${o.deliveryLat},${o.deliveryLng}`).join("|");
-    const last = sortedActiveOrders[sortedActiveOrders.length - 1];
-    const origin = location ? `${location.lat},${location.lng}` : "";
-    const base = "https://www.google.com/maps/dir/?api=1";
-    const url = origin
-      ? `${base}&origin=${origin}&destination=${last.deliveryLat},${last.deliveryLng}&waypoints=${waypoints}&travelmode=driving`
-      : `${base}&destination=${last.deliveryLat},${last.deliveryLng}&waypoints=${waypoints}&travelmode=driving`;
-    window.open(url, "_blank");
-  }
-
-  function logout() {
-    localStorage.removeItem("driver_token"); localStorage.removeItem("driver_user");
-    navigate("/login");
-  }
-
-  const tabs = [
-    { key: "pending", label: "รอรับงาน",  count: pendingOrders.length },
-    { key: "active",  label: "กำลังส่ง",  count: myOrders.length },
-    { key: "done",    label: "เสร็จแล้ว", count: doneOrders.length },
-  ];
-
-  const OrderCard = ({ order, showAccept, showStatus, routeIndex }) => {
-    const nextAction = STATUS_NEXT[order.status];
-    const isFirst = routeIndex === 0 && sortedActiveOrders.length > 1;
-    const [savedLoc, setSavedLoc] = useState(null);
-    const [locSaving, setLocSaving] = useState(false);
-    const [locStatus, setLocStatus] = useState(null);
-    const [showMap, setShowMap] = useState(false);
-
-    // Load saved location for this customer
-    useEffect(() => {
-      if (!order.customerPhone) return;
-      api.get(`/api/v1/customers/location/by-contact?phone=${encodeURIComponent(order.customerPhone)}`)
-        .then(r => setSavedLoc(r.data || null)).catch(() => {});
-    }, [order.customerPhone]);
-
-    // Parse note: strip __phone_walkin: JSON, show human-readable items
-    const noteRaw = order.note || "";
-    let walkinItems = null;
-    let userNote = noteRaw;
-    if (noteRaw.match(/^__(?:phone_)?walkin:/)) {
+  async function saveGpsLocation() {
+    setLocSaving(true); setLocStatus(null);
+    if (!navigator.geolocation) { setLocStatus("no_gps"); setLocSaving(false); return; }
+    navigator.geolocation.getCurrentPosition(async pos => {
       try {
-        const w = JSON.parse(noteRaw.replace(/^__(?:phone_)?walkin:/, "").split("\n")[0]);
-        walkinItems = w.type === "mixed" ? (w.items || []) : [w];
-        userNote = noteRaw.split("\n").slice(1).join("\n").trim();
-      } catch { walkinItems = null; }
-    }
+        const { latitude, longitude, accuracy } = pos.coords;
+        const r = await api.post("/api/v1/customers/location/save", {
+          customerPhone: order.customerPhone,
+          customerAddress: order.deliveryAddress,
+          latitude, longitude,
+          locationAccuracy: accuracy && accuracy <= 50 ? "EXACT" : "APPROXIMATE",
+          source: "STAFF_LOCATION",
+        });
+        setSavedLoc(r.data); setLocStatus("ok");
+      } catch { setLocStatus("error"); }
+      setLocSaving(false);
+    }, () => { setLocStatus("no_gps"); setLocSaving(false); }, { enableHighAccuracy: true, timeout: 10000 });
+  }
 
-    async function saveGpsLocation() {
-      setLocSaving(true); setLocStatus(null);
-      if (!navigator.geolocation) { setLocStatus("no_gps"); setLocSaving(false); return; }
-      navigator.geolocation.getCurrentPosition(async pos => {
-        try {
-          const { latitude, longitude, accuracy } = pos.coords;
-          const r = await api.post("/api/v1/customers/location/save", {
-            customerPhone: order.customerPhone,
-            customerAddress: order.deliveryAddress,
-            latitude, longitude,
-            locationAccuracy: accuracy && accuracy <= 50 ? "EXACT" : "APPROXIMATE",
-            source: "STAFF_LOCATION",
-          });
-          setSavedLoc(r.data); setLocStatus("ok");
-        } catch { setLocStatus("error"); }
-        setLocSaving(false);
-      }, () => { setLocStatus("no_gps"); setLocSaving(false); }, { enableHighAccuracy: true, timeout: 10000 });
-    }
+  const navLat = savedLoc?.latitude || order.deliveryLat;
+  const navLng = savedLoc?.longitude || order.deliveryLng;
 
-    const navLat = savedLoc?.latitude || order.deliveryLat;
-    const navLng = savedLoc?.longitude || order.deliveryLng;
-
-    return (
-      <>
+  return (
+    <>
       {showMap && (
-        <MapModal order={order} savedLoc={savedLoc} onClose={() => setShowMap(false)} onSavePin={loc => { setSavedLoc(loc); setShowMap(false); }} />
+        <MapModal
+          order={order}
+          savedLoc={savedLoc}
+          onClose={() => setShowMap(false)}
+          onSavePin={loc => { setSavedLoc(loc); setShowMap(false); }}
+        />
       )}
       <div style={{
         background: WHITE, borderRadius: 14, padding: 14, marginBottom: 10,
@@ -308,7 +279,7 @@ export default function Dashboard() {
         {/* Route badge + header */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            {routeIndex !== undefined && sortedActiveOrders.length > 1 && (
+            {routeIndex !== undefined && sortedActiveOrdersLen > 1 && (
               <div style={{
                 width: 28, height: 28, borderRadius: "50%", flexShrink: 0,
                 background: routeIndex === 0 ? ORANGE : NAVY,
@@ -373,25 +344,25 @@ export default function Dashboard() {
         {/* Actions */}
         <div style={{ display: "flex", gap: 8 }}>
           <button onClick={() => setShowMap(true)} style={{
-            flex: 1, padding: "10px 6px", borderRadius: 10, border: "none",
+            flex: 1, padding: "10px 6px", borderRadius: 10,
             background: "#F0F9FF", color: "#0369A1", fontSize: 12, fontWeight: 700, cursor: "pointer",
             border: "1.5px solid #BAE6FD",
           }}>🗺️ แผนที่</button>
           {navLat && (
-            <button onClick={() => openNavigation(navLat, navLng)} style={{
+            <button onClick={() => onNavigate(navLat, navLng)} style={{
               flex: 1, padding: "10px 6px", borderRadius: 10, border: "none",
               background: "#1D4ED8", color: WHITE, fontSize: 12, fontWeight: 700, cursor: "pointer",
             }}>🧭 นำทาง</button>
           )}
           {showAccept && (
-            <button onClick={() => acceptOrder(order.id)} disabled={updating === order.id} style={{
+            <button onClick={() => onAccept(order.id)} disabled={updating === order.id} style={{
               flex: 2, padding: "10px 6px", borderRadius: 10, border: "none",
               background: ORANGE, color: WHITE, fontSize: 13, fontWeight: 700, cursor: "pointer",
               opacity: updating === order.id ? 0.6 : 1,
             }}>{updating === order.id ? "..." : "✋ รับงาน"}</button>
           )}
           {showStatus && nextAction && (
-            <button onClick={() => updateStatus(order.id, nextAction.next)} disabled={updating === order.id} style={{
+            <button onClick={() => onUpdateStatus(order.id, nextAction.next)} disabled={updating === order.id} style={{
               flex: 2, padding: "10px 6px", borderRadius: 10, border: "none",
               background: nextAction.next === "delivered" ? "#059669" : NAVY,
               color: WHITE, fontSize: 12, fontWeight: 700, cursor: "pointer",
@@ -400,9 +371,111 @@ export default function Dashboard() {
           )}
         </div>
       </div>
-      </>
-    );
-  };
+    </>
+  );
+}
+
+// ─── Main Dashboard ────────────────────────────────────────────────────────────
+export default function Dashboard() {
+  const [tab, setTab]             = useState("pending");
+  const [pendingOrders, setPending] = useState([]);
+  const [myOrders, setMyOrders]   = useState([]);
+  const [doneOrders, setDone]     = useState([]);
+  const [updating, setUpdating]   = useState(null);
+  const [location, setLocation]   = useState(null);
+  const [routeOrder, setRouteOrder] = useState([]);
+  const [routeLoading, setRouteLoading] = useState(false);
+  const navigate = useNavigate();
+  const user = JSON.parse(localStorage.getItem("driver_user") || "{}");
+
+  const loadOrders = useCallback(async () => {
+    const [pend, mine] = await Promise.all([
+      api.get("/api/v1/drivers/pending").then(r => r.data).catch(() => []),
+      api.get("/api/v1/drivers/my-orders").then(r => r.data).catch(() => []),
+    ]);
+    setPending(pend);
+    setMyOrders(mine.filter(o => o.status !== "delivered"));
+    setDone(mine.filter(o => o.status === "delivered"));
+  }, []);
+
+  useEffect(() => {
+    loadOrders();
+    const iv = setInterval(loadOrders, 20000);
+    return () => clearInterval(iv);
+  }, [loadOrders]);
+
+  useEffect(() => {
+    if (!navigator.geolocation) return;
+    const wid = navigator.geolocation.watchPosition(pos => {
+      const { latitude: lat, longitude: lng } = pos.coords;
+      setLocation({ lat, lng });
+      api.put("/api/v1/drivers/location", { lat, lng }).catch(() => {});
+    }, null, { enableHighAccuracy: true, maximumAge: 10000 });
+    return () => navigator.geolocation.clearWatch(wid);
+  }, []);
+
+  useEffect(() => {
+    const activeOrders = myOrders.filter(o => o.status === "out_for_delivery" || o.status === "preparing");
+    if (activeOrders.length < 2) { setRouteOrder(activeOrders.map(o => o.id)); return; }
+    const lat = location?.lat || 13.8;
+    const lng = location?.lng || 100.5;
+    setRouteLoading(true);
+    api.get(`/api/v1/drivers/route?lat=${lat}&lng=${lng}`)
+      .then(r => {
+        const ordered = r.data;
+        if (Array.isArray(ordered) && ordered.length) setRouteOrder(ordered.map(s => s.orderId));
+        else setRouteOrder(activeOrders.map(o => o.id));
+      })
+      .catch(() => setRouteOrder(activeOrders.map(o => o.id)))
+      .finally(() => setRouteLoading(false));
+  }, [myOrders.length, location?.lat, location?.lng]);
+
+  const sortedActiveOrders = routeOrder.length
+    ? [...myOrders].sort((a, b) => {
+        const ia = routeOrder.indexOf(a.id);
+        const ib = routeOrder.indexOf(b.id);
+        return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);
+      })
+    : myOrders;
+
+  async function acceptOrder(orderId) {
+    setUpdating(orderId);
+    await api.post(`/api/v1/orders/${orderId}/accept`).catch(() => {});
+    setUpdating(null); loadOrders();
+  }
+
+  async function updateStatus(orderId, status) {
+    setUpdating(orderId);
+    await api.put(`/api/v1/orders/${orderId}/status`, { status }).catch(() => {});
+    setUpdating(null); loadOrders();
+  }
+
+  function openNavigation(lat, lng) {
+    window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`, "_blank");
+  }
+
+  function openFullRoute() {
+    if (sortedActiveOrders.length === 0) return;
+    const waypoints = sortedActiveOrders.slice(0, -1).map(o => `${o.deliveryLat},${o.deliveryLng}`).join("|");
+    const last = sortedActiveOrders[sortedActiveOrders.length - 1];
+    const origin = location ? `${location.lat},${location.lng}` : "";
+    const base = "https://www.google.com/maps/dir/?api=1";
+    const url = origin
+      ? `${base}&origin=${origin}&destination=${last.deliveryLat},${last.deliveryLng}&waypoints=${waypoints}&travelmode=driving`
+      : `${base}&destination=${last.deliveryLat},${last.deliveryLng}&waypoints=${waypoints}&travelmode=driving`;
+    window.open(url, "_blank");
+  }
+
+  function logout() {
+    localStorage.removeItem("driver_token"); localStorage.removeItem("driver_user");
+    navigate("/login");
+  }
+
+  const tabs = [
+    { key: "pending", label: "รอรับงาน",  count: pendingOrders.length },
+    { key: "active",  label: "กำลังส่ง",  count: myOrders.length },
+    { key: "done",    label: "เสร็จแล้ว", count: doneOrders.length },
+  ];
 
   return (
     <div style={{ minHeight: "100vh", background: "#F4F6FB", maxWidth: 480, margin: "0 auto" }}>
@@ -445,19 +518,20 @@ export default function Dashboard() {
 
       <div style={{ padding: "14px 14px 80px" }}>
 
-        {/* Pending */}
         {tab === "pending" && (
           <>
             <p style={{ fontSize: 13, color: GRAY, marginBottom: 10 }}>ออเดอร์รอรับงาน · {pendingOrders.length} รายการ</p>
-            {pendingOrders.map(o => <OrderCard key={o.id} order={o} showAccept />)}
+            {pendingOrders.map(o => (
+              <OrderCard key={o.id} order={o} showAccept
+                sortedActiveOrdersLen={0} updating={updating}
+                onAccept={acceptOrder} onUpdateStatus={updateStatus} onNavigate={openNavigation} />
+            ))}
             {!pendingOrders.length && <EmptyState icon="📭" text="ไม่มีออเดอร์รอรับงาน" />}
           </>
         )}
 
-        {/* Active — with route order */}
         {tab === "active" && (
           <>
-            {/* Route summary banner */}
             {sortedActiveOrders.length > 1 && (
               <div style={{ background: "#EEF2FF", borderRadius: 12, padding: "10px 14px", marginBottom: 12, display: "flex", alignItems: "center", gap: 10 }}>
                 <div style={{ flex: 1 }}>
@@ -481,12 +555,15 @@ export default function Dashboard() {
               ออเดอร์ที่รับแล้ว · {myOrders.length} รายการ
               {!location && myOrders.length > 1 && <span style={{ color: "#F59E0B" }}> · เปิด GPS เพื่อเส้นทางที่แม่นยำขึ้น</span>}
             </p>
-            {sortedActiveOrders.map((o, i) => <OrderCard key={o.id} order={o} showStatus routeIndex={i} />)}
+            {sortedActiveOrders.map((o, i) => (
+              <OrderCard key={o.id} order={o} showStatus routeIndex={i}
+                sortedActiveOrdersLen={sortedActiveOrders.length} updating={updating}
+                onAccept={acceptOrder} onUpdateStatus={updateStatus} onNavigate={openNavigation} />
+            ))}
             {!myOrders.length && <EmptyState icon="✅" text="ไม่มีออเดอร์ที่กำลังส่ง" />}
           </>
         )}
 
-        {/* Done */}
         {tab === "done" && (
           <>
             <p style={{ fontSize: 13, color: GRAY, marginBottom: 10 }}>ส่งสำเร็จวันนี้ · {doneOrders.length} รายการ</p>
