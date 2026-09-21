@@ -130,6 +130,51 @@ export default function Dashboard() {
   const OrderCard = ({ order, showAccept, showStatus, routeIndex }) => {
     const nextAction = STATUS_NEXT[order.status];
     const isFirst = routeIndex === 0 && sortedActiveOrders.length > 1;
+    const [savedLoc, setSavedLoc] = useState(null);
+    const [locSaving, setLocSaving] = useState(false);
+    const [locStatus, setLocStatus] = useState(null);
+
+    // Load saved location for this customer
+    useEffect(() => {
+      if (!order.customerPhone) return;
+      api.get(`/api/v1/customers/location/by-contact?phone=${encodeURIComponent(order.customerPhone)}`)
+        .then(r => setSavedLoc(r.data || null)).catch(() => {});
+    }, [order.customerPhone]);
+
+    // Parse note: strip __phone_walkin: JSON, show human-readable items
+    const noteRaw = order.note || "";
+    let walkinItems = null;
+    let userNote = noteRaw;
+    if (noteRaw.match(/^__(?:phone_)?walkin:/)) {
+      try {
+        const w = JSON.parse(noteRaw.replace(/^__(?:phone_)?walkin:/, "").split("\n")[0]);
+        walkinItems = w.type === "mixed" ? (w.items || []) : [w];
+        userNote = noteRaw.split("\n").slice(1).join("\n").trim();
+      } catch { walkinItems = null; }
+    }
+
+    async function saveGpsLocation() {
+      setLocSaving(true); setLocStatus(null);
+      if (!navigator.geolocation) { setLocStatus("no_gps"); setLocSaving(false); return; }
+      navigator.geolocation.getCurrentPosition(async pos => {
+        try {
+          const { latitude, longitude, accuracy } = pos.coords;
+          const r = await api.post("/api/v1/customers/location/save", {
+            customerPhone: order.customerPhone,
+            customerAddress: order.deliveryAddress,
+            latitude, longitude,
+            locationAccuracy: accuracy && accuracy <= 50 ? "EXACT" : "APPROXIMATE",
+            source: "STAFF_LOCATION",
+          });
+          setSavedLoc(r.data); setLocStatus("ok");
+        } catch { setLocStatus("error"); }
+        setLocSaving(false);
+      }, () => { setLocStatus("no_gps"); setLocSaving(false); }, { enableHighAccuracy: true, timeout: 10000 });
+    }
+
+    const navLat = savedLoc?.latitude || order.deliveryLat;
+    const navLng = savedLoc?.longitude || order.deliveryLng;
+
     return (
       <div style={{
         background: WHITE, borderRadius: 14, padding: 14, marginBottom: 10,
@@ -163,19 +208,51 @@ export default function Dashboard() {
 
         {/* Info */}
         <div style={{ fontSize: 13, display: "flex", flexDirection: "column", gap: 4, marginBottom: 10 }}>
-          <p><span style={{ color: GRAY }}>👤</span> <strong>{order.customerName}</strong> · {order.customerPhone}</p>
-          <p><span style={{ color: GRAY }}>🛢</span> {order.product?.name} ({order.brand?.name}) × {order.qty}</p>
+          <p><span style={{ color: GRAY }}>👤</span> <strong>{order.customerName || "ไม่ระบุ"}</strong>{order.customerPhone ? ` · ${order.customerPhone}` : ""}</p>
+          {walkinItems ? (
+            <div style={{ background: "#F0FDF4", borderRadius: 8, padding: "6px 10px" }}>
+              {walkinItems.map((it, i) => (
+                <p key={i} style={{ margin: 0, color: "#166534", fontSize: 12 }}>
+                  🛢 {it.label || it.name || `${it.brandName || ""} ${it.weightKg ? it.weightKg + "กก." : ""}`.trim()} × {it.qty || 1}
+                  {it.price ? ` · ฿${Number(it.price).toLocaleString()}` : ""}
+                </p>
+              ))}
+            </div>
+          ) : (
+            <p><span style={{ color: GRAY }}>🛢</span> {order.product?.name || ""}{order.brand?.name ? ` (${order.brand.name})` : ""} × {order.qty}</p>
+          )}
           <p style={{ color: GRAY, lineHeight: 1.4 }}>📍 {order.deliveryAddress}</p>
-          {order.note && <p style={{ color: "#92400E", background: "#FFF7ED", borderRadius: 6, padding: "4px 8px", fontSize: 12 }}>💬 {order.note}</p>}
+          {savedLoc?.locationName && <p style={{ color: "#0369A1", fontSize: 12 }}>🏠 {savedLoc.locationName}</p>}
+          {savedLoc?.locationNote && <p style={{ color: "#374151", fontSize: 12, background: "#EFF6FF", borderRadius: 6, padding: "4px 8px" }}>📝 {savedLoc.locationNote}</p>}
+          {userNote && <p style={{ color: "#92400E", background: "#FFF7ED", borderRadius: 6, padding: "4px 8px", fontSize: 12 }}>💬 {userNote}</p>}
         </div>
+
+        {/* GPS Save button */}
+        {order.customerPhone && order.deliveryAddress && order.deliveryAddress !== "หน้าร้าน" && (
+          <div style={{ marginBottom: 10, background: "#F0F9FF", borderRadius: 10, padding: "8px 12px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+            <div>
+              <span style={{ fontSize: 11, fontWeight: 700, color: savedLoc ? "#0369A1" : GRAY }}>
+                {savedLoc ? "📍 มีพิกัดแล้ว" : "📍 ยังไม่มีพิกัด"}
+              </span>
+              {locStatus === "ok"     && <span style={{ fontSize: 11, color: "#059669", marginLeft: 6 }}>✅ บันทึกแล้ว</span>}
+              {locStatus === "no_gps" && <span style={{ fontSize: 11, color: "#D97706", marginLeft: 6 }}>⚠️ เปิด GPS ก่อน</span>}
+              {locStatus === "error"  && <span style={{ fontSize: 11, color: "#DC2626", marginLeft: 6 }}>❌ ผิดพลาด</span>}
+            </div>
+            <button onClick={saveGpsLocation} disabled={locSaving} style={{
+              padding: "6px 12px", borderRadius: 8, border: "none",
+              background: locSaving ? "#E5E7EB" : "#0369A1", color: WHITE,
+              fontSize: 12, fontWeight: 700, cursor: locSaving ? "default" : "pointer", whiteSpace: "nowrap",
+            }}>{locSaving ? "⏳..." : "📍 บันทึกที่นี่"}</button>
+          </div>
+        )}
 
         {/* Actions */}
         <div style={{ display: "flex", gap: 8 }}>
-          {order.deliveryLat && (
-            <button onClick={() => openNavigation(order.deliveryLat, order.deliveryLng)} style={{
+          {navLat && (
+            <button onClick={() => openNavigation(navLat, navLng)} style={{
               flex: 1, padding: "10px 6px", borderRadius: 10, border: "none",
               background: "#1D4ED8", color: WHITE, fontSize: 12, fontWeight: 700, cursor: "pointer",
-            }}>🗺 นำทาง</button>
+            }}>🧭 นำทาง</button>
           )}
           {showAccept && (
             <button onClick={() => acceptOrder(order.id)} disabled={updating === order.id} style={{
