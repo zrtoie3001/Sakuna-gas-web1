@@ -110,7 +110,7 @@ function LocationSaveButton({ customerPhone, customerAddress }) {
   );
 }
 
-function CustomerAutocomplete({ value, onChange, onSelect, placeholder, type = "text", disabled = false }) {
+function CustomerAutocomplete({ value, onChange, onSelect, placeholder, type = "text", disabled = false, field = "" }) {
   const [open, setOpen] = useState(false);
   const [suggestions, setSuggestions] = useState([]);
   const timer = useRef(null);
@@ -121,7 +121,9 @@ function CustomerAutocomplete({ value, onChange, onSelect, placeholder, type = "
     if (!q || q.length < 1) { setSuggestions([]); setOpen(false); return; }
     timer.current = setTimeout(async () => {
       try {
-        const r = await api.get(`/api/v1/orders/customer-suggestions?q=${encodeURIComponent(q)}`);
+        const params = new URLSearchParams({ q });
+        if (field) params.set("field", field);
+        const r = await api.get(`/api/v1/orders/customer-suggestions?${params}`);
         const data = r.data || [];
         setSuggestions(data);
         setOpen(data.length > 0);
@@ -1335,6 +1337,7 @@ ${noteText ? `<div style="margin-top:8px; padding:6px 8px; border:1.5px dashed #
                       value={walkinForm.customerName}
                       onChange={v => setWalkinForm(f => ({ ...f, customerName: v }))}
                       onSelect={applyWalkinCustomer}
+                      field="name"
                     />
                   </div>
                   <div style={{ flex: 1 }}>
@@ -1345,6 +1348,7 @@ ${noteText ? `<div style="margin-top:8px; padding:6px 8px; border:1.5px dashed #
                       onChange={v => setWalkinForm(f => ({ ...f, customerPhone: v }))}
                       onSelect={applyWalkinCustomer}
                       placeholder="ไม่ระบุได้"
+                      field="phone"
                     />
                   </div>
                 </div>
@@ -1546,6 +1550,7 @@ ${noteText ? `<div style="margin-top:8px; padding:6px 8px; border:1.5px dashed #
                     unitPrice: c.unitPrice ? String(c.unitPrice) : f.unitPrice,
                   }));
                 }}
+                field="name"
               />
             </div>
             <div style={{ marginBottom: 12 }}>
@@ -1570,6 +1575,7 @@ ${noteText ? `<div style="margin-top:8px; padding:6px 8px; border:1.5px dashed #
                 }}
                 placeholder="ไม่ระบุได้"
                 disabled={!createCustKnown}
+                field="phone"
               />
             </div>
             <div style={{ marginBottom: 12 }}>
@@ -1592,6 +1598,7 @@ ${noteText ? `<div style="margin-top:8px; padding:6px 8px; border:1.5px dashed #
                     }));
                   }}
                   placeholder="บ้านเลขที่ ซอย..."
+                  field="address"
                 />
               ) : (
                 <input

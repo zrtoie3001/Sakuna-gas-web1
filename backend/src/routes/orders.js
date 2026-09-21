@@ -19,24 +19,28 @@ const upload = multer({
 // Walk-in sale (admin)
 router.post("/walkin", requireAuth, ah(createWalkinOrder));
 
-// Customer suggestions — search by name OR phone, returns gas info + all addresses
+// Customer suggestions — search by name/phone/address (field-specific or all)
 router.get("/customer-suggestions", requireAuth, async (req, res) => {
   try {
-    const { q = "" } = req.query;
+    const { q = "", field = "" } = req.query;
     const ql = (q || "").trim();
     if (!ql) return res.json([]);
 
     const { sequelize: seq } = require("../config/database");
     const { QueryTypes } = require("sequelize");
 
-    // Raw SQL — search name/phone/address, exclude cancelled
+    // Build WHERE clause based on which field is being typed in
+    let whereClause;
+    if (field === "name")    whereClause = "customer_name ILIKE :q";
+    else if (field === "phone")   whereClause = "customer_phone ILIKE :q";
+    else if (field === "address") whereClause = "delivery_address ILIKE :q";
+    else whereClause = "(customer_name ILIKE :q OR customer_phone ILIKE :q OR delivery_address ILIKE :q)";
+
     const rows = await seq.query(
       `SELECT customer_name, customer_phone, delivery_address, brand_id, product_id, unit_price, note
        FROM orders
        WHERE status != 'cancelled'
-         AND (customer_name ILIKE :q
-          OR customer_phone ILIKE :q
-          OR delivery_address ILIKE :q)
+         AND (${whereClause})
        ORDER BY created_at DESC
        LIMIT 300`,
       { replacements: { q: `%${ql}%` }, type: QueryTypes.SELECT }
@@ -63,8 +67,8 @@ router.get("/customer-suggestions", requireAuth, async (req, res) => {
       if (!key) continue;
 
       let walkin = null;
-      if (r.note?.startsWith("__walkin:")) {
-        try { walkin = JSON.parse(r.note.replace(/^__walkin:/, "").split("\n")[0]); } catch {}
+      if (r.note?.startsWith("__walkin:") || r.note?.startsWith("__phone_walkin:")) {
+        try { walkin = JSON.parse(r.note.replace(/^__(?:phone_)?walkin:/, "").split("\n")[0]); } catch {}
       }
 
       if (!map.has(key)) {
