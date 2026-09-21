@@ -11,6 +11,7 @@ const GRAY   = "#6B7280";
 // สยาม and ยูนิค share the same stock pool — find stock from either brand
 const SHARED_BRANDS = ["ยูนิค", "สยาม"];
 const ALL_WEIGHTS = [4, 7, 8, 11.5, 13.5, 15, 48];
+const DEFAULT_PRICE = { 4: 200, 7: 305, 8: 320, 11.5: 420, 13.5: 435, 15: 450, 48: 1485 };
 
 function findStockByBrand(gasStocks, brandName, weight) {
   // Try exact match first, then partner brand if empty
@@ -1700,18 +1701,19 @@ ${noteText ? `<div style="margin-top:8px; padding:6px 8px; border:1.5px dashed #
                         <select value={createForm.productId || createForm._weightKg || ""} onChange={e => {
                           const val = e.target.value;
                           const prod = products.find(x => x.id === val);
+                          const getPrice = (kg, prodObj) => {
+                            if (prodObj?.homePrice) return String(prodObj.homePrice);
+                            return DEFAULT_PRICE[Number(kg)] ? String(DEFAULT_PRICE[Number(kg)]) : "";
+                          };
                           if (prod) {
-                            setCreateForm(f => ({ ...f, productId: val, _weightKg: "", unitPrice: prod.homePrice ? String(prod.homePrice) : f.unitPrice }));
+                            setCreateForm(f => ({ ...f, productId: val, _weightKg: "", unitPrice: getPrice(prod.kg, prod) }));
                           } else {
-                            // val is a kg number — find matching product for this brand
                             const kg = Number(val);
                             const matchProd = products.find(p => (p.brandId || p.brand_id) === createForm.brandId && Number(p.kg) === kg);
                             if (matchProd) {
-                              setCreateForm(f => ({ ...f, productId: matchProd.id, _weightKg: "", unitPrice: matchProd.homePrice ? String(matchProd.homePrice) : f.unitPrice }));
+                              setCreateForm(f => ({ ...f, productId: matchProd.id, _weightKg: "", unitPrice: getPrice(kg, matchProd) }));
                             } else {
-                              // stock-only weight — store kg directly, clear productId
-                              const stock = findStockByBrand(gasStocks, selBrand?.name || "", kg);
-                              setCreateForm(f => ({ ...f, productId: "", _weightKg: String(kg), unitPrice: stock?.homePrice ? String(stock.homePrice) : f.unitPrice }));
+                              setCreateForm(f => ({ ...f, productId: "", _weightKg: String(kg), unitPrice: getPrice(kg, null) }));
                             }
                           }
                         }} style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 14, boxSizing: "border-box" }}>
