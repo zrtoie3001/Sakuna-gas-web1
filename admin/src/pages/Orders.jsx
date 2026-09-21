@@ -1574,7 +1574,6 @@ ${noteText ? `<div style="margin-top:8px; padding:6px 8px; border:1.5px dashed #
                   }));
                 }}
                 placeholder="ไม่ระบุได้"
-                disabled={!createCustKnown}
                 field="phone"
               />
             </div>
@@ -1695,9 +1694,17 @@ ${noteText ? `<div style="margin-top:8px; padding:6px 8px; border:1.5px dashed #
                       setCreateForm(f => ({ ...f, productId: pid, unitPrice: p?.homePrice ? String(p.homePrice) : f.unitPrice }));
                     }} style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 14, boxSizing: "border-box" }}>
                       <option value="">-- เลือก --</option>
-                      {products.map(p => (
-                        <option key={p.id} value={p.id}>{p.name}</option>
-                      ))}
+                      {(() => {
+                        const brandProds = createForm.brandId
+                          ? products.filter(p => (p.brandId || p.brand_id) === createForm.brandId)
+                          : products;
+                        const prodKgs = new Set(brandProds.map(p => Number(p.kg)));
+                        const allKgs = [...new Set([...ALL_WEIGHTS, ...prodKgs])].sort((a,b)=>a-b);
+                        return allKgs.map(kg => {
+                          const prod = brandProds.find(p => Number(p.kg) === kg);
+                          return <option key={kg} value={prod?.id || `__kg_${kg}`}>{kg} กก.{prod ? "" : " (ไม่มีในระบบ)"}</option>;
+                        });
+                      })()}
                     </select>
                   </div>
                 </div>
