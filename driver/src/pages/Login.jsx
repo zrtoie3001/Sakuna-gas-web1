@@ -38,13 +38,15 @@ export default function Login() {
         <form onSubmit={handleSubmit}>
           <div style={{ marginBottom: 12 }}>
             <label style={{ fontSize: 12, fontWeight: 700, color: "#374151", display: "block", marginBottom: 4 }}>Email</label>
-            <input type="email" value={email} onChange={e => setEmail(e.target.value)} required placeholder="driver@sakunngas.com"
-              style={{ width: "100%", padding: "11px 14px", borderRadius: 10, border: "2px solid #E5E7EB", fontSize: 14 }} />
+            <input type="text" value={email} onChange={e => setEmail(e.target.value)} required placeholder="driver@sakunngas.com"
+              autoComplete="username email" autoCorrect="off" autoCapitalize="off" spellCheck="false"
+              style={{ width: "100%", padding: "11px 14px", borderRadius: 10, border: "2px solid #E5E7EB", fontSize: 14, imeMode: "disabled" }} />
           </div>
           <div style={{ marginBottom: 20 }}>
             <label style={{ fontSize: 12, fontWeight: 700, color: "#374151", display: "block", marginBottom: 4 }}>Password</label>
             <input type="password" value={pass} onChange={e => setPass(e.target.value)} required placeholder="••••••••"
-              style={{ width: "100%", padding: "11px 14px", borderRadius: 10, border: "2px solid #E5E7EB", fontSize: 14 }} />
+              autoComplete="current-password" autoCorrect="off" autoCapitalize="off" spellCheck="false"
+              style={{ width: "100%", padding: "11px 14px", borderRadius: 10, border: "2px solid #E5E7EB", fontSize: 14, imeMode: "disabled" }} />
           </div>
           {error && <div style={{ marginBottom: 12, padding: "8px 12px", background: "#FEF2F2", borderRadius: 8, fontSize: 13, color: "#DC2626" }}>⚠️ {error}</div>}
           <button type="submit" disabled={loading} style={{

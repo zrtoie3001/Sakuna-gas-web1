@@ -52,12 +52,14 @@ export default function Login() {
           <div style={{ marginBottom: 14 }}>
             <label style={{ fontSize: 12, color: "#374151", display: "block", marginBottom: 5, fontWeight: 700 }}>Email</label>
             <input
-              type="email" value={email} onChange={e => setEmail(e.target.value)}
+              type="text" value={email} onChange={e => setEmail(e.target.value)}
               placeholder="admin@sakunngas.com"
-              required
+              required autoComplete="username email"
+              autoCorrect="off" autoCapitalize="off" spellCheck="false"
               style={{
                 width: "100%", padding: "11px 14px", borderRadius: 10,
                 border: "2px solid #E5E7EB", fontSize: 14, outline: "none",
+                imeMode: "disabled",
               }}
             />
           </div>
@@ -68,11 +70,11 @@ export default function Login() {
               placeholder="••••••••"
               required
               autoComplete="current-password"
-              lang="en"
-              inputMode="none"
+              autoCorrect="off" autoCapitalize="off" spellCheck="false"
               style={{
                 width: "100%", padding: "11px 14px", borderRadius: 10,
                 border: "2px solid #E5E7EB", fontSize: 14, outline: "none",
+                imeMode: "disabled",
               }}
             />
           </div>
