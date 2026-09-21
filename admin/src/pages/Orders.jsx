@@ -46,6 +46,70 @@ const STATUSES = [
 const EMPTY_ORDER = { customerName: "", customerPhone: "", brandId: "", productId: "", qty: 1, unitPrice: "", paymentMethod: "cash", deliveryAddress: "", note: "", orderType: "gas", liftingFloors: "", scheduledDate: "" };
 const LIFTING_RATE = (weightKg) => { const w = Number(weightKg); return w <= 4 ? 5 : w >= 15 ? 10 : 0; };
 
+function LocationSaveButton({ customerPhone, customerAddress }) {
+  const [saving, setSaving] = useState(false);
+  const [status, setStatus] = useState(null); // null | "ok" | "error" | "no_gps"
+  const [savedLoc, setSavedLoc] = useState(null);
+
+  useEffect(() => {
+    if (!customerPhone) return;
+    api.get(`/api/v1/customers/location/by-contact?phone=${encodeURIComponent(customerPhone)}`)
+      .then(r => setSavedLoc(r.data))
+      .catch(() => {});
+  }, [customerPhone]);
+
+  async function handleSave() {
+    setSaving(true); setStatus(null);
+    if (!navigator.geolocation) { setStatus("no_gps"); setSaving(false); return; }
+    navigator.geolocation.getCurrentPosition(async pos => {
+      try {
+        const { latitude, longitude, accuracy } = pos.coords;
+        const r = await api.post("/api/v1/customers/location/save", {
+          customerPhone,
+          customerAddress,
+          latitude,
+          longitude,
+          locationAccuracy: accuracy && accuracy <= 50 ? "EXACT" : "APPROXIMATE",
+          source: "STAFF_LOCATION",
+        });
+        setSavedLoc(r.data);
+        setStatus("ok");
+      } catch { setStatus("error"); }
+      setSaving(false);
+    }, () => { setStatus("no_gps"); setSaving(false); }, { enableHighAccuracy: true, timeout: 10000 });
+  }
+
+  const mapsLink = savedLoc
+    ? `https://www.google.com/maps?q=${savedLoc.latitude},${savedLoc.longitude}`
+    : null;
+
+  return (
+    <div style={{ marginTop: 10, background: "#F0F9FF", borderRadius: 10, padding: "10px 12px", border: "1.5px solid #BAE6FD" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: savedLoc ? 8 : 0 }}>
+        <span style={{ fontSize: 12, fontWeight: 700, color: "#0369A1" }}>
+          {savedLoc ? "📍 มีพิกัดแล้ว" : "📍 ยังไม่มีพิกัด"}
+        </span>
+        <button onClick={handleSave} disabled={saving}
+          style={{ padding: "5px 12px", borderRadius: 7, border: "none", background: saving ? "#E5E7EB" : "#0369A1", color: "#fff", fontSize: 12, fontWeight: 700, cursor: saving ? "default" : "pointer" }}>
+          {saving ? "⏳ กำลังหาตำแหน่ง..." : "📍 บันทึกตำแหน่งนี้"}
+        </button>
+      </div>
+      {status === "ok"     && <div style={{ fontSize: 11, color: "#059669", marginTop: 4 }}>✅ บันทึกพิกัดสำเร็จ</div>}
+      {status === "error"  && <div style={{ fontSize: 11, color: "#DC2626", marginTop: 4 }}>❌ เกิดข้อผิดพลาด</div>}
+      {status === "no_gps" && <div style={{ fontSize: 11, color: "#D97706", marginTop: 4 }}>⚠️ ไม่สามารถเข้าถึง GPS ได้</div>}
+      {savedLoc && (
+        <div style={{ fontSize: 11, color: "#0C4A6E", display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <span>{Number(savedLoc.latitude).toFixed(6)}, {Number(savedLoc.longitude).toFixed(6)}</span>
+          <a href={mapsLink} target="_blank" rel="noreferrer"
+            style={{ color: "#0369A1", fontWeight: 700, textDecoration: "none" }}>🗺 ดูแผนที่</a>
+          <a href={`https://www.google.com/maps/dir/?api=1&destination=${savedLoc.latitude},${savedLoc.longitude}`}
+            target="_blank" rel="noreferrer" style={{ color: "#7C3AED", fontWeight: 700, textDecoration: "none" }}>🧭 นำทาง</a>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function CustomerAutocomplete({ value, onChange, onSelect, placeholder, type = "text", disabled = false }) {
   const [open, setOpen] = useState(false);
   const [suggestions, setSuggestions] = useState([]);
@@ -980,6 +1044,14 @@ ${noteText ? `<div style="margin-top:8px; padding:6px 8px; border:1.5px dashed #
               </div>
             ) : null;
           })()}
+
+          {/* ── GPS Location button ── */}
+          {selected.customerPhone && selected.deliveryAddress && selected.deliveryAddress !== "หน้าร้าน" && (
+            <LocationSaveButton
+              customerPhone={selected.customerPhone}
+              customerAddress={selected.deliveryAddress}
+            />
+          )}
 
           {selected.slipUrl && (
             <div style={{ marginTop: 10 }}>

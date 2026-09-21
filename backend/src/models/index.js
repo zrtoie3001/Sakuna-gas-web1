@@ -255,6 +255,27 @@ const CashFloat = sequelize.define("CashFloat", {
   note:        { type: DataTypes.TEXT },
 }, { tableName: "cash_floats", underscored: true });
 
+// ── CustomerLocation ──────────────────────────────────────────────────────────
+const CustomerLocation = sequelize.define("CustomerLocation", {
+  id:               { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+  customerId:       { type: DataTypes.UUID },          // null = linked by phone/address
+  customerPhone:    { type: DataTypes.STRING(20) },
+  customerAddress:  { type: DataTypes.TEXT },
+  locationName:     { type: DataTypes.STRING(200) },   // ชื่อที่ลูกค้าเรียก
+  latitude:         { type: DataTypes.DECIMAL(11, 8), allowNull: false },
+  longitude:        { type: DataTypes.DECIMAL(11, 8), allowNull: false },
+  addressText:      { type: DataTypes.TEXT },          // ที่อยู่จริง
+  locationNote:     { type: DataTypes.TEXT },          // รายละเอียดการเดินทาง / จุดสังเกต
+  locationAccuracy: { type: DataTypes.STRING(20), defaultValue: "EXACT" }, // EXACT | APPROXIMATE | UNKNOWN
+  source:           { type: DataTypes.STRING(30), defaultValue: "STAFF_LOCATION" }, // STAFF_LOCATION | ADMIN_LOCATION | CUSTOMER_MAP_PIN | CUSTOMER_CURRENT_LOCATION
+  createdBy:        { type: DataTypes.UUID },
+  createdByName:    { type: DataTypes.STRING(100) },
+  isDefault:        { type: DataTypes.BOOLEAN, defaultValue: true },
+}, { tableName: "customer_locations", underscored: true });
+
+Customer.hasMany(CustomerLocation, { foreignKey: "customerId", as: "locations" });
+CustomerLocation.belongsTo(Customer, { foreignKey: "customerId", as: "customer" });
+
 // ── Debt (ค้างเงิน / ค้างถัง) ─────────────────────────────────────────────────
 const Debt = sequelize.define("Debt", {
   id:             { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
@@ -293,4 +314,5 @@ module.exports = {
   Debt,
   Expense,
   CashFloat,
+  CustomerLocation,
 };

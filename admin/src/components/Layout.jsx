@@ -68,6 +68,7 @@ const NAV = [
   { to: "/discounts", icon: "🎟", label: "โค้ดส่วนลด" },
   { to: "/drivers",   icon: "🛵", label: "พนักงาน",      roles: ["finance"] },
   { to: "/customers", icon: "👥", label: "ลูกค้า" },
+  { to: "/map",       icon: "🗺️", label: "แผนที่" },
   { to: "/reports",   icon: "📈", label: "รายงาน" },
   { to: "/stock",     icon: "📦", label: "สต็อก" },
   { to: "/debts",     icon: "💸", label: "ค้างเงิน/ถัง" },

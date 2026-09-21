@@ -17,4 +17,11 @@ router.get("/note", requireAuth, requireRole("admin"), ah(ctrl.getCustomerNote))
 router.put("/note", requireAuth, requireRole("admin"), ah(ctrl.upsertCustomerNote));
 router.get("/:id/orders", requireAuth, requireRole("admin"), ah(ctrl.getCustomerOrders));
 
+// Location endpoints — auth optional so drivers can use
+router.get("/location/by-contact",  requireAuth, ah(ctrl.getLocationByContact));
+router.post("/location/save",        requireAuth, ah(ctrl.saveLocation));
+router.put("/location/:locId",       requireAuth, ah(ctrl.updateLocation));
+router.delete("/location/:locId",    requireAuth, requireRole("admin"), ah(ctrl.deleteLocation));
+router.get("/locations/today-map",   requireAuth, ah(ctrl.todayDeliveryLocations));
+
 module.exports = router;

@@ -15,6 +15,7 @@ import Debts from "./pages/Debts.jsx";
 import Expenses from "./pages/Expenses.jsx";
 import Finance from "./pages/Finance.jsx";
 import CashBalance from "./pages/CashBalance.jsx";
+import MapView from "./pages/MapView.jsx";
 
 class ErrorBoundary extends Component {
   state = { error: null };
@@ -67,6 +68,7 @@ export default function App() {
           <Route path="cash"      element={<RouteErrorBoundary><CashBalance /></RouteErrorBoundary>} />
           <Route path="finance"   element={<RouteErrorBoundary><Finance /></RouteErrorBoundary>} />
           <Route path="settings"  element={<RouteErrorBoundary><Settings /></RouteErrorBoundary>} />
+          <Route path="map"       element={<RouteErrorBoundary><MapView /></RouteErrorBoundary>} />
         </Route>
       </Routes>
     </BrowserRouter>

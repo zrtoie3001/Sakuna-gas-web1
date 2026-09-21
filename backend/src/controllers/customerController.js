@@ -1,4 +1,5 @@
-const { Customer, DeliveryAddress, Order, Brand, Product } = require("../models");
+const { Customer, DeliveryAddress, Order, Brand, Product, CustomerLocation } = require("../models");
+const { Op } = require("sequelize");
 
 async function getOrCreateCustomer(req, res) {
   const { lineUserId } = req.params;
@@ -253,4 +254,104 @@ async function getCustomerOrders(req, res) {
   res.json({ customer, orders });
 }
 
-module.exports = { getOrCreateCustomer, addAddress, getAddresses, listCustomers, getCustomerOrders, getCustomerOrdersByPhone, updateCustomerContact, deleteCustomer, getCustomerNote, upsertCustomerNote };
+// ── Location helpers ──────────────────────────────────────────────────────────
+
+async function getLocationByContact(req, res) {
+  const { phone, address, customerId } = req.query;
+  const where = {};
+  if (customerId) where.customerId = customerId;
+  else if (phone) where.customerPhone = phone;
+  else if (address) where.customerAddress = address;
+  else return res.json(null);
+
+  const loc = await CustomerLocation.findOne({ where, order: [["updatedAt", "DESC"]] });
+  res.json(loc || null);
+}
+
+async function saveLocation(req, res) {
+  const { customerId, customerPhone, customerAddress, latitude, longitude,
+    locationName, addressText, locationNote, locationAccuracy, source } = req.body;
+  if (!latitude || !longitude) return res.status(400).json({ error: "ต้องระบุ latitude และ longitude" });
+
+  const createdBy     = req.user?.id;
+  const createdByName = req.user?.name || "admin";
+
+  // Upsert: update existing or create new per phone
+  const where = customerId ? { customerId } : customerPhone ? { customerPhone } : null;
+  if (!where) return res.status(400).json({ error: "ต้องระบุ customerId หรือ customerPhone" });
+
+  const [loc, created] = await CustomerLocation.findOrCreate({
+    where,
+    defaults: { customerId, customerPhone, customerAddress, latitude, longitude,
+      locationName, addressText, locationNote,
+      locationAccuracy: locationAccuracy || "EXACT",
+      source: source || "STAFF_LOCATION",
+      createdBy, createdByName, isDefault: true },
+  });
+
+  if (!created) {
+    await loc.update({ latitude, longitude, locationName, addressText, locationNote,
+      locationAccuracy: locationAccuracy || loc.locationAccuracy,
+      source: source || "STAFF_LOCATION",
+      createdBy, createdByName,
+      ...(customerAddress && { customerAddress }),
+    });
+  }
+  res.json(loc);
+}
+
+async function updateLocation(req, res) {
+  const loc = await CustomerLocation.findByPk(req.params.locId);
+  if (!loc) return res.status(404).json({ error: "Not found" });
+  await loc.update(req.body);
+  res.json(loc);
+}
+
+async function deleteLocation(req, res) {
+  const loc = await CustomerLocation.findByPk(req.params.locId);
+  if (!loc) return res.status(404).json({ error: "Not found" });
+  await loc.destroy();
+  res.json({ ok: true });
+}
+
+async function todayDeliveryLocations(req, res) {
+  const { sequelize: seq } = require("../config/database");
+  const { QueryTypes } = require("sequelize");
+
+  const tz = "Asia/Bangkok";
+  const todayStart = new Date(new Date().toLocaleDateString("en-CA", { timeZone: tz }) + "T00:00:00+07:00");
+  const todayEnd   = new Date(new Date().toLocaleDateString("en-CA", { timeZone: tz }) + "T23:59:59+07:00");
+
+  const orders = await Order.findAll({
+    where: {
+      createdAt: { [Op.between]: [todayStart, todayEnd] },
+      status: { [Op.notIn]: ["cancelled"] },
+    },
+    attributes: ["id", "orderNumber", "customerName", "customerPhone", "deliveryAddress",
+      "deliveryLat", "deliveryLng", "status", "isPaid", "total"],
+    order: [["createdAt", "ASC"]],
+  });
+
+  // Enrich with saved locations by phone
+  const phones = [...new Set(orders.map(o => o.customerPhone).filter(Boolean))];
+  const locs = phones.length
+    ? await CustomerLocation.findAll({ where: { customerPhone: { [Op.in]: phones } } })
+    : [];
+  const locByPhone = new Map(locs.map(l => [l.customerPhone, l]));
+
+  const result = orders.map(o => {
+    const saved = locByPhone.get(o.customerPhone);
+    return {
+      ...o.toJSON(),
+      savedLat: saved?.latitude ?? null,
+      savedLng: saved?.longitude ?? null,
+      locationName: saved?.locationName ?? null,
+      locationNote: saved?.locationNote ?? null,
+      locationAccuracy: saved?.locationAccuracy ?? null,
+      hasLocation: !!(saved || (o.deliveryLat && o.deliveryLng)),
+    };
+  });
+  res.json(result);
+}
+
+module.exports = { getOrCreateCustomer, addAddress, getAddresses, listCustomers, getCustomerOrders, getCustomerOrdersByPhone, updateCustomerContact, deleteCustomer, getCustomerNote, upsertCustomerNote, getLocationByContact, saveLocation, updateLocation, deleteLocation, todayDeliveryLocations };

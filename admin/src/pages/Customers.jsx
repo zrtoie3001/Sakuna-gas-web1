@@ -48,6 +48,9 @@ export default function Customers() {
   const [editForm, setEditForm]   = useState({ name: "", phone: "", address: "" });
   const [customerNote, setCustomerNote] = useState("");
   const [noteSaving, setNoteSaving]     = useState(false);
+  const [custLocation, setCustLocation] = useState(null);
+  const [locForm, setLocForm]           = useState(null); // null = view, {} = editing
+  const [locSaving, setLocSaving]       = useState(false);
   const noteTimer = useRef(null);
 
   const totalPages = Math.ceil(total / PAGE_SIZE);
@@ -68,17 +71,19 @@ export default function Customers() {
     setSelected(c);
     setEditing(false);
     setEditForm({ name: c.name || "", phone: c.phone || "", address: c.lastAddress || "" });
-    setCustomerNote("");
+    setCustomerNote(""); setCustLocation(null); setLocForm(null);
     const params = new URLSearchParams();
     if (c.lastAddress) params.set("address", c.lastAddress);
     if (c.phone) params.set("phone", c.phone);
     if (c.name && c.name !== "ลูกค้าหน้าร้าน") params.set("name", c.name);
-    const [ordersRes, noteRes] = await Promise.all([
+    const [ordersRes, noteRes, locRes] = await Promise.all([
       api.get(`/api/v1/customers/orders-by-contact?${params}`).catch(() => ({ data: { orders: [] } })),
       api.get(`/api/v1/customers/note?address=${encodeURIComponent(c.lastAddress || "")}&phone=${encodeURIComponent(c.phone || "")}`).catch(() => ({ data: { note: "" } })),
+      api.get(`/api/v1/customers/location/by-contact?${c.phone ? "phone=" + encodeURIComponent(c.phone) : "address=" + encodeURIComponent(c.lastAddress || "")}`).catch(() => ({ data: null })),
     ]);
     setOrders(ordersRes.data.orders || []);
     setCustomerNote(noteRes.data.note || "");
+    setCustLocation(locRes.data || null);
   }
 
   async function saveEdit() {
@@ -227,6 +232,104 @@ export default function Customers() {
               rows={3}
               style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: "1.5px solid #E5E7EB", fontSize: 12, boxSizing: "border-box", resize: "vertical", background: customerNote ? "#FFFBEB" : "#FAFAFA" }}
             />
+          </div>
+
+          {/* Location section */}
+          <div style={{ marginBottom: 14, background: "#F0F9FF", borderRadius: 10, padding: "12px 14px", border: "1.5px solid #BAE6FD" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+              <div>
+                <span style={{ fontSize: 13, fontWeight: 800, color: "#0369A1" }}>📍 สถานที่จัดส่ง</span>
+                {" "}
+                <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 10, fontWeight: 700,
+                  background: custLocation ? (custLocation.locationAccuracy === "EXACT" ? "#D1FAE5" : "#FEF3C7") : "#FEE2E2",
+                  color: custLocation ? (custLocation.locationAccuracy === "EXACT" ? "#065F46" : "#92400E") : "#991B1B" }}>
+                  {custLocation ? (custLocation.locationAccuracy === "EXACT" ? "🟢 มีพิกัดแล้ว" : "🟡 พิกัดโดยประมาณ") : "🔴 ยังไม่มีพิกัด"}
+                </span>
+              </div>
+              <button onClick={() => setLocForm(custLocation ? { ...custLocation } : { latitude: "", longitude: "", locationName: "", addressText: "", locationNote: "", locationAccuracy: "EXACT" })}
+                style={{ fontSize: 11, padding: "4px 10px", borderRadius: 7, border: "1.5px solid #0369A1", background: WHITE, color: "#0369A1", fontWeight: 700, cursor: "pointer" }}>
+                {custLocation ? "✏️ แก้ไข" : "+ เพิ่มพิกัด"}
+              </button>
+            </div>
+
+            {locForm ? (
+              <div>
+                {[
+                  ["ชื่อที่ลูกค้าเรียก", "locationName", "text"],
+                  ["Latitude", "latitude", "number"],
+                  ["Longitude", "longitude", "number"],
+                  ["ที่อยู่จริง", "addressText", "text"],
+                  ["รายละเอียด / จุดสังเกต", "locationNote", "text"],
+                ].map(([lbl, key, type]) => (
+                  <div key={key} style={{ marginBottom: 8 }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: GRAY, marginBottom: 2 }}>{lbl}</div>
+                    <input type={type} value={locForm[key] || ""} onChange={e => setLocForm(f => ({ ...f, [key]: e.target.value }))}
+                      style={{ width: "100%", padding: "6px 10px", borderRadius: 7, border: "1.5px solid #BAE6FD", fontSize: 12, boxSizing: "border-box" }} />
+                  </div>
+                ))}
+                <div style={{ marginBottom: 8 }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: GRAY, marginBottom: 2 }}>ความแม่นยำ</div>
+                  <select value={locForm.locationAccuracy || "EXACT"} onChange={e => setLocForm(f => ({ ...f, locationAccuracy: e.target.value }))}
+                    style={{ width: "100%", padding: "6px 10px", borderRadius: 7, border: "1.5px solid #BAE6FD", fontSize: 12, boxSizing: "border-box" }}>
+                    <option value="EXACT">🟢 พิกัดแม่นยำ</option>
+                    <option value="APPROXIMATE">🟡 พิกัดโดยประมาณ</option>
+                    <option value="UNKNOWN">🔴 ไม่ทราบ</option>
+                  </select>
+                </div>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button onClick={async () => {
+                    if (!locForm.latitude || !locForm.longitude) return alert("ต้องระบุ Latitude และ Longitude");
+                    setLocSaving(true);
+                    try {
+                      const payload = { ...locForm,
+                        customerPhone: selected.phone || "",
+                        customerAddress: selected.lastAddress || "",
+                        source: "ADMIN_LOCATION" };
+                      const r = custLocation
+                        ? await api.put(`/api/v1/customers/location/${custLocation.id}`, payload)
+                        : await api.post("/api/v1/customers/location/save", payload);
+                      setCustLocation(r.data); setLocForm(null);
+                    } catch (e) { alert(e.response?.data?.error || "เกิดข้อผิดพลาด"); }
+                    setLocSaving(false);
+                  }} disabled={locSaving} style={{ flex: 2, padding: "7px", borderRadius: 8, border: "none", background: NAVY, color: WHITE, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>
+                    {locSaving ? "กำลังบันทึก..." : "💾 บันทึก"}
+                  </button>
+                  <button onClick={() => setLocForm(null)} style={{ flex: 1, padding: "7px", borderRadius: 8, border: "1.5px solid #E5E7EB", background: WHITE, color: GRAY, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>
+                    ยกเลิก
+                  </button>
+                </div>
+              </div>
+            ) : custLocation ? (
+              <div style={{ fontSize: 12, color: "#0C4A6E" }}>
+                {custLocation.locationName && <div style={{ fontWeight: 700, marginBottom: 4 }}>🏠 {custLocation.locationName}</div>}
+                {custLocation.addressText && <div style={{ marginBottom: 4, color: GRAY }}>📌 {custLocation.addressText}</div>}
+                {custLocation.locationNote && <div style={{ marginBottom: 6, color: "#374151" }}>📝 {custLocation.locationNote}</div>}
+                <div style={{ marginBottom: 6, fontFamily: "monospace", fontSize: 11, color: GRAY }}>
+                  {Number(custLocation.latitude).toFixed(6)}, {Number(custLocation.longitude).toFixed(6)}
+                </div>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <a href={`https://www.google.com/maps?q=${custLocation.latitude},${custLocation.longitude}`}
+                    target="_blank" rel="noreferrer"
+                    style={{ flex: 1, padding: "6px", borderRadius: 7, background: "#0369A1", color: WHITE, fontWeight: 700, fontSize: 11, textAlign: "center", textDecoration: "none" }}>
+                    📍 ดูแผนที่
+                  </a>
+                  <a href={`https://www.google.com/maps/dir/?api=1&destination=${custLocation.latitude},${custLocation.longitude}`}
+                    target="_blank" rel="noreferrer"
+                    style={{ flex: 1, padding: "6px", borderRadius: 7, background: "#7C3AED", color: WHITE, fontWeight: 700, fontSize: 11, textAlign: "center", textDecoration: "none" }}>
+                    🧭 นำทาง
+                  </a>
+                </div>
+                {custLocation.createdByName && (
+                  <div style={{ marginTop: 6, fontSize: 10, color: GRAY }}>
+                    บันทึกโดย: {custLocation.createdByName} · {new Date(custLocation.updatedAt).toLocaleDateString("th-TH")}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div style={{ fontSize: 12, color: GRAY, textAlign: "center", padding: "8px 0" }}>
+                ยังไม่มีพิกัด — พนักงานสามารถบันทึกได้เมื่อถึงหน้าบ้านลูกค้า
+              </div>
+            )}
           </div>
 
           <button onClick={deleteCustomer} style={{ width: "100%", padding: "8px", borderRadius: 8, border: "1.5px solid #FCA5A5", background: "#FFF5F5", color: "#DC2626", fontWeight: 700, fontSize: 13, cursor: "pointer", marginBottom: 16 }}>
