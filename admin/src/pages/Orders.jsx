@@ -1725,7 +1725,7 @@ ${noteText ? `<div style="margin-top:8px; padding:6px 8px; border:1.5px dashed #
                     })()}
                   </div>
                 </div>
-                {createForm.productId && (
+                {(createForm.productId || createForm._weightKg) && (
                   <div style={{ marginBottom: 12 }}>
                     <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>ราคา (บาท)</div>
                     <input type="number" value={createForm.unitPrice || ""} onChange={e => setCreateForm(f => ({ ...f, unitPrice: e.target.value }))}
