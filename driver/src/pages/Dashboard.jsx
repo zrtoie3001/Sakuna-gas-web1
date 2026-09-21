@@ -39,26 +39,26 @@ function ensureLeaflet(cb) {
 
 // ─── MapModal — module-level so React never remounts it during zoom ───────────
 function MapModal({ order, savedLoc, onClose, onSavePin }) {
-  const mapRef    = useRef(null);
-  const mapObjRef = useRef(null);
-  const pinMarkerRef = useRef(null);  // customer pin (orange)
-  const gpsMarkerRef = useRef(null);  // my location (blue dot)
-  const [pinLat, setPinLat] = useState(null);
-  const [pinLng, setPinLng] = useState(null);
-  const [gpsStatus, setGpsStatus] = useState("loading"); // loading | ok | error
-  const [saving, setSaving]   = useState(false);
-  const [saved, setSaved]     = useState(false);
+  const mapRef       = useRef(null);
+  const mapObjRef    = useRef(null);
+  const pinMarkerRef = useRef(null);
+  const gpsMarkerRef = useRef(null);
+  const [pinLat, setPinLat]     = useState(null);
+  const [pinLng, setPinLng]     = useState(null);
+  const [gpsStatus, setGpsStatus] = useState("loading");
+  const [mapReady, setMapReady]   = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved]   = useState(false);
 
   function placePinMarker(map, lat, lng, label) {
     if (pinMarkerRef.current) pinMarkerRef.current.remove();
     const icon = window.L.divIcon({
       className: "",
-      html: `<div style="font-size:28px;line-height:1;filter:drop-shadow(0 2px 4px rgba(0,0,0,.4))">📍</div>`,
-      iconSize: [28, 28], iconAnchor: [14, 28],
+      html: `<div style="font-size:30px;line-height:1;filter:drop-shadow(0 2px 4px rgba(0,0,0,.5))">📍</div>`,
+      iconSize: [30, 30], iconAnchor: [15, 30],
     });
     pinMarkerRef.current = window.L.marker([lat, lng], { icon, draggable: true })
-      .addTo(map)
-      .bindPopup(label || "📍 ตำแหน่งลูกค้า").openPopup();
+      .addTo(map).bindPopup(label || "📍 ตำแหน่งลูกค้า").openPopup();
     pinMarkerRef.current.on("dragend", e => {
       const p = e.target.getLatLng();
       setPinLat(p.lat); setPinLng(p.lng);
@@ -70,58 +70,86 @@ function MapModal({ order, savedLoc, onClose, onSavePin }) {
     if (gpsMarkerRef.current) gpsMarkerRef.current.remove();
     const icon = window.L.divIcon({
       className: "",
-      html: `<div style="width:16px;height:16px;border-radius:50%;background:#1D4ED8;border:3px solid #fff;box-shadow:0 2px 8px rgba(29,78,216,.6)"></div>`,
-      iconSize: [16, 16], iconAnchor: [8, 8],
+      html: `<div style="width:18px;height:18px;border-radius:50%;background:#1D4ED8;border:3px solid #fff;box-shadow:0 2px 10px rgba(29,78,216,.7)"></div>`,
+      iconSize: [18, 18], iconAnchor: [9, 9],
     });
-    gpsMarkerRef.current = window.L.marker([lat, lng], { icon, zIndexOffset: -100 }).addTo(map)
-      .bindPopup("📡 ตำแหน่งของคุณ");
+    gpsMarkerRef.current = window.L.marker([lat, lng], { icon, zIndexOffset: -100 })
+      .addTo(map).bindPopup("📡 ตำแหน่งของคุณ");
+  }
+
+  function initMap(centerLat, centerLng, zoom) {
+    if (mapObjRef.current || !mapRef.current || !window.L) return;
+    const map = window.L.map(mapRef.current, { zoomControl: true }).setView([centerLat, centerLng], zoom);
+    window.L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution: "© OpenStreetMap contributors", maxZoom: 19,
+    }).addTo(map);
+    mapObjRef.current = map;
+    setMapReady(true);
+    map.on("click", e => {
+      placePinMarker(map, e.latlng.lat, e.latlng.lng, "📍 ตำแหน่งที่เลือก");
+    });
+    return map;
   }
 
   useEffect(() => {
+    const hasSaved   = !!(savedLoc?.latitude);
+    const hasDelivery = !!(order.deliveryLat);
+
     ensureLeaflet(() => {
-      if (mapObjRef.current || !mapRef.current) return;
+      if (hasSaved || hasDelivery) {
+        // Have existing coords → init map there immediately, then also fetch GPS
+        const lat = Number(hasSaved ? savedLoc.latitude : order.deliveryLat);
+        const lng = Number(hasSaved ? savedLoc.longitude : order.deliveryLng);
+        const map = initMap(lat, lng, 17);
+        if (map) placePinMarker(map, lat, lng, savedLoc?.locationName || order.deliveryAddress || "ตำแหน่งลูกค้า");
 
-      // Default center: existing pin > delivery coords > Bangkok
-      const defLat = Number(savedLoc?.latitude || order.deliveryLat || 13.75);
-      const defLng = Number(savedLoc?.longitude || order.deliveryLng || 100.5);
-      const hasDefault = !!(savedLoc?.latitude || order.deliveryLat);
+        // Still get GPS to show blue dot
+        if (navigator.geolocation) {
+          navigator.geolocation.getCurrentPosition(pos => {
+            placeGpsMarker(mapObjRef.current, pos.coords.latitude, pos.coords.longitude);
+            setGpsStatus("ok");
+          }, () => setGpsStatus("error"), { enableHighAccuracy: true, timeout: 10000 });
+        } else setGpsStatus("error");
 
-      const map = window.L.map(mapRef.current, { zoomControl: true })
-        .setView([defLat, defLng], hasDefault ? 16 : 11);
-      window.L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        attribution: "© OpenStreetMap contributors", maxZoom: 19,
-      }).addTo(map);
-      mapObjRef.current = map;
-
-      // Place existing saved/delivery pin
-      if (hasDefault) {
-        placePinMarker(map, defLat, defLng, savedLoc?.locationName || order.deliveryAddress || "ตำแหน่งลูกค้า");
-      }
-
-      // Auto-get GPS location
-      if (navigator.geolocation) {
+      } else {
+        // No existing coords → GET GPS FIRST, then init map centered there
+        if (!navigator.geolocation) {
+          setGpsStatus("error");
+          initMap(13.75, 100.5, 11); // Bangkok fallback
+          return;
+        }
         navigator.geolocation.getCurrentPosition(pos => {
           const { latitude: glat, longitude: glng } = pos.coords;
-          placeGpsMarker(map, glat, glng);
           setGpsStatus("ok");
-          // If no existing pin, center map on GPS and let user tap
-          if (!hasDefault) map.setView([glat, glng], 16);
-        }, () => setGpsStatus("error"), { enableHighAccuracy: true, timeout: 10000 });
-      } else {
-        setGpsStatus("error");
+          const map = initMap(glat, glng, 17);
+          if (map) placeGpsMarker(map, glat, glng);
+        }, () => {
+          setGpsStatus("error");
+          initMap(13.75, 100.5, 11);
+        }, { enableHighAccuracy: true, timeout: 10000 });
       }
-
-      // Tap map to place/move pin
-      map.on("click", e => {
-        const { lat, lng } = e.latlng;
-        placePinMarker(map, lat, lng, "📍 ตำแหน่งที่เลือก");
-      });
     });
 
     return () => {
       if (mapObjRef.current) { mapObjRef.current.remove(); mapObjRef.current = null; }
     };
   }, []);
+
+  function goToMyGps() {
+    if (gpsMarkerRef.current) {
+      const p = gpsMarkerRef.current.getLatLng();
+      mapObjRef.current?.setView([p.lat, p.lng], 17);
+    } else if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(pos => {
+        const { latitude: glat, longitude: glng } = pos.coords;
+        if (mapObjRef.current) {
+          placeGpsMarker(mapObjRef.current, glat, glng);
+          mapObjRef.current.setView([glat, glng], 17);
+        }
+        setGpsStatus("ok");
+      }, () => setGpsStatus("error"), { enableHighAccuracy: true, timeout: 8000 });
+    }
+  }
 
   async function savePin() {
     if (!pinLat || !pinLng) return;
@@ -138,20 +166,6 @@ function MapModal({ order, savedLoc, onClose, onSavePin }) {
       onSavePin(r.data);
     } catch {}
     setSaving(false);
-  }
-
-  function goToMyGps() {
-    if (gpsMarkerRef.current) {
-      const p = gpsMarkerRef.current.getLatLng();
-      mapObjRef.current?.setView([p.lat, p.lng], 17);
-    } else if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(pos => {
-        const { latitude: glat, longitude: glng } = pos.coords;
-        placeGpsMarker(mapObjRef.current, glat, glng);
-        mapObjRef.current?.setView([glat, glng], 17);
-        setGpsStatus("ok");
-      }, () => setGpsStatus("error"), { enableHighAccuracy: true, timeout: 8000 });
-    }
   }
 
   return (
@@ -176,26 +190,41 @@ function MapModal({ order, savedLoc, onClose, onSavePin }) {
       {/* Map */}
       <div style={{ position: "relative", flex: 1 }}>
         <div ref={mapRef} style={{ width: "100%", height: "100%" }} />
-        {/* GPS button overlay */}
-        <button onClick={goToMyGps} style={{
-          position: "absolute", bottom: 16, right: 16, zIndex: 500,
-          width: 44, height: 44, borderRadius: "50%", border: "none",
-          background: WHITE, boxShadow: "0 2px 8px rgba(0,0,0,.3)",
-          fontSize: 20, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
-        }}>
-          {gpsStatus === "loading" ? "⏳" : gpsStatus === "error" ? "📵" : "📡"}
-        </button>
-        <div style={{ position: "absolute", top: 10, left: "50%", transform: "translateX(-50%)", zIndex: 500, background: "rgba(0,0,0,.55)", color: WHITE, fontSize: 11, padding: "4px 10px", borderRadius: 20, pointerEvents: "none", whiteSpace: "nowrap" }}>
-          แตะแผนที่เพื่อปักหมุด · ลากหมุดเพื่อเลื่อน
-        </div>
+
+        {/* GPS loading overlay */}
+        {!mapReady && (
+          <div style={{ position: "absolute", inset: 0, background: "#1a1a2e", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", zIndex: 10 }}>
+            <div style={{ fontSize: 40, marginBottom: 12 }}>📡</div>
+            <div style={{ color: WHITE, fontSize: 14, fontWeight: 700 }}>กำลังหาตำแหน่ง GPS...</div>
+            <div style={{ color: "rgba(255,255,255,.5)", fontSize: 12, marginTop: 6 }}>อนุญาตการเข้าถึงตำแหน่งในเบราว์เซอร์</div>
+          </div>
+        )}
+
+        {/* GPS re-center button */}
+        {mapReady && (
+          <button onClick={goToMyGps} style={{
+            position: "absolute", bottom: 16, right: 16, zIndex: 500,
+            width: 46, height: 46, borderRadius: "50%", border: "none",
+            background: WHITE, boxShadow: "0 2px 10px rgba(0,0,0,.35)",
+            fontSize: 22, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+          }}>
+            {gpsStatus === "loading" ? "⏳" : gpsStatus === "error" ? "📵" : "📡"}
+          </button>
+        )}
+
+        {mapReady && (
+          <div style={{ position: "absolute", top: 10, left: "50%", transform: "translateX(-50%)", zIndex: 500, background: "rgba(0,0,0,.6)", color: WHITE, fontSize: 11, padding: "5px 12px", borderRadius: 20, pointerEvents: "none", whiteSpace: "nowrap" }}>
+            แตะแผนที่เพื่อปักหมุด · ลากหมุดเพื่อเลื่อน
+          </div>
+        )}
       </div>
 
       {/* Footer */}
       <div style={{ background: WHITE, padding: "12px 14px", display: "flex", gap: 10, alignItems: "center", flexShrink: 0 }}>
         <div style={{ flex: 1, fontSize: 12, color: GRAY, minWidth: 0 }}>
           {pinLat
-            ? <span style={{ color: "#059669" }}>📍 {pinLat.toFixed(5)}, {pinLng.toFixed(5)}</span>
-            : <span>แตะบนแผนที่เพื่อปักหมุด</span>}
+            ? <span style={{ color: "#059669" }}>📍 {Number(pinLat).toFixed(5)}, {Number(pinLng).toFixed(5)}</span>
+            : <span>{gpsStatus === "loading" ? "⏳ รอ GPS..." : "แตะบนแผนที่เพื่อปักหมุด"}</span>}
           {savedLoc?.locationName && <div style={{ color: "#0369A1", fontWeight: 700, marginTop: 2 }}>🏠 {savedLoc.locationName}</div>}
         </div>
         {saved ? (
