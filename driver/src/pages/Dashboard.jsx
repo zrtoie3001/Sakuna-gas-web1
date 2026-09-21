@@ -122,7 +122,11 @@ function MapModal({ order, savedLoc, onClose, onSavePin }) {
           const { latitude: glat, longitude: glng } = pos.coords;
           setGpsStatus("ok");
           const map = initMap(glat, glng, 17);
-          if (map) placeGpsMarker(map, glat, glng);
+          if (map) {
+            placeGpsMarker(map, glat, glng);
+            // Auto-place customer pin at GPS so save button is ready
+            placePinMarker(map, glat, glng, "📍 ตำแหน่งปัจจุบัน (เลื่อนหมุดได้)");
+          }
         }, () => {
           setGpsStatus("error");
           initMap(13.75, 100.5, 11);
