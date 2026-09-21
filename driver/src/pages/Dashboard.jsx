@@ -372,17 +372,28 @@ function OrderCard({ order, showAccept, showStatus, routeIndex, sortedActiveOrde
 
         {/* Actions */}
         <div style={{ display: "flex", gap: 8 }}>
+          <button onClick={() => {
+            if (navLat) {
+              window.open(`https://www.google.com/maps/dir/?api=1&destination=${navLat},${navLng}&travelmode=driving`, "_blank");
+            } else if (navigator.geolocation) {
+              navigator.geolocation.getCurrentPosition(pos => {
+                const { latitude, longitude } = pos.coords;
+                window.open(`https://www.google.com/maps/@${latitude},${longitude},17z`, "_blank");
+              }, () => {
+                window.open("https://www.google.com/maps", "_blank");
+              }, { enableHighAccuracy: true, timeout: 8000 });
+            } else {
+              window.open("https://www.google.com/maps", "_blank");
+            }
+          }} style={{
+            flex: 1, padding: "10px 6px", borderRadius: 10, border: "none",
+            background: "#1D4ED8", color: WHITE, fontSize: 12, fontWeight: 700, cursor: "pointer",
+          }}>{navLat ? "🧭 นำทาง" : "🗺️ Maps"}</button>
           <button onClick={() => setShowMap(true)} style={{
             flex: 1, padding: "10px 6px", borderRadius: 10,
             background: "#F0F9FF", color: "#0369A1", fontSize: 12, fontWeight: 700, cursor: "pointer",
             border: "1.5px solid #BAE6FD",
-          }}>🗺️ แผนที่</button>
-          {navLat && (
-            <button onClick={() => onNavigate(navLat, navLng)} style={{
-              flex: 1, padding: "10px 6px", borderRadius: 10, border: "none",
-              background: "#1D4ED8", color: WHITE, fontSize: 12, fontWeight: 700, cursor: "pointer",
-            }}>🧭 นำทาง</button>
-          )}
+          }}>📍 ปักหมุด</button>
           {showAccept && (
             <button onClick={() => onAccept(order.id)} disabled={updating === order.id} style={{
               flex: 2, padding: "10px 6px", borderRadius: 10, border: "none",
