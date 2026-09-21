@@ -29,12 +29,11 @@ router.get("/customer-suggestions", requireAuth, async (req, res) => {
     const { sequelize: seq } = require("../config/database");
     const { QueryTypes } = require("sequelize");
 
-    // Build WHERE clause based on which field is being typed in
+    // Build WHERE clause — name/address cross-search each other (data may be in either field)
+    // Phone is always phone-only to avoid noise
     let whereClause;
-    if (field === "name")    whereClause = "customer_name ILIKE :q";
-    else if (field === "phone")   whereClause = "customer_phone ILIKE :q";
-    else if (field === "address") whereClause = "delivery_address ILIKE :q";
-    else whereClause = "(customer_name ILIKE :q OR customer_phone ILIKE :q OR delivery_address ILIKE :q)";
+    if (field === "phone") whereClause = "customer_phone ILIKE :q";
+    else whereClause = "(customer_name ILIKE :q OR delivery_address ILIKE :q)";
 
     const rows = await seq.query(
       `SELECT customer_name, customer_phone, delivery_address, brand_id, product_id, unit_price, note
