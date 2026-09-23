@@ -183,6 +183,7 @@ function MapPinModal({ customerPhone, customerAddress, savedLoc: initLoc, onClos
       });
       setSaved(true);
       onSaved?.(r.data);
+      setTimeout(() => onClose?.(), 1200);
     } catch {}
     setSaving(false);
   }

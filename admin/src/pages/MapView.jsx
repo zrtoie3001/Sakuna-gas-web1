@@ -17,10 +17,15 @@ export default function MapView() {
   const mapRef     = useRef(null);
   const mapObjRef  = useRef(null);
   const markersRef = useRef([]);
+  const gpsMarkerRef = useRef(null);
+  const searchTimer  = useRef(null);
   const [orders, setOrders]   = useState([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState(null);
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
+  const [searchQ, setSearchQ]     = useState("");
+  const [searchRes, setSearchRes] = useState([]);
+  const [searching, setSearching] = useState(false);
 
   useEffect(() => {
     setLoading(true);
@@ -49,10 +54,45 @@ export default function MapView() {
     if (mapObjRef.current || !mapRef.current || !window.L) return;
     const map = window.L.map(mapRef.current, { zoomControl: true }).setView([13.75, 100.5], 11);
     window.L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      attribution: "© OpenStreetMap contributors",
-      maxZoom: 19,
+      attribution: "© OpenStreetMap contributors", maxZoom: 20, maxNativeZoom: 19,
     }).addTo(map);
     mapObjRef.current = map;
+    // Show GPS blue dot
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(pos => {
+        const { latitude: lat, longitude: lng } = pos.coords;
+        if (!mapObjRef.current) return;
+        if (gpsMarkerRef.current) gpsMarkerRef.current.remove();
+        const icon = window.L.divIcon({
+          className: "",
+          html: `<div style="width:16px;height:16px;border-radius:50%;background:#1D4ED8;border:3px solid #fff;box-shadow:0 2px 8px rgba(29,78,216,.7)"></div>`,
+          iconSize: [16, 16], iconAnchor: [8, 8],
+        });
+        gpsMarkerRef.current = window.L.marker([lat, lng], { icon, zIndexOffset: -100 })
+          .addTo(mapObjRef.current).bindPopup("📡 ตำแหน่งของคุณ");
+      }, () => {}, { enableHighAccuracy: true, timeout: 10000 });
+    }
+  }
+
+  function handleSearch(q) {
+    setSearchQ(q); setSearchRes([]);
+    clearTimeout(searchTimer.current);
+    if (!q.trim()) return;
+    setSearching(true);
+    searchTimer.current = setTimeout(async () => {
+      try {
+        const r = await fetch(`https://search.longdo.com/mapsearch/json/search?keyword=${encodeURIComponent(q)}&key=5db9dd8bb58e53564cafa949ba22c267&limit=6`);
+        const data = await r.json();
+        setSearchRes(data.data || []);
+      } catch {}
+      setSearching(false);
+    }, 500);
+  }
+
+  function pickSearchResult(item) {
+    const lat = Number(item.lat); const lng = Number(item.lon);
+    setSearchRes([]); setSearchQ("");
+    if (mapObjRef.current) mapObjRef.current.setView([lat, lng], 17);
   }
 
   // Re-render markers whenever orders change
@@ -157,8 +197,29 @@ export default function MapView() {
       </div>
 
       {/* Map */}
-      <div style={{ flex: 1, position: "relative" }}>
-        <div ref={mapRef} style={{ width: "100%", height: "100%" }} />
+      <div style={{ flex: 1, position: "relative", display: "flex", flexDirection: "column" }}>
+        {/* Search bar */}
+        <div style={{ background: WHITE, padding: "8px 12px", borderBottom: "1px solid #E5E7EB", position: "relative", zIndex: 600, flexShrink: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, background: "#F3F4F6", borderRadius: 10, padding: "7px 12px" }}>
+            <span style={{ fontSize: 16 }}>🔍</span>
+            <input value={searchQ} onChange={e => handleSearch(e.target.value)}
+              placeholder="ค้นหาถนน ซอย สถานที่..."
+              style={{ flex: 1, border: "none", background: "transparent", fontSize: 14, outline: "none" }} />
+            {searching && <span style={{ fontSize: 12, color: GRAY }}>⏳</span>}
+            {searchQ && <button onClick={() => { setSearchQ(""); setSearchRes([]); }} style={{ background: "none", border: "none", fontSize: 16, cursor: "pointer", color: GRAY }}>✕</button>}
+          </div>
+          {searchRes.length > 0 && (
+            <div style={{ position: "absolute", left: 12, right: 12, top: "100%", background: WHITE, borderRadius: 10, boxShadow: "0 4px 20px rgba(0,0,0,.15)", maxHeight: 240, overflowY: "auto", zIndex: 700 }}>
+              {searchRes.map((item, i) => (
+                <div key={i} onMouseDown={() => pickSearchResult(item)}
+                  style={{ padding: "9px 14px", borderBottom: i < searchRes.length-1 ? "1px solid #F3F4F6" : "none", cursor: "pointer", fontSize: 13, color: "#1F2937" }}>
+                  📍 {item.name}{item.address ? ` — ${item.address}` : ""}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        <div ref={mapRef} style={{ flex: 1 }} />
         {!window.L && (
           <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "#F8FAFC", color: GRAY, fontSize: 14 }}>
             กำลังโหลดแผนที่...
