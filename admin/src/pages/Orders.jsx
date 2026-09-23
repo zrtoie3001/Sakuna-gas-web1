@@ -401,6 +401,8 @@ export default function Orders() {
   const [brands, setBrands]         = useState([]);
   const [products, setProducts]     = useState([]);
   const [search, setSearch]         = useState(searchParams.get("q") || "");
+  const [debouncedSearch, setDebouncedSearch] = useState(searchParams.get("q") || "");
+  const searchDebounceRef = useRef(null);
   const [unpaidOnly, setUnpaidOnly] = useState(searchParams.get("unpaid") === "1");
   const [source, setSource]         = useState(""); // "" | "walkin" | "phone"
   const [showWalkin, setShowWalkin] = useState(false);
@@ -444,13 +446,23 @@ export default function Orders() {
         if (date) params.set("date", date);
       }
       if (source) params.set("source", source);
+      if (debouncedSearch.trim()) params.set("q", debouncedSearch.trim());
       const r = await api.get(`/api/v1/orders?${params}`, { signal: ctrl.signal });
       setOrders(r.data.orders);
       setTotal(r.data.total);
     } catch (e) {
       if (e.name !== "CanceledError" && e.code !== "ERR_CANCELED") console.error("fetch orders error:", e.message);
     }
-  }, [page, statusFilter, date, unpaidOnly, source]);
+  }, [page, statusFilter, date, unpaidOnly, source, debouncedSearch]);
+
+  useEffect(() => {
+    clearTimeout(searchDebounceRef.current);
+    searchDebounceRef.current = setTimeout(() => {
+      setPage(1);
+      setDebouncedSearch(search);
+    }, 350);
+    return () => clearTimeout(searchDebounceRef.current);
+  }, [search]);
 
   useEffect(() => {
     fetch();
@@ -1107,7 +1119,7 @@ ${noteText ? `<div style="margin-top:8px; padding:6px 8px; border:1.5px dashed #
 
         {/* Table */}
         <div style={{ background: WHITE, borderRadius: 14, overflow: "hidden", boxShadow: "0 2px 12px rgba(0,0,0,.06)" }}>
-          {orders.filter(o => !search || [o.orderNumber, o.customerName, o.customerPhone, o.deliveryAddress, o.product?.name].some(v => String(v||"").toLowerCase().includes(search.toLowerCase()))).map(o => {
+          {orders.map(o => {
             const s = st(o.status);
             const isCancelled = o.status === "cancelled";
             return (

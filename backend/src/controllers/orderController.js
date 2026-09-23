@@ -246,36 +246,42 @@ async function getOrderById(req, res) {
 
 // ── Admin: list orders ────────────────────────────────────────────────────────
 async function listOrders(req, res) {
-  const { status, date, page = 1, limit = 20, unpaid, source } = req.query;
-  const where = {};
-  if (status) where.status = status;
+  const { status, date, page = 1, limit = 20, unpaid, source, q } = req.query;
+  const andClauses = [];
+  if (status) andClauses.push({ status });
+  if (q) {
+    const like = `%${q}%`;
+    andClauses.push({ [Op.or]: [
+      { customerName: { [Op.iLike]: like } },
+      { customerPhone: { [Op.iLike]: like } },
+      { deliveryAddress: { [Op.iLike]: like } },
+      { orderNumber: { [Op.iLike]: like } },
+    ]});
+  }
   if (source === "walkin") {
-    // เฉพาะที่กดขายหน้าร้าน (prefix __walkin: แต่ไม่ใช่ __phone_walkin:)
-    where.note = { [Op.like]: "__walkin:%" , [Op.notLike]: "__phone_walkin:%" };
+    andClauses.push({ note: { [Op.like]: "__walkin:%" , [Op.notLike]: "__phone_walkin:%" } });
   } else if (source === "phone") {
-    // โทรสั่ง/LINE: __phone_walkin: หรือออเดอร์ปกติ (ไม่มี __walkin: prefix)
-    where[Op.or] = [
+    andClauses.push({ [Op.or]: [
       { note: { [Op.like]: "__phone_walkin:%" } },
       { note: null },
       { note: { [Op.notLike]: "__walkin:%" } },
-    ];
+    ]});
   }
   if (unpaid === "1") {
-    where.isPaid = false;
-    where.status = { [Op.ne]: "cancelled" };
-    // ย้อนหลัง 30 วัน
+    andClauses.push({ isPaid: false });
+    andClauses.push({ status: { [Op.ne]: "cancelled" } });
     const since = new Date(); since.setDate(since.getDate() - 30); since.setHours(0,0,0,0);
     const today = new Date(); today.setHours(0,0,0,0);
-    where.createdAt = { [Op.between]: [since, today] };
+    andClauses.push({ createdAt: { [Op.between]: [since, today] } });
   } else if (date) {
     const start = new Date(date); start.setHours(0, 0, 0, 0);
     const end   = new Date(date); end.setHours(23, 59, 59, 999);
-    // แสดงออเดอร์ที่สร้างวันนั้น OR ออเดอร์ล่วงหน้าที่กำหนดส่งวันนั้น
-    where[Op.or] = [
+    andClauses.push({ [Op.or]: [
       { createdAt: { [Op.between]: [start, end] } },
       { scheduledDate: date },
-    ];
+    ]});
   }
+  const where = andClauses.length ? { [Op.and]: andClauses } : {};
   const { rows, count } = await Order.findAndCountAll({
     where,
     include: [
