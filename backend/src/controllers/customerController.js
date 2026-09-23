@@ -276,9 +276,9 @@ async function saveLocation(req, res) {
   const createdBy     = req.user?.id;
   const createdByName = req.user?.name || "admin";
 
-  // Upsert: update existing or create new per phone
-  const where = customerId ? { customerId } : customerPhone ? { customerPhone } : null;
-  if (!where) return res.status(400).json({ error: "ต้องระบุ customerId หรือ customerPhone" });
+  // Upsert: update existing or create new per phone or address
+  const where = customerId ? { customerId } : customerPhone ? { customerPhone } : customerAddress ? { customerAddress } : null;
+  if (!where) return res.status(400).json({ error: "ต้องระบุ customerId, customerPhone หรือ customerAddress" });
 
   const [loc, created] = await CustomerLocation.findOrCreate({
     where,

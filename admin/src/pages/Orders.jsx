@@ -75,6 +75,7 @@ function MapPinModal({ customerPhone, customerAddress, savedLoc: initLoc, onClos
   const [mapReady, setMapReady]   = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved]   = useState(false);
+  const [saveError, setSaveError] = useState("");
   const [searchQ, setSearchQ]     = useState("");
   const [searchRes, setSearchRes] = useState([]);
   const [searching, setSearching] = useState(false);
@@ -174,7 +175,7 @@ function MapPinModal({ customerPhone, customerAddress, savedLoc: initLoc, onClos
 
   async function savePin() {
     if (!pinLat || !pinLng) return;
-    setSaving(true);
+    setSaving(true); setSaveError("");
     try {
       const r = await api.post("/api/v1/customers/location/save", {
         customerPhone, customerAddress,
@@ -184,7 +185,9 @@ function MapPinModal({ customerPhone, customerAddress, savedLoc: initLoc, onClos
       setSaved(true);
       onSaved?.(r.data);
       setTimeout(() => onClose?.(), 1200);
-    } catch {}
+    } catch (e) {
+      setSaveError(e.response?.data?.error || "บันทึกไม่สำเร็จ กรุณาลองใหม่");
+    }
     setSaving(false);
   }
 
@@ -245,15 +248,18 @@ function MapPinModal({ customerPhone, customerAddress, savedLoc: initLoc, onClos
       </div>
 
       {/* Footer */}
-      <div style={{ background: "#fff", padding: "12px 14px", display: "flex", gap: 10, alignItems: "center", flexShrink: 0 }}>
-        <div style={{ flex: 1, fontSize: 12, color: "#6B7280", minWidth: 0 }}>
-          {pinLat ? <span style={{ color: "#059669" }}>📍 {Number(pinLat).toFixed(5)}, {Number(pinLng).toFixed(5)}</span>
-            : <span>{gpsStatus === "loading" ? "⏳ รอ GPS..." : "แตะบนแผนที่เพื่อปักหมุด"}</span>}
+      <div style={{ background: "#fff", padding: "12px 14px", flexShrink: 0 }}>
+        {saveError && <div style={{ fontSize: 12, color: "#DC2626", marginBottom: 8, textAlign: "center" }}>⚠️ {saveError}</div>}
+        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+          <div style={{ flex: 1, fontSize: 12, color: "#6B7280", minWidth: 0 }}>
+            {pinLat ? <span style={{ color: "#059669" }}>📍 {Number(pinLat).toFixed(5)}, {Number(pinLng).toFixed(5)}</span>
+              : <span>{gpsStatus === "loading" ? "⏳ รอ GPS..." : "แตะบนแผนที่เพื่อปักหมุด"}</span>}
+          </div>
+          {saved ? <span style={{ fontSize: 13, color: "#059669", fontWeight: 700, whiteSpace: "nowrap" }}>✅ บันทึกแล้ว</span>
+            : <button onClick={savePin} disabled={!pinLat || saving} style={{ padding: "9px 18px", borderRadius: 10, border: "none", background: !pinLat ? "#E5E7EB" : "#F47B20", color: !pinLat ? "#6B7280" : "#fff", fontSize: 13, fontWeight: 700, cursor: !pinLat ? "default" : "pointer", whiteSpace: "nowrap" }}>
+                {saving ? "⏳..." : "📍 บันทึกหมุด"}
+              </button>}
         </div>
-        {saved ? <span style={{ fontSize: 13, color: "#059669", fontWeight: 700, whiteSpace: "nowrap" }}>✅ บันทึกแล้ว</span>
-          : <button onClick={savePin} disabled={!pinLat || saving} style={{ padding: "9px 18px", borderRadius: 10, border: "none", background: !pinLat ? "#E5E7EB" : "#F47B20", color: !pinLat ? "#6B7280" : "#fff", fontSize: 13, fontWeight: 700, cursor: !pinLat ? "default" : "pointer", whiteSpace: "nowrap" }}>
-              {saving ? "⏳..." : "📍 บันทึกหมุด"}
-            </button>}
       </div>
     </div>
   );
