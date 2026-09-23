@@ -102,9 +102,9 @@ function MapModal({ order, savedLoc, onClose, onSavePin }) {
     setSearching(true);
     searchTimer.current = setTimeout(async () => {
       try {
-        const r = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&countrycodes=th&limit=6&accept-language=th`);
+        const r = await fetch(`https://search.longdo.com/mapsearch/json/search?keyword=${encodeURIComponent(q)}&key=5db9dd8bb58e53564cafa949ba22c267&limit=6`);
         const data = await r.json();
-        setSearchRes(data);
+        setSearchRes(data.data || []);
       } catch {}
       setSearching(false);
     }, 500);
@@ -115,7 +115,7 @@ function MapModal({ order, savedLoc, onClose, onSavePin }) {
     setSearchRes([]); setSearchQ("");
     if (mapObjRef.current) {
       mapObjRef.current.setView([lat, lng], 17);
-      placePinMarker(mapObjRef.current, lat, lng, item.display_name);
+      placePinMarker(mapObjRef.current, lat, lng, item.name || item.address || "📍 ตำแหน่งที่เลือก");
     }
   }
 
@@ -234,7 +234,7 @@ function MapModal({ order, savedLoc, onClose, onSavePin }) {
             {searchRes.map((item, i) => (
               <div key={i} onMouseDown={() => pickSearchResult(item)}
                 style={{ padding: "9px 14px", borderBottom: i < searchRes.length-1 ? "1px solid #F3F4F6" : "none", cursor: "pointer", fontSize: 13, color: "#1F2937" }}>
-                📍 {item.display_name}
+                📍 {item.name}{item.address ? ` — ${item.address}` : ""}
               </div>
             ))}
           </div>
