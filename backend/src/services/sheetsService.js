@@ -234,8 +234,11 @@ async function syncEquipmentToSheet() {
   const sheetName = "อุปกรณ์";
 
   const items = await Equipment.findAll({ order: [["category", "ASC"], ["name", "ASC"]] });
-  const header = ["ชื่อสินค้า", "ประเภท", "ราคา (บาท)", "คงเหลือ (ชิ้น)", "คำอธิบาย"];
-  const data = items.map(i => [i.name, i.category === "stove" ? "เตา" : "อุปกรณ์", Number(i.price) || 0, Number(i.qty) || 0, i.description || ""]);
+  const now = new Date();
+  const dateStr = now.toLocaleDateString("th-TH", { dateStyle: "short", timeZone: "Asia/Bangkok" });
+  const timeStr = now.toLocaleTimeString("th-TH", { timeStyle: "short", timeZone: "Asia/Bangkok" });
+  const header = ["อัปเดตล่าสุด", "เวลา", "ชื่อสินค้า", "ประเภท", "ราคา (บาท)", "คงเหลือ (ชิ้น)", "คำอธิบาย"];
+  const data = items.map(i => [dateStr, timeStr, i.name, i.category === "stove" ? "เตา" : "อุปกรณ์", Number(i.price) || 0, Number(i.qty) || 0, i.description || ""]);
 
   await sheets.spreadsheets.values.update({
     spreadsheetId: SHEET_ID, range: `'${sheetName}'!A1`,
