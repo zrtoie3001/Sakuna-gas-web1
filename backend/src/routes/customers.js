@@ -12,6 +12,7 @@ router.post("/line/:lineUserId/addresses", ah(ctrl.addAddress));
 router.get("/",        requireAuth, requireRole("admin"), ah(ctrl.listCustomers));
 router.get("/orders-by-contact", requireAuth, requireRole("admin"), ah(ctrl.getCustomerOrdersByPhone));
 router.patch("/update-contact", requireAuth, requireRole("admin"), ah(ctrl.updateCustomerContact));
+router.patch("/update-contact-order", requireAuth, ah(ctrl.updateContactFromOrder));
 router.delete("/delete-customer", requireAuth, requireRole("admin"), ah(ctrl.deleteCustomer));
 router.get("/note", requireAuth, requireRole("admin"), ah(ctrl.getCustomerNote));
 router.put("/note", requireAuth, requireRole("admin"), ah(ctrl.upsertCustomerNote));

@@ -354,4 +354,47 @@ async function todayDeliveryLocations(req, res) {
   res.json(result);
 }
 
-module.exports = { getOrCreateCustomer, addAddress, getAddresses, listCustomers, getCustomerOrders, getCustomerOrdersByPhone, updateCustomerContact, deleteCustomer, getCustomerNote, upsertCustomerNote, getLocationByContact, saveLocation, updateLocation, deleteLocation, todayDeliveryLocations };
+// Called after creating an order — if existing customer info changed, update all their orders
+async function updateContactFromOrder(req, res) {
+  try {
+    const { origPhone, origAddress, origName, newPhone, newAddress, newName } = req.body;
+    // Must have at least one lookup key
+    if (!origPhone && !origAddress) return res.json({ updated: 0 });
+    // Must have at least one change
+    const hasChange =
+      (newPhone !== undefined && newPhone !== origPhone) ||
+      (newAddress !== undefined && newAddress !== origAddress) ||
+      (newName !== undefined && newName !== origName);
+    if (!hasChange) return res.json({ updated: 0 });
+
+    const { sequelize: seq } = require("../config/database");
+    const { QueryTypes } = require("sequelize");
+
+    // Build WHERE: match by phone (exact) OR address (normalized), whichever we have
+    let whereParts = [];
+    const replacements = {};
+    if (origPhone) {
+      whereParts.push(`COALESCE(NULLIF(TRIM(customer_phone),''),'') = :origPhone`);
+      replacements.origPhone = origPhone.trim();
+    }
+    if (origAddress) {
+      whereParts.push(`LOWER(REGEXP_REPLACE(TRIM(delivery_address),'\\s+',' ','g')) = LOWER(REGEXP_REPLACE(TRIM(:origAddress),'\\s+',' ','g'))`);
+      replacements.origAddress = origAddress.trim();
+    }
+    const whereClause = whereParts.join(" OR ");
+
+    const setClauses = [];
+    if (newName    !== undefined) { setClauses.push(`customer_name    = :newName`);    replacements.newName    = newName    || null; }
+    if (newPhone   !== undefined) { setClauses.push(`customer_phone   = :newPhone`);   replacements.newPhone   = newPhone   || null; }
+    if (newAddress !== undefined) { setClauses.push(`delivery_address = :newAddress`); replacements.newAddress = newAddress || null; }
+    if (!setClauses.length) return res.json({ updated: 0 });
+
+    const [, meta] = await seq.query(
+      `UPDATE orders SET ${setClauses.join(", ")} WHERE (${whereClause}) AND status != 'cancelled'`,
+      { replacements, type: QueryTypes.UPDATE }
+    );
+    res.json({ updated: meta });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+}
+
+module.exports = { getOrCreateCustomer, addAddress, getAddresses, listCustomers, getCustomerOrders, getCustomerOrdersByPhone, updateCustomerContact, updateContactFromOrder, deleteCustomer, getCustomerNote, upsertCustomerNote, getLocationByContact, saveLocation, updateLocation, deleteLocation, todayDeliveryLocations };

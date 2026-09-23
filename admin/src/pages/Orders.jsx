@@ -224,6 +224,7 @@ export default function Orders() {
   const [createCart, setCreateCart]   = useState([]);
   const [createCustAddrs, setCreateCustAddrs] = useState([]); // addresses of selected customer in create modal
   const [createCustKnown, setCreateCustKnown] = useState(false); // true when customer selected from autocomplete
+  const [origContact, setOrigContact] = useState(null); // {name, phone, address} snapshot when customer was selected
   const [custHistory, setCustHistory] = useState([]);
   const [historyKey, setHistoryKey] = useState(""); // phone|name used to fetch history
   const [hiddenHistKeys, setHiddenHistKeys] = useState(new Set()); // keys hidden by user for current customer
@@ -235,6 +236,7 @@ export default function Orders() {
   const [editNewItem, setEditNewItem] = useState({ type: "gas", brandName: "", weightKg: "", qty: 1, price: "", name: "" });
   const [editSaving, setEditSaving]   = useState(false);
   const [showUnpaid, setShowUnpaid]   = useState(false);
+  const [changeGivenInput, setChangeGivenInput] = useState("");
 
   const fetchRef = useRef(null);
   const fetch = useCallback(async () => {
@@ -263,6 +265,11 @@ export default function Orders() {
     const interval = setInterval(fetch, 120000);
     return () => { clearInterval(interval); fetchRef.current?.abort(); };
   }, [fetch]);
+
+  useEffect(() => {
+    const amt = parseChangeGiven(selected?.note);
+    setChangeGivenInput(amt != null ? String(amt) : "");
+  }, [selected?.id, selected?.note]);
 
   useEffect(() => {
     api.get("/api/v1/products/brands").then(r => setBrands(Array.isArray(r.data) ? r.data : r.data.brands || [])).catch(() => {});
@@ -391,6 +398,14 @@ export default function Orders() {
         source: "phone",
         scheduledDate: createForm.scheduledDate || null,
       });
+      if (origContact) {
+        const { name: oName, phone: oPhone, address: oAddr } = origContact;
+        const nName = createForm.customerName; const nPhone = createForm.customerPhone; const nAddr = createForm.deliveryAddress;
+        if (nName !== oName || nPhone !== oPhone || nAddr !== oAddr) {
+          api.patch("/api/v1/customers/update-contact-order", { origPhone: oPhone, origAddress: oAddr, origName: oName, newName: nName, newPhone: nPhone, newAddress: nAddr }).catch(() => {});
+        }
+      }
+      setOrigContact(null);
       setShowCreate(false);
       setCreateForm(EMPTY_ORDER);
       setCreateCart([]);
@@ -446,6 +461,14 @@ export default function Orders() {
         note: walkinForm.note,
       };
       const { data: order } = await api.post("/api/v1/orders/walkin", payload);
+      if (origContact) {
+        const { name: oName, phone: oPhone, address: oAddr } = origContact;
+        const nName = walkinForm.customerName; const nPhone = walkinForm.customerPhone;
+        if (nName !== oName || nPhone !== oPhone) {
+          api.patch("/api/v1/customers/update-contact-order", { origPhone: oPhone, origAddress: oAddr, origName: oName, newName: nName, newPhone: nPhone, newAddress: oAddr }).catch(() => {});
+        }
+      }
+      setOrigContact(null);
       setWalkinResult({ order, cart: walkinCart });
       setShowWalkin(false);
       setWalkinCart([]);
@@ -683,6 +706,23 @@ ${noteText ? `<div style="margin-top:8px; padding:6px 8px; border:1.5px dashed #
     if (selected?.id === orderId) setSelected(s => ({ ...s, isPaid: data.isPaid, status: data.status ?? s.status }));
   }
 
+  function parseChangeGiven(note) {
+    if (!note) return null;
+    const m = note.split("\n").find(l => l.startsWith("__change_given:"));
+    return m ? Number(m.replace("__change_given:", "")) || 0 : null;
+  }
+
+  async function saveChangeGiven(order, amount) {
+    const newNote = (order.note || "").split("\n").filter(l => !l.startsWith("__change_given")).join("\n").trimEnd();
+    const withFlag = amount !== null && amount !== "" && Number(amount) >= 0
+      ? (newNote ? newNote + "\n" : "") + `__change_given:${Number(amount)}`
+      : newNote;
+    await api.put(`/api/v1/orders/${order.id}`, { note: withFlag });
+    const updated = { ...order, note: withFlag };
+    setOrders(prev => prev.map(o => o.id === order.id ? updated : o));
+    if (selected?.id === order.id) setSelected(updated);
+  }
+
   function openEdit(order) {
     setEditOrder(order);
     const noteRaw = order.note || "";
@@ -896,6 +936,8 @@ ${noteText ? `<div style="margin-top:8px; padding:6px 8px; border:1.5px dashed #
                       background: o.isPaid ? "#D1FAE5" : "#FEE2E2",
                       color: o.isPaid ? "#065F46" : "#991B1B",
                     }}>{o.isPaid ? "✅ จ่ายแล้ว" : "⏳ ยังไม่จ่าย"}</span>}
+                    {!isCancelled && o.paymentMethod && <span style={{ fontSize: 11, padding: "2px 7px", borderRadius: 6, fontWeight: 700, background: o.paymentMethod === "qr" ? "#EDE9FE" : o.paymentMethod === "cod" ? "#FFF7ED" : "#F0FDF4", color: o.paymentMethod === "qr" ? "#5B21B6" : o.paymentMethod === "cod" ? "#92400E" : "#065F46" }}>{o.paymentMethod === "qr" ? "💳 โอน" : o.paymentMethod === "cod" ? "🚚 เก็บปลายทาง" : "💰 เงินสด"}</span>}
+                    {!isCancelled && (() => { const amt = parseChangeGiven(o.note); return amt > 0 ? <span style={{ fontSize: 11, padding: "2px 7px", borderRadius: 6, fontWeight: 700, background: "#FEF3C7", color: "#92400E" }}>💵 ทอน ฿{amt.toLocaleString()}</span> : null; })()}
                   </div>
                   <p style={{ fontSize: 12, color: isCancelled ? GRAY : NAVY }}>{o.customerName} · {o.customerPhone}</p>
                   <p style={{ fontSize: 12, color: GRAY, textDecoration: isCancelled ? "line-through" : "none" }}>{(() => {
@@ -999,6 +1041,20 @@ ${noteText ? `<div style="margin-top:8px; padding:6px 8px; border:1.5px dashed #
           ))}
 
           <div style={{ display: "flex", gap: 8, padding: "7px 0", borderBottom: "1px solid #F3F4F6", fontSize: 13, alignItems: "center" }}>
+            <span style={{ color: GRAY, flexShrink: 0, width: 80 }}>💵 เงินทอน</span>
+            <input
+              type="number" min="0" placeholder="0"
+              value={changeGivenInput}
+              onChange={e => setChangeGivenInput(e.target.value)}
+              onBlur={() => saveChangeGiven(selected, changeGivenInput === "" ? null : changeGivenInput)}
+              onKeyDown={e => { if (e.key === "Enter") { e.target.blur(); } }}
+              style={{ width: 90, padding: "3px 8px", borderRadius: 6, border: "1.5px solid #E5E7EB", fontSize: 13, color: NAVY }}
+            />
+            <span style={{ fontSize: 12, color: GRAY }}>บาท</span>
+            {parseChangeGiven(selected.note) > 0 && <span style={{ fontSize: 11, background: "#FEF3C7", color: "#92400E", padding: "2px 7px", borderRadius: 6, fontWeight: 700 }}>💵 ทอนแล้ว</span>}
+          </div>
+
+          <div style={{ display: "flex", gap: 8, padding: "7px 0", borderBottom: "1px solid #F3F4F6", fontSize: 13, alignItems: "center" }}>
             <span style={{ color: GRAY, flexShrink: 0, width: 80 }}>🛵 คนส่ง</span>
             <select value={selected.driverId || ""} onChange={async e => {
               const driverId = e.target.value || null;
@@ -1020,7 +1076,7 @@ ${noteText ? `<div style="margin-top:8px; padding:6px 8px; border:1.5px dashed #
                 const data = JSON.parse(n.replace(/^__(?:phone_)?walkin:/, "").split("\n")[0]);
                 walkinItems = data.items || (data.type !== "mixed" ? [data] : null);
               } catch {}
-              const userNote = n.split("\n").slice(1).join("\n").trim();
+              const userNote = n.split("\n").slice(1).filter(l => !l.startsWith("__change_given")).join("\n").trim();
               return (
                 <>
                   {walkinItems && (
@@ -1043,9 +1099,10 @@ ${noteText ? `<div style="margin-top:8px; padding:6px 8px; border:1.5px dashed #
                 </>
               );
             }
-            return n ? (
+            const plainNote = n.split("\n").filter(l => !l.startsWith("__change_given")).join("\n").trim();
+            return plainNote ? (
               <div style={{ marginTop: 10, background: "#FFF7ED", borderRadius: 8, padding: 10, fontSize: 12, color: "#92400E" }}>
-                💬 {n}
+                💬 {plainNote}
               </div>
             ) : null;
           })()}
@@ -1310,12 +1367,13 @@ ${noteText ? `<div style="margin-top:8px; padding:6px 8px; border:1.5px dashed #
           <div style={{ background: WHITE, borderRadius: 20, padding: 24, width: "100%", maxWidth: 420, margin: "auto", maxHeight: "90vh", overflowY: "auto" }}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
               <h2 style={{ fontSize: 16, fontWeight: 800, color: NAVY }}>🏪 ขายหน้าร้าน</h2>
-              <button onClick={() => { setShowWalkin(false); setWalkinCart([]); setWalkinForm({ customerName: "", customerPhone: "", brandName: "", productId: "", qty: 1, price: "", paymentMethod: "cash", note: "", gasBrand: "", gasWeight: "", stockId: "", equipId: "" }); setWalkinType("gas"); }} style={{ background: "none", border: "none", fontSize: 20, color: GRAY, cursor: "pointer" }}>✕</button>
+              <button onClick={() => { setShowWalkin(false); setWalkinCart([]); setWalkinForm({ customerName: "", customerPhone: "", brandName: "", productId: "", qty: 1, price: "", paymentMethod: "cash", note: "", gasBrand: "", gasWeight: "", stockId: "", equipId: "" }); setWalkinType("gas"); setOrigContact(null); }} style={{ background: "none", border: "none", fontSize: 20, color: GRAY, cursor: "pointer" }}>✕</button>
             </div>
 
             {/* Customer info */}
             {(() => {
               function applyWalkinCustomer(c) {
+                setOrigContact({ name: c.customerName || "", phone: c.customerPhone || "", address: "" });
                 setWalkinForm(f => {
                   const updated = {
                     ...f,
@@ -1522,7 +1580,7 @@ ${noteText ? `<div style="margin-top:8px; padding:6px 8px; border:1.5px dashed #
           <div style={{ background: WHITE, borderRadius: 20, padding: 24, width: "100%", maxWidth: 420, margin: "auto", maxHeight: "90vh", overflowY: "auto" }}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
               <h2 style={{ fontSize: 16, fontWeight: 800, color: NAVY }}>📞 เพิ่มออเดอร์ (ลูกค้าโทรสั่ง)</h2>
-              <button onClick={() => { setShowCreate(false); setCreateCart([]); setCreateForm(EMPTY_ORDER); setCreateCustKnown(false); setCreateCustAddrs([]); setCustHistory([]); setHistoryKey(""); }} style={{ background: "none", border: "none", fontSize: 20, color: GRAY, cursor: "pointer" }}>✕</button>
+              <button onClick={() => { setShowCreate(false); setCreateCart([]); setCreateForm(EMPTY_ORDER); setCreateCustKnown(false); setCreateCustAddrs([]); setCustHistory([]); setHistoryKey(""); setOrigContact(null); }} style={{ background: "none", border: "none", fontSize: 20, color: GRAY, cursor: "pointer" }}>✕</button>
             </div>
 
             {/* Type toggle */}
@@ -1543,6 +1601,7 @@ ${noteText ? `<div style="margin-top:8px; padding:6px 8px; border:1.5px dashed #
                 onSelect={c => {
                   setCreateCustKnown(true);
                   setCreateCustAddrs(c.addresses || []);
+                  setOrigContact({ name: c.customerName || "", phone: c.customerPhone || "", address: c.addresses?.[0] || c.deliveryAddress || "" });
                   setCreateForm(f => ({
                     ...f,
                     customerName:    c.customerName || "",
@@ -1565,6 +1624,7 @@ ${noteText ? `<div style="margin-top:8px; padding:6px 8px; border:1.5px dashed #
                 onSelect={c => {
                   setCreateCustKnown(true);
                   setCreateCustAddrs(c.addresses || []);
+                  setOrigContact({ name: c.customerName || "", phone: c.customerPhone || "", address: c.addresses?.[0] || c.deliveryAddress || "" });
                   const incomingName2 = (c.customerName && c.customerName !== "ลูกค้าหน้าร้าน") ? c.customerName : "";
                   setCreateForm(f => ({
                     ...f,
@@ -1589,6 +1649,7 @@ ${noteText ? `<div style="margin-top:8px; padding:6px 8px; border:1.5px dashed #
                   onSelect={c => {
                     setCreateCustAddrs(c.addresses || []);
                     setCreateCustKnown(true);
+                    setOrigContact({ name: c.customerName || "", phone: c.customerPhone || "", address: c.addresses?.[0] || c.deliveryAddress || "" });
                     setCreateForm(f => ({
                       ...f,
                       customerName:    f.customerName    || c.customerName || "",
