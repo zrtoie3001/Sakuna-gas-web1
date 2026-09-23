@@ -84,8 +84,8 @@ function MapModal({ order, savedLoc, onClose, onSavePin }) {
   function initMap(centerLat, centerLng, zoom) {
     if (mapObjRef.current || !mapRef.current || !window.L) return;
     const map = window.L.map(mapRef.current, { zoomControl: true }).setView([centerLat, centerLng], zoom);
-    window.L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      attribution: "© OpenStreetMap contributors", maxZoom: 20, maxNativeZoom: 19,
+    window.L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
+      attribution: '© <a href="https://carto.com/">CARTO</a> © OSM', maxZoom: 20, maxNativeZoom: 19,
     }).addTo(map);
     mapObjRef.current = map;
     setMapReady(true);
