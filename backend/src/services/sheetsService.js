@@ -195,4 +195,53 @@ async function deleteOrderFromSheet(orderNumber) {
   }
 }
 
-module.exports = { appendOrder, updateOrderStatus, syncStockToSheet, appendStockLog, deleteOrderFromSheet };
+async function appendDayEndGasSnapshot() {
+  if (!SHEET_ID || !process.env.GOOGLE_SERVICE_ACCOUNT_JSON) return;
+  const { GasStock } = require("../models");
+  const sheets = getClient();
+  const sheetName = "สต็อกจบวัน";
+
+  // Ensure header
+  const res = await sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID, range: `'${sheetName}'!A1:A1` });
+  if (!res.data.values?.[0]) {
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: SHEET_ID, range: `'${sheetName}'!A1`, valueInputOption: "RAW",
+      requestBody: { values: [["วันที่", "เวลา", "ยี่ห้อ", "น้ำหนัก (kg)", "ถังมีแก๊ส", "ถังใหม่", "ถังเปล่า", "ถังเสีย", "ค้างถัง", "รวม"]] },
+    });
+  }
+
+  const rows = await GasStock.findAll({ order: [["brandName", "ASC"], ["weightKg", "ASC"]] });
+  const now = new Date();
+  const dateStr = now.toLocaleDateString("th-TH", { dateStyle: "short", timeZone: "Asia/Bangkok" });
+  const timeStr = now.toLocaleTimeString("th-TH", { timeStyle: "short", timeZone: "Asia/Bangkok" });
+
+  const data = rows.map(r => {
+    const total = Number(r.hasGas) + Number(r.newTank) + Number(r.emptyTank) + Number(r.damagedTank) + Number(r.heldTank);
+    return [dateStr, timeStr, r.brandName, Number(r.weightKg), Number(r.hasGas), Number(r.newTank), Number(r.emptyTank), Number(r.damagedTank), Number(r.heldTank), total];
+  });
+
+  await sheets.spreadsheets.values.append({
+    spreadsheetId: SHEET_ID, range: `'${sheetName}'!A:J`,
+    valueInputOption: "RAW", insertDataOption: "INSERT_ROWS",
+    requestBody: { values: data },
+  });
+}
+
+async function syncEquipmentToSheet() {
+  if (!SHEET_ID || !process.env.GOOGLE_SERVICE_ACCOUNT_JSON) return;
+  const { Equipment } = require("../models");
+  const sheets = getClient();
+  const sheetName = "อุปกรณ์";
+
+  const items = await Equipment.findAll({ order: [["category", "ASC"], ["name", "ASC"]] });
+  const header = ["ชื่อสินค้า", "ประเภท", "ราคา (บาท)", "คงเหลือ (ชิ้น)", "คำอธิบาย"];
+  const data = items.map(i => [i.name, i.category === "stove" ? "เตา" : "อุปกรณ์", Number(i.price) || 0, Number(i.qty) || 0, i.description || ""]);
+
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: SHEET_ID, range: `'${sheetName}'!A1`,
+    valueInputOption: "RAW",
+    requestBody: { values: [header, ...data] },
+  });
+}
+
+module.exports = { appendOrder, updateOrderStatus, syncStockToSheet, appendStockLog, deleteOrderFromSheet, appendDayEndGasSnapshot, syncEquipmentToSheet };

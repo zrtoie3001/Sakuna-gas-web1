@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import api from "../utils/api.js";
 
 const NAVY = "#1B2A6B";
@@ -40,6 +40,8 @@ export default function Stock() {
   const [editEquip, setEditEquip] = useState(null);
   const [showSell, setShowSell] = useState(null);
   const [sellForm, setSellForm] = useState({ qty: 1, salePrice: "", note: "" });
+  const [eodSaving, setEodSaving] = useState(false);
+  const [eodMsg, setEodMsg] = useState("");
 
   const fetchStock = useCallback(() => {
     api.get("/api/v1/stock/gas").then(r => setStock(r.data)).catch(() => {});
@@ -156,7 +158,19 @@ export default function Stock() {
       {/* ── GAS STOCK ── */}
       {tab === "gas" && (
         <div>
-          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginBottom: 12 }}>
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginBottom: 12, flexWrap: "wrap", alignItems: "center" }}>
+            {eodMsg && <span style={{ fontSize: 12, color: eodMsg.startsWith("✅") ? "#065F46" : "#991B1B", fontWeight: 700 }}>{eodMsg}</span>}
+            <button onClick={async () => {
+              if (!confirm("บันทึกสต็อกจบวันนี้ไป Google Sheets? (ถังแก๊ส + อุปกรณ์)")) return;
+              setEodSaving(true); setEodMsg("");
+              try {
+                await api.post("/api/v1/stock/end-of-day");
+                setEodMsg("✅ บันทึกจบวันสำเร็จ");
+              } catch (e) { setEodMsg("❌ " + (e.response?.data?.error || "เกิดข้อผิดพลาด")); }
+              finally { setEodSaving(false); }
+            }} disabled={eodSaving} style={{ ...btn("#10B981"), opacity: eodSaving ? 0.6 : 1 }}>
+              {eodSaving ? "⏳ กำลังบันทึก..." : "📋 บันทึกจบวัน → Sheets"}
+            </button>
             <button onClick={async () => {
               if (!confirm("รีเซ็ตสต็อกทั้งหมดเป็น 0?")) return;
               await Promise.all(BRANDS.flatMap(b => WEIGHTS.map(w =>

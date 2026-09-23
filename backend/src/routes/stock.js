@@ -13,6 +13,13 @@ router.get("/refills",          requireAuth, ah(ctrl.getRefills));
 router.post("/refills",         requireAuth, ah(ctrl.addRefill));
 router.delete("/refills/:id",   requireAuth, ah(ctrl.deleteRefill));
 
+router.post("/end-of-day",      requireAuth, ah(async (req, res) => {
+  const { appendDayEndGasSnapshot, syncEquipmentToSheet } = require("../services/sheetsService");
+  await appendDayEndGasSnapshot();
+  await syncEquipmentToSheet();
+  res.json({ ok: true });
+}));
+
 router.get("/equipment",        requireAuth, ah(ctrl.getEquipment));
 router.post("/equipment",       requireAuth, ah(ctrl.createEquipment));
 router.put("/equipment/:id",    requireAuth, ah(ctrl.updateEquipment));
