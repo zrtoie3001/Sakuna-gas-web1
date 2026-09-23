@@ -53,8 +53,8 @@ export default function MapView() {
   function initMap() {
     if (mapObjRef.current || !mapRef.current || !window.L) return;
     const map = window.L.map(mapRef.current, { zoomControl: true }).setView([13.75, 100.5], 11);
-    window.L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
-      attribution: '© <a href="https://carto.com/">CARTO</a> © OSM', maxZoom: 20, maxNativeZoom: 19,
+    window.L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}", {
+      attribution: "© Esri © OpenStreetMap contributors", maxZoom: 20, maxNativeZoom: 19,
     }).addTo(map);
     mapObjRef.current = map;
     // Show GPS blue dot
