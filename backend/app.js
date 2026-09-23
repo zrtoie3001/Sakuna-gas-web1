@@ -164,6 +164,26 @@ const PORT = process.env.PORT || 3001;
       );
     `).catch(() => {});
     await sequelize.query(`ALTER TABLE gas_stocks ADD COLUMN IF NOT EXISTS new_tank_price DECIMAL(10,2);`).catch(() => {});
+    await sequelize.query(`
+      CREATE TABLE IF NOT EXISTS customer_locations (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        customer_id UUID,
+        customer_phone VARCHAR(20),
+        customer_address TEXT,
+        location_name VARCHAR(200),
+        latitude DECIMAL(11,8) NOT NULL,
+        longitude DECIMAL(11,8) NOT NULL,
+        address_text TEXT,
+        location_note TEXT,
+        location_accuracy VARCHAR(20) DEFAULT 'EXACT',
+        source VARCHAR(30) DEFAULT 'STAFF_LOCATION',
+        created_by UUID,
+        created_by_name VARCHAR(100),
+        is_default BOOLEAN DEFAULT true,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      );
+    `).catch(() => {});
     // Performance indexes — idempotent
     await sequelize.query(`CREATE INDEX IF NOT EXISTS idx_orders_created_at ON orders(created_at DESC);`).catch(() => {});
     await sequelize.query(`CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);`).catch(() => {});
