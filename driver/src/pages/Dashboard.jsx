@@ -49,6 +49,10 @@ function MapModal({ order, savedLoc, onClose, onSavePin }) {
   const [mapReady, setMapReady]   = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved]   = useState(false);
+  const [searchQ, setSearchQ]     = useState("");
+  const [searchRes, setSearchRes] = useState([]);
+  const [searching, setSearching] = useState(false);
+  const searchTimer = useRef(null);
 
   function placePinMarker(map, lat, lng, label) {
     if (pinMarkerRef.current) pinMarkerRef.current.remove();
@@ -81,7 +85,7 @@ function MapModal({ order, savedLoc, onClose, onSavePin }) {
     if (mapObjRef.current || !mapRef.current || !window.L) return;
     const map = window.L.map(mapRef.current, { zoomControl: true }).setView([centerLat, centerLng], zoom);
     window.L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      attribution: "© OpenStreetMap contributors", maxZoom: 19,
+      attribution: "© OpenStreetMap contributors", maxZoom: 20, maxNativeZoom: 19,
     }).addTo(map);
     mapObjRef.current = map;
     setMapReady(true);
@@ -89,6 +93,30 @@ function MapModal({ order, savedLoc, onClose, onSavePin }) {
       placePinMarker(map, e.latlng.lat, e.latlng.lng, "📍 ตำแหน่งที่เลือก");
     });
     return map;
+  }
+
+  function handleSearch(q) {
+    setSearchQ(q); setSearchRes([]);
+    clearTimeout(searchTimer.current);
+    if (!q.trim()) return;
+    setSearching(true);
+    searchTimer.current = setTimeout(async () => {
+      try {
+        const r = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&countrycodes=th&limit=6&accept-language=th`);
+        const data = await r.json();
+        setSearchRes(data);
+      } catch {}
+      setSearching(false);
+    }, 500);
+  }
+
+  function pickSearchResult(item) {
+    const lat = Number(item.lat); const lng = Number(item.lon);
+    setSearchRes([]); setSearchQ("");
+    if (mapObjRef.current) {
+      mapObjRef.current.setView([lat, lng], 17);
+      placePinMarker(mapObjRef.current, lat, lng, item.display_name);
+    }
   }
 
   useEffect(() => {
@@ -188,6 +216,28 @@ function MapModal({ order, savedLoc, onClose, onSavePin }) {
             style={{ padding: "6px 10px", borderRadius: 8, background: "#1D4ED8", color: WHITE, fontSize: 12, fontWeight: 700, textDecoration: "none", whiteSpace: "nowrap" }}>
             🧭 นำทาง
           </a>
+        )}
+      </div>
+
+      {/* Search */}
+      <div style={{ background: "#fff", padding: "8px 12px", flexShrink: 0, position: "relative", zIndex: 600 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, background: "#F3F4F6", borderRadius: 10, padding: "7px 12px" }}>
+          <span style={{ fontSize: 16 }}>🔍</span>
+          <input value={searchQ} onChange={e => handleSearch(e.target.value)}
+            placeholder="ค้นหาถนน ซอย สถานที่..."
+            style={{ flex: 1, border: "none", background: "transparent", fontSize: 14, outline: "none" }} />
+          {searching && <span style={{ fontSize: 12, color: "#9CA3AF" }}>⏳</span>}
+          {searchQ && <button onClick={() => { setSearchQ(""); setSearchRes([]); }} style={{ background: "none", border: "none", fontSize: 16, cursor: "pointer", color: "#9CA3AF" }}>✕</button>}
+        </div>
+        {searchRes.length > 0 && (
+          <div style={{ position: "absolute", left: 12, right: 12, top: "100%", background: "#fff", borderRadius: 10, boxShadow: "0 4px 20px rgba(0,0,0,.15)", maxHeight: 240, overflowY: "auto", zIndex: 700 }}>
+            {searchRes.map((item, i) => (
+              <div key={i} onMouseDown={() => pickSearchResult(item)}
+                style={{ padding: "9px 14px", borderBottom: i < searchRes.length-1 ? "1px solid #F3F4F6" : "none", cursor: "pointer", fontSize: 13, color: "#1F2937" }}>
+                📍 {item.display_name}
+              </div>
+            ))}
+          </div>
         )}
       </div>
 

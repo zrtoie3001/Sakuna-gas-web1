@@ -47,67 +47,252 @@ const STATUSES = [
 const EMPTY_ORDER = { customerName: "", customerPhone: "", brandId: "", productId: "", qty: 1, unitPrice: "", paymentMethod: "cash", deliveryAddress: "", note: "", orderType: "gas", liftingFloors: "", scheduledDate: "" };
 const LIFTING_RATE = (weightKg) => { const w = Number(weightKg); return w <= 4 ? 5 : w >= 15 ? 10 : 0; };
 
-function LocationSaveButton({ customerPhone, customerAddress }) {
+// ── Leaflet singleton loader ────────────────────────────────────────────────
+let _leafletLoaded = false;
+function ensureLeaflet(cb) {
+  if (window.L) { cb(); return; }
+  if (_leafletLoaded) { const iv = setInterval(() => { if (window.L) { clearInterval(iv); cb(); } }, 100); return; }
+  _leafletLoaded = true;
+  const link = document.createElement("link");
+  link.rel = "stylesheet";
+  link.href = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css";
+  document.head.appendChild(link);
+  const s = document.createElement("script");
+  s.src = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js";
+  s.onload = cb;
+  document.head.appendChild(s);
+}
+
+// ── MapPinModal — module-level to prevent remount on zoom ──────────────────
+function MapPinModal({ customerPhone, customerAddress, savedLoc: initLoc, onClose, onSaved }) {
+  const mapRef       = useRef(null);
+  const mapObjRef    = useRef(null);
+  const pinMarkerRef = useRef(null);
+  const gpsMarkerRef = useRef(null);
+  const [pinLat, setPinLat]   = useState(null);
+  const [pinLng, setPinLng]   = useState(null);
+  const [gpsStatus, setGpsStatus] = useState("loading");
+  const [mapReady, setMapReady]   = useState(false);
   const [saving, setSaving] = useState(false);
-  const [status, setStatus] = useState(null); // null | "ok" | "error" | "no_gps"
+  const [saved, setSaved]   = useState(false);
+  const [searchQ, setSearchQ]     = useState("");
+  const [searchRes, setSearchRes] = useState([]);
+  const [searching, setSearching] = useState(false);
+  const searchTimer = useRef(null);
+
+  function placePinMarker(map, lat, lng, label) {
+    if (pinMarkerRef.current) pinMarkerRef.current.remove();
+    const icon = window.L.divIcon({
+      className: "",
+      html: `<div style="font-size:30px;line-height:1;filter:drop-shadow(0 2px 4px rgba(0,0,0,.5))">📍</div>`,
+      iconSize: [30, 30], iconAnchor: [15, 30],
+    });
+    pinMarkerRef.current = window.L.marker([lat, lng], { icon, draggable: true })
+      .addTo(map).bindPopup(label || "📍 ตำแหน่งลูกค้า").openPopup();
+    pinMarkerRef.current.on("dragend", e => { const p = e.target.getLatLng(); setPinLat(p.lat); setPinLng(p.lng); });
+    setPinLat(lat); setPinLng(lng);
+  }
+
+  function placeGpsMarker(map, lat, lng) {
+    if (gpsMarkerRef.current) gpsMarkerRef.current.remove();
+    const icon = window.L.divIcon({
+      className: "",
+      html: `<div style="width:18px;height:18px;border-radius:50%;background:#1D4ED8;border:3px solid #fff;box-shadow:0 2px 10px rgba(29,78,216,.7)"></div>`,
+      iconSize: [18, 18], iconAnchor: [9, 9],
+    });
+    gpsMarkerRef.current = window.L.marker([lat, lng], { icon, zIndexOffset: -100 })
+      .addTo(map).bindPopup("📡 ตำแหน่งของคุณ");
+  }
+
+  function initMap(lat, lng, zoom = 17) {
+    if (mapObjRef.current || !mapRef.current || !window.L) return;
+    const map = window.L.map(mapRef.current, { zoomControl: true }).setView([lat, lng], zoom);
+    window.L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution: "© OpenStreetMap", maxZoom: 20, maxNativeZoom: 19,
+    }).addTo(map);
+    mapObjRef.current = map;
+    setMapReady(true);
+    map.on("click", e => placePinMarker(map, e.latlng.lat, e.latlng.lng, "📍 ตำแหน่งที่เลือก"));
+    return map;
+  }
+
+  useEffect(() => {
+    ensureLeaflet(() => {
+      if (initLoc?.latitude) {
+        const lat = Number(initLoc.latitude); const lng = Number(initLoc.longitude);
+        const map = initMap(lat, lng, 17);
+        if (map) placePinMarker(map, lat, lng, customerAddress || "ตำแหน่งลูกค้า");
+        if (navigator.geolocation) navigator.geolocation.getCurrentPosition(pos => {
+          placeGpsMarker(mapObjRef.current, pos.coords.latitude, pos.coords.longitude);
+          setGpsStatus("ok");
+        }, () => setGpsStatus("error"), { enableHighAccuracy: true, timeout: 10000 });
+        else setGpsStatus("error");
+      } else {
+        if (!navigator.geolocation) { setGpsStatus("error"); initMap(13.75, 100.5, 11); return; }
+        navigator.geolocation.getCurrentPosition(pos => {
+          const { latitude: glat, longitude: glng } = pos.coords;
+          setGpsStatus("ok");
+          const map = initMap(glat, glng, 17);
+          if (map) { placeGpsMarker(map, glat, glng); placePinMarker(map, glat, glng, "📍 ตำแหน่งปัจจุบัน (ลากได้)"); }
+        }, () => { setGpsStatus("error"); initMap(13.75, 100.5, 11); }, { enableHighAccuracy: true, timeout: 10000 });
+      }
+    });
+    return () => { if (mapObjRef.current) { mapObjRef.current.remove(); mapObjRef.current = null; } };
+  }, []);
+
+  function goToGps() {
+    if (gpsMarkerRef.current) { const p = gpsMarkerRef.current.getLatLng(); mapObjRef.current?.setView([p.lat, p.lng], 17); return; }
+    if (navigator.geolocation) navigator.geolocation.getCurrentPosition(pos => {
+      if (mapObjRef.current) { placeGpsMarker(mapObjRef.current, pos.coords.latitude, pos.coords.longitude); mapObjRef.current.setView([pos.coords.latitude, pos.coords.longitude], 17); }
+      setGpsStatus("ok");
+    }, () => setGpsStatus("error"), { enableHighAccuracy: true, timeout: 8000 });
+  }
+
+  function handleSearch(q) {
+    setSearchQ(q); setSearchRes([]);
+    clearTimeout(searchTimer.current);
+    if (!q.trim()) return;
+    setSearching(true);
+    searchTimer.current = setTimeout(async () => {
+      try {
+        const r = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&countrycodes=th&limit=6&accept-language=th`);
+        const data = await r.json();
+        setSearchRes(data);
+      } catch {}
+      setSearching(false);
+    }, 500);
+  }
+
+  function pickSearchResult(item) {
+    const lat = Number(item.lat); const lng = Number(item.lon);
+    setSearchRes([]); setSearchQ("");
+    if (mapObjRef.current) {
+      mapObjRef.current.setView([lat, lng], 17);
+      placePinMarker(mapObjRef.current, lat, lng, item.display_name);
+    }
+  }
+
+  async function savePin() {
+    if (!pinLat || !pinLng) return;
+    setSaving(true);
+    try {
+      const r = await api.post("/api/v1/customers/location/save", {
+        customerPhone, customerAddress,
+        latitude: pinLat, longitude: pinLng,
+        locationAccuracy: "APPROXIMATE", source: "STAFF_MAP_PIN",
+      });
+      setSaved(true);
+      onSaved?.(r.data);
+    } catch {}
+    setSaving(false);
+  }
+
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 2000, background: "#000", display: "flex", flexDirection: "column" }}>
+      {/* Header */}
+      <div style={{ background: "#1A2B6B", padding: "10px 14px", display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
+        <button onClick={onClose} style={{ background: "none", border: "none", color: "#fff", fontSize: 22, cursor: "pointer", lineHeight: 1, padding: 0 }}>←</button>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ color: "#fff", fontWeight: 800, fontSize: 14 }}>📍 ปักหมุดตำแหน่ง</div>
+          <div style={{ color: "rgba(255,255,255,.6)", fontSize: 11, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{customerAddress}</div>
+        </div>
+        {pinLat && <a href={`https://www.google.com/maps/dir/?api=1&destination=${pinLat},${pinLng}`} target="_blank" rel="noreferrer"
+          style={{ padding: "6px 10px", borderRadius: 8, background: "#1D4ED8", color: "#fff", fontSize: 12, fontWeight: 700, textDecoration: "none", whiteSpace: "nowrap" }}>🧭 นำทาง</a>}
+      </div>
+
+      {/* Search */}
+      <div style={{ background: "#fff", padding: "8px 12px", flexShrink: 0, position: "relative", zIndex: 600 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, background: "#F3F4F6", borderRadius: 10, padding: "7px 12px" }}>
+          <span style={{ fontSize: 16 }}>🔍</span>
+          <input value={searchQ} onChange={e => handleSearch(e.target.value)}
+            placeholder="ค้นหาถนน ซอย สถานที่..."
+            style={{ flex: 1, border: "none", background: "transparent", fontSize: 14, outline: "none" }} />
+          {searching && <span style={{ fontSize: 12, color: "#9CA3AF" }}>⏳</span>}
+          {searchQ && <button onClick={() => { setSearchQ(""); setSearchRes([]); }} style={{ background: "none", border: "none", fontSize: 16, cursor: "pointer", color: "#9CA3AF" }}>✕</button>}
+        </div>
+        {searchRes.length > 0 && (
+          <div style={{ position: "absolute", left: 12, right: 12, top: "100%", background: "#fff", borderRadius: 10, boxShadow: "0 4px 20px rgba(0,0,0,.15)", maxHeight: 240, overflowY: "auto", zIndex: 700 }}>
+            {searchRes.map((item, i) => (
+              <div key={i} onMouseDown={() => pickSearchResult(item)}
+                style={{ padding: "9px 14px", borderBottom: i < searchRes.length-1 ? "1px solid #F3F4F6" : "none", cursor: "pointer", fontSize: 13, color: "#1F2937" }}>
+                📍 {item.display_name}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Map */}
+      <div style={{ position: "relative", flex: 1 }}>
+        <div ref={mapRef} style={{ width: "100%", height: "100%" }} />
+        {!mapReady && (
+          <div style={{ position: "absolute", inset: 0, background: "#1a1a2e", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", zIndex: 10 }}>
+            <div style={{ fontSize: 40, marginBottom: 12 }}>📡</div>
+            <div style={{ color: "#fff", fontSize: 14, fontWeight: 700 }}>กำลังหาตำแหน่ง GPS...</div>
+          </div>
+        )}
+        {mapReady && (
+          <button onClick={goToGps} style={{ position: "absolute", bottom: 16, right: 16, zIndex: 500, width: 46, height: 46, borderRadius: "50%", border: "none", background: "#fff", boxShadow: "0 2px 10px rgba(0,0,0,.35)", fontSize: 22, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            {gpsStatus === "loading" ? "⏳" : gpsStatus === "error" ? "📵" : "📡"}
+          </button>
+        )}
+        {mapReady && (
+          <div style={{ position: "absolute", top: 10, left: "50%", transform: "translateX(-50%)", zIndex: 500, background: "rgba(0,0,0,.6)", color: "#fff", fontSize: 11, padding: "5px 12px", borderRadius: 20, pointerEvents: "none", whiteSpace: "nowrap" }}>
+            แตะแผนที่เพื่อปักหมุด · ลากหมุดเพื่อเลื่อน
+          </div>
+        )}
+      </div>
+
+      {/* Footer */}
+      <div style={{ background: "#fff", padding: "12px 14px", display: "flex", gap: 10, alignItems: "center", flexShrink: 0 }}>
+        <div style={{ flex: 1, fontSize: 12, color: "#6B7280", minWidth: 0 }}>
+          {pinLat ? <span style={{ color: "#059669" }}>📍 {Number(pinLat).toFixed(5)}, {Number(pinLng).toFixed(5)}</span>
+            : <span>{gpsStatus === "loading" ? "⏳ รอ GPS..." : "แตะบนแผนที่เพื่อปักหมุด"}</span>}
+        </div>
+        {saved ? <span style={{ fontSize: 13, color: "#059669", fontWeight: 700, whiteSpace: "nowrap" }}>✅ บันทึกแล้ว</span>
+          : <button onClick={savePin} disabled={!pinLat || saving} style={{ padding: "9px 18px", borderRadius: 10, border: "none", background: !pinLat ? "#E5E7EB" : "#F47B20", color: !pinLat ? "#6B7280" : "#fff", fontSize: 13, fontWeight: 700, cursor: !pinLat ? "default" : "pointer", whiteSpace: "nowrap" }}>
+              {saving ? "⏳..." : "📍 บันทึกหมุด"}
+            </button>}
+      </div>
+    </div>
+  );
+}
+
+function LocationSaveButton({ customerPhone, customerAddress }) {
   const [savedLoc, setSavedLoc] = useState(null);
+  const [showMap, setShowMap]   = useState(false);
 
   useEffect(() => {
     if (!customerPhone) return;
     api.get(`/api/v1/customers/location/by-contact?phone=${encodeURIComponent(customerPhone)}`)
-      .then(r => setSavedLoc(r.data))
-      .catch(() => {});
+      .then(r => setSavedLoc(r.data)).catch(() => {});
   }, [customerPhone]);
 
-  async function handleSave() {
-    setSaving(true); setStatus(null);
-    if (!navigator.geolocation) { setStatus("no_gps"); setSaving(false); return; }
-    navigator.geolocation.getCurrentPosition(async pos => {
-      try {
-        const { latitude, longitude, accuracy } = pos.coords;
-        const r = await api.post("/api/v1/customers/location/save", {
-          customerPhone,
-          customerAddress,
-          latitude,
-          longitude,
-          locationAccuracy: accuracy && accuracy <= 50 ? "EXACT" : "APPROXIMATE",
-          source: "STAFF_LOCATION",
-        });
-        setSavedLoc(r.data);
-        setStatus("ok");
-      } catch { setStatus("error"); }
-      setSaving(false);
-    }, () => { setStatus("no_gps"); setSaving(false); }, { enableHighAccuracy: true, timeout: 10000 });
-  }
-
-  const mapsLink = savedLoc
-    ? `https://www.google.com/maps?q=${savedLoc.latitude},${savedLoc.longitude}`
-    : null;
-
   return (
-    <div style={{ marginTop: 10, background: "#F0F9FF", borderRadius: 10, padding: "10px 12px", border: "1.5px solid #BAE6FD" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: savedLoc ? 8 : 0 }}>
-        <span style={{ fontSize: 12, fontWeight: 700, color: "#0369A1" }}>
-          {savedLoc ? "📍 มีพิกัดแล้ว" : "📍 ยังไม่มีพิกัด"}
-        </span>
-        <button onClick={handleSave} disabled={saving}
-          style={{ padding: "5px 12px", borderRadius: 7, border: "none", background: saving ? "#E5E7EB" : "#0369A1", color: "#fff", fontSize: 12, fontWeight: 700, cursor: saving ? "default" : "pointer" }}>
-          {saving ? "⏳ กำลังหาตำแหน่ง..." : "📍 บันทึกตำแหน่งนี้"}
-        </button>
-      </div>
-      {status === "ok"     && <div style={{ fontSize: 11, color: "#059669", marginTop: 4 }}>✅ บันทึกพิกัดสำเร็จ</div>}
-      {status === "error"  && <div style={{ fontSize: 11, color: "#DC2626", marginTop: 4 }}>❌ เกิดข้อผิดพลาด</div>}
-      {status === "no_gps" && <div style={{ fontSize: 11, color: "#D97706", marginTop: 4 }}>⚠️ ไม่สามารถเข้าถึง GPS ได้</div>}
-      {savedLoc && (
-        <div style={{ fontSize: 11, color: "#0C4A6E", display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <span>{Number(savedLoc.latitude).toFixed(6)}, {Number(savedLoc.longitude).toFixed(6)}</span>
-          <a href={mapsLink} target="_blank" rel="noreferrer"
-            style={{ color: "#0369A1", fontWeight: 700, textDecoration: "none" }}>🗺 ดูแผนที่</a>
-          <a href={`https://www.google.com/maps/dir/?api=1&destination=${savedLoc.latitude},${savedLoc.longitude}`}
-            target="_blank" rel="noreferrer" style={{ color: "#7C3AED", fontWeight: 700, textDecoration: "none" }}>🧭 นำทาง</a>
+    <>
+      {showMap && <MapPinModal customerPhone={customerPhone} customerAddress={customerAddress} savedLoc={savedLoc}
+        onClose={() => setShowMap(false)} onSaved={loc => { setSavedLoc(loc); }} />}
+      <div style={{ marginTop: 10, background: "#F0F9FF", borderRadius: 10, padding: "10px 12px", border: "1.5px solid #BAE6FD" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <span style={{ fontSize: 12, fontWeight: 700, color: "#0369A1" }}>
+            {savedLoc ? "📍 มีพิกัดแล้ว" : "📍 ยังไม่มีพิกัด"}
+          </span>
+          <button onClick={() => setShowMap(true)}
+            style={{ padding: "5px 12px", borderRadius: 7, border: "none", background: "#0369A1", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+            🗺️ เปิดแผนที่ปักหมุด
+          </button>
         </div>
-      )}
-    </div>
+        {savedLoc && (
+          <div style={{ fontSize: 11, color: "#0C4A6E", display: "flex", gap: 8, flexWrap: "wrap", marginTop: 6 }}>
+            <span>{Number(savedLoc.latitude).toFixed(6)}, {Number(savedLoc.longitude).toFixed(6)}</span>
+            <a href={`https://www.google.com/maps?q=${savedLoc.latitude},${savedLoc.longitude}`} target="_blank" rel="noreferrer"
+              style={{ color: "#0369A1", fontWeight: 700, textDecoration: "none" }}>🗺 ดูแผนที่</a>
+            <a href={`https://www.google.com/maps/dir/?api=1&destination=${savedLoc.latitude},${savedLoc.longitude}`}
+              target="_blank" rel="noreferrer" style={{ color: "#7C3AED", fontWeight: 700, textDecoration: "none" }}>🧭 นำทาง</a>
+          </div>
+        )}
+      </div>
+    </>
   );
 }
 
