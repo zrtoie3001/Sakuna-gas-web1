@@ -107,6 +107,7 @@ async function appendStockLog(log) {
   if (!SHEET_ID || !process.env.GOOGLE_SERVICE_ACCOUNT_JSON) return;
   try {
     const sheets = getClient();
+    await ensureSheet(sheets, "ประวัติสต็อก");
     // ensure header
     const res = await sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID, range: "'ประวัติสต็อก'!A1:A1" });
     if (!res.data.values?.[0]) {
@@ -142,13 +143,22 @@ async function getSheetId(sheets, sheetName) {
   return sheet?.properties?.sheetId ?? null;
 }
 
+async function ensureSheet(sheets, sheetName) {
+  const existing = await getSheetId(sheets, sheetName);
+  if (existing !== null) return;
+  await sheets.spreadsheets.batchUpdate({
+    spreadsheetId: SHEET_ID,
+    requestBody: { requests: [{ addSheet: { properties: { title: sheetName } } }] },
+  });
+}
+
 async function syncStockToSheet() {
   if (!SHEET_ID || !process.env.GOOGLE_SERVICE_ACCOUNT_JSON) return;
   try {
     const { GasStock } = require("../models");
     const sheets = getClient();
+    await ensureSheet(sheets, "Stock");
     const rows = await GasStock.findAll({ order: [["brandName", "ASC"], ["weightKg", "ASC"]] });
-    const BRANDS = ["ปตท", "PAP", "เวิลด์", "สยาม", "ยูนิค"];
 
     const header = ["ยี่ห้อ", "น้ำหนัก (kg)", "ถังมีแก๊ส", "ถังใหม่", "ถังเปล่า", "ถังเสีย", "ค้างถัง", "รวม"];
     const data = rows.map(r => {
@@ -156,14 +166,11 @@ async function syncStockToSheet() {
       return [r.brandName, Number(r.weightKg), Number(r.hasGas), Number(r.newTank), Number(r.emptyTank), Number(r.damagedTank), Number(r.heldTank), total];
     });
 
-    // write data
     await sheets.spreadsheets.values.update({
       spreadsheetId: SHEET_ID, range: "Stock!A1",
       valueInputOption: "RAW",
       requestBody: { values: [header, ...data] },
     });
-
-    // data only — no formatting so user's custom format stays intact
   } catch (e) {
     console.error("Sheets stock sync error:", e.message);
   }
@@ -201,6 +208,7 @@ async function appendDayEndGasSnapshot() {
   const sheets = getClient();
   const sheetName = "สต็อกจบวัน";
 
+  await ensureSheet(sheets, sheetName);
   // Ensure header
   const res = await sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID, range: `'${sheetName}'!A1:A1` });
   if (!res.data.values?.[0]) {
@@ -232,6 +240,7 @@ async function syncEquipmentToSheet() {
   const { Equipment } = require("../models");
   const sheets = getClient();
   const sheetName = "อุปกรณ์";
+  await ensureSheet(sheets, sheetName);
 
   const items = await Equipment.findAll({ order: [["category", "ASC"], ["name", "ASC"]] });
   const now = new Date();
