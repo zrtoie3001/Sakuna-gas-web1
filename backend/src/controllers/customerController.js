@@ -322,13 +322,15 @@ async function todayDeliveryLocations(req, res) {
   const todayStart = new Date(new Date().toLocaleDateString("en-CA", { timeZone: tz }) + "T00:00:00+07:00");
   const todayEnd   = new Date(new Date().toLocaleDateString("en-CA", { timeZone: tz }) + "T23:59:59+07:00");
 
+  const { User } = require("../models");
   const orders = await Order.findAll({
     where: {
       createdAt: { [Op.between]: [todayStart, todayEnd] },
       status: { [Op.notIn]: ["cancelled"] },
     },
     attributes: ["id", "orderNumber", "customerName", "customerPhone", "deliveryAddress",
-      "deliveryLat", "deliveryLng", "status", "isPaid", "total"],
+      "deliveryLat", "deliveryLng", "status", "isPaid", "total", "driverId"],
+    include: [{ model: User, as: "driver", attributes: ["id", "name"], required: false }],
     order: [["createdAt", "ASC"]],
   });
 
@@ -340,9 +342,11 @@ async function todayDeliveryLocations(req, res) {
   const locByPhone = new Map(locs.map(l => [l.customerPhone, l]));
 
   const result = orders.map(o => {
+    const json = o.toJSON();
     const saved = locByPhone.get(o.customerPhone);
     return {
-      ...o.toJSON(),
+      ...json,
+      driverName: json.driver?.name ?? null,
       savedLat: saved?.latitude ?? null,
       savedLng: saved?.longitude ?? null,
       locationName: saved?.locationName ?? null,
