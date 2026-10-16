@@ -557,15 +557,23 @@ export default function Dashboard() {
     window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`, "_blank");
   }
 
+  function orderStop(o) {
+    if (o.deliveryLat && o.deliveryLng) return `${o.deliveryLat},${o.deliveryLng}`;
+    if (o.deliveryAddress) return encodeURIComponent(o.deliveryAddress);
+    return null;
+  }
+
   function openFullRoute() {
-    if (sortedActiveOrders.length === 0) return;
-    const waypoints = sortedActiveOrders.slice(0, -1).map(o => `${o.deliveryLat},${o.deliveryLng}`).join("|");
-    const last = sortedActiveOrders[sortedActiveOrders.length - 1];
+    const stops = sortedActiveOrders.map(orderStop).filter(Boolean);
+    if (stops.length === 0) return;
+    const last = stops[stops.length - 1];
+    const waypointStops = stops.slice(0, -1);
     const origin = location ? `${location.lat},${location.lng}` : "";
     const base = "https://www.google.com/maps/dir/?api=1";
-    const url = origin
-      ? `${base}&origin=${origin}&destination=${last.deliveryLat},${last.deliveryLng}&waypoints=${waypoints}&travelmode=driving`
-      : `${base}&destination=${last.deliveryLat},${last.deliveryLng}&waypoints=${waypoints}&travelmode=driving`;
+    let url = base;
+    if (origin) url += `&origin=${origin}`;
+    url += `&destination=${last}&travelmode=driving`;
+    if (waypointStops.length) url += `&waypoints=${waypointStops.join("|")}`;
     window.open(url, "_blank");
   }
 
