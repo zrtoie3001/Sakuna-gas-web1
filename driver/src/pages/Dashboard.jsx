@@ -508,21 +508,30 @@ export default function Dashboard() {
     return () => navigator.geolocation.clearWatch(wid);
   }, []);
 
+  const routeCalcRef = useRef(null);
+  const lastRouteKeyRef = useRef(null);
   useEffect(() => {
     const activeOrders = myOrders.filter(o => o.status === "out_for_delivery" || o.status === "preparing");
     if (activeOrders.length < 2) { setRouteOrder(activeOrders.map(o => o.id)); return; }
-    const lat = location?.lat || 13.8;
-    const lng = location?.lng || 100.5;
-    setRouteLoading(true);
-    api.get(`/api/v1/drivers/route?lat=${lat}&lng=${lng}`)
-      .then(r => {
-        const ordered = r.data;
-        if (Array.isArray(ordered) && ordered.length) setRouteOrder(ordered.map(s => s.orderId));
-        else setRouteOrder(activeOrders.map(o => o.id));
-      })
-      .catch(() => setRouteOrder(activeOrders.map(o => o.id)))
-      .finally(() => setRouteLoading(false));
-  }, [myOrders.length, location?.lat, location?.lng]);
+    // Only recalculate when order list actually changes, not on every GPS tick
+    const orderKey = activeOrders.map(o => o.id).sort().join(",");
+    if (orderKey === lastRouteKeyRef.current) return;
+    lastRouteKeyRef.current = orderKey;
+    clearTimeout(routeCalcRef.current);
+    routeCalcRef.current = setTimeout(() => {
+      const lat = location?.lat || 13.8;
+      const lng = location?.lng || 100.5;
+      setRouteLoading(true);
+      api.get(`/api/v1/drivers/route?lat=${lat}&lng=${lng}`)
+        .then(r => {
+          const ordered = r.data;
+          if (Array.isArray(ordered) && ordered.length) setRouteOrder(ordered.map(s => s.orderId));
+          else setRouteOrder(activeOrders.map(o => o.id));
+        })
+        .catch(() => setRouteOrder(activeOrders.map(o => o.id)))
+        .finally(() => setRouteLoading(false));
+    }, 500);
+  }, [myOrders.length]);
 
   const sortedActiveOrders = routeOrder.length
     ? [...myOrders].sort((a, b) => {
