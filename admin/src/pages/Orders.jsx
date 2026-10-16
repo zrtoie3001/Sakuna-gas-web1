@@ -270,10 +270,13 @@ function LocationSaveButton({ customerPhone, customerAddress }) {
   const [showMap, setShowMap]   = useState(false);
 
   useEffect(() => {
-    if (!customerPhone) return;
-    api.get(`/api/v1/customers/location/by-contact?phone=${encodeURIComponent(customerPhone)}`)
+    const params = new URLSearchParams();
+    if (customerPhone) params.set("phone", customerPhone);
+    else if (customerAddress) params.set("address", customerAddress);
+    else return;
+    api.get(`/api/v1/customers/location/by-contact?${params}`)
       .then(r => setSavedLoc(r.data)).catch(() => {});
-  }, [customerPhone]);
+  }, [customerPhone, customerAddress]);
 
   return (
     <>
@@ -1319,7 +1322,7 @@ ${noteText ? `<div style="margin-top:8px; padding:6px 8px; border:1.5px dashed #
           })()}
 
           {/* ── GPS Location button ── */}
-          {selected.customerPhone && selected.deliveryAddress && selected.deliveryAddress !== "หน้าร้าน" && (
+          {selected.deliveryAddress && selected.deliveryAddress !== "หน้าร้าน" && (
             <LocationSaveButton
               customerPhone={selected.customerPhone}
               customerAddress={selected.deliveryAddress}
