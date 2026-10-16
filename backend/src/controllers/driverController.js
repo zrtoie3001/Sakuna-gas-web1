@@ -1,6 +1,21 @@
 const bcrypt = require("bcryptjs");
-const { User, Order, Brand, Product, Customer } = require("../models");
+const { User, Order, Brand, Product, Customer, CustomerLocation } = require("../models");
 const { optimizeRoute } = require("../services/mapsService");
+
+// Resolve best lat/lng for an order: saved pin > order GPS
+async function resolveOrderLoc(order) {
+  if (!order.customerPhone && !order.customerId && !order.deliveryAddress) {
+    return { lat: Number(order.deliveryLat) || null, lng: Number(order.deliveryLng) || null, pinned: false };
+  }
+  const where = order.customerId ? { customerId: order.customerId }
+    : order.customerPhone ? { customerPhone: order.customerPhone }
+    : { customerAddress: order.deliveryAddress };
+  const saved = await CustomerLocation.findOne({ where, order: [["createdAt", "DESC"]] }).catch(() => null);
+  if (saved?.latitude && saved?.longitude) {
+    return { lat: Number(saved.latitude), lng: Number(saved.longitude), pinned: true };
+  }
+  return { lat: Number(order.deliveryLat) || null, lng: Number(order.deliveryLng) || null, pinned: false };
+}
 
 async function listDrivers(req, res) {
   const { Op } = require("sequelize");
@@ -62,7 +77,15 @@ async function getMyOrders(req, res) {
     ],
     order: [["createdAt", "ASC"]],
   });
-  res.json(orders);
+  // Attach saved pin location to each order
+  const enriched = await Promise.all(orders.map(async o => {
+    const loc = await resolveOrderLoc(o);
+    const plain = o.toJSON();
+    plain.savedLat = loc.pinned ? loc.lat : null;
+    plain.savedLng = loc.pinned ? loc.lng : null;
+    return plain;
+  }));
+  res.json(enriched);
 }
 
 async function getPendingOrders(_req, res) {
@@ -84,13 +107,16 @@ async function getOptimizedRoute(req, res) {
   });
   if (!orders.length) return res.json([]);
 
-  const stops = orders.map(o => ({
-    orderId: o.id,
-    orderNumber: o.orderNumber,
-    lat: Number(o.deliveryLat),
-    lng: Number(o.deliveryLng),
-    address: o.deliveryAddress,
-    customerName: o.customerName,
+  const stops = await Promise.all(orders.map(async o => {
+    const loc = await resolveOrderLoc(o);
+    return {
+      orderId: o.id,
+      orderNumber: o.orderNumber,
+      lat: loc.lat,
+      lng: loc.lng,
+      address: o.deliveryAddress,
+      customerName: o.customerName,
+    };
   }));
 
   const optimized = await optimizeRoute(parseFloat(lat), parseFloat(lng), stops);

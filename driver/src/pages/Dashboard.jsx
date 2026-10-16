@@ -341,8 +341,8 @@ function OrderCard({ order, showAccept, showStatus, routeIndex, sortedActiveOrde
     }, () => { setLocStatus("no_gps"); setLocSaving(false); }, { enableHighAccuracy: true, timeout: 10000 });
   }
 
-  const navLat = savedLoc?.latitude || order.deliveryLat;
-  const navLng = savedLoc?.longitude || order.deliveryLng;
+  const navLat = savedLoc?.latitude || order.savedLat || order.deliveryLat;
+  const navLng = savedLoc?.longitude || order.savedLng || order.deliveryLng;
 
   return (
     <>
@@ -558,6 +558,8 @@ export default function Dashboard() {
   }
 
   function orderStop(o) {
+    // Prefer admin-pinned location, then order GPS, then text address
+    if (o.savedLat && o.savedLng) return `${o.savedLat},${o.savedLng}`;
     if (o.deliveryLat && o.deliveryLng) return `${o.deliveryLat},${o.deliveryLng}`;
     if (o.deliveryAddress) return encodeURIComponent(o.deliveryAddress);
     return null;
