@@ -40,7 +40,7 @@ async function restoreEmptyTank(brandName, weightKg, qty) {
   const stock = await GasStock.findOne({ where: { brandName: target, weightKg: wkg } });
   if (stock) await stock.update({ emptyTank: Number(stock.emptyTank || 0) + qty });
 }
-const { syncStockToSheet, appendStockLog } = require("../services/sheetsService");
+const { syncStockToSheet, appendStockLog, appendRefillLog } = require("../services/sheetsService");
 
 const STOCK_FIELDS = ["hasGas", "newTank", "emptyTank", "damagedTank", "heldTank"];
 
@@ -110,11 +110,13 @@ async function getRefills(_req, res) {
 }
 
 async function addRefill(req, res) {
-  const { weightKg, qty, note } = req.body;
-  const brandName = req.body.brandName; // อาจเป็น "ยูนิค/สยาม"
-  const resolvedBrand = resolveSharedBrand(brandName); // เก็บในสต็อก primary brand
+  const { weightKg, qty, note, includeVat } = req.body;
+  const brandName = req.body.brandName;
+  const resolvedBrand = resolveSharedBrand(brandName);
   const costPerUnit = req.body.costPerUnit !== "" && req.body.costPerUnit != null ? Number(req.body.costPerUnit) : null;
-  const totalCost = (costPerUnit || 0) * Number(qty);
+  const subtotal = (costPerUnit || 0) * Number(qty);
+  const vat = includeVat ? Math.round(subtotal * 0.07) : 0;
+  const totalCost = subtotal + vat;
   const refill = await GasRefill.create({ brandName: resolvedBrand, weightKg, qty, costPerUnit, totalCost, note });
 
   let stock = await GasStock.findOne({ where: { brandName: resolvedBrand, weightKg } });
@@ -125,6 +127,7 @@ async function addRefill(req, res) {
   await deductEmptyTank(resolvedBrand, weightKg, Number(qty));
   await writeLog(resolvedBrand, weightKg, "hasGas", oldHas, newHas, "refill", note);
   appendStockLog({ brandName: resolvedBrand, weightKg, field: "hasGas", oldValue: oldHas, newValue: newHas, delta: Number(qty), action: "refill", note }).catch(() => {});
+  appendRefillLog({ brandName: resolvedBrand, weightKg, qty, costPerUnit, includeVat, note }).catch(() => {});
   syncStockToSheet().catch(() => {});
   res.status(201).json(refill);
 }

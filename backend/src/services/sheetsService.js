@@ -257,4 +257,39 @@ async function syncEquipmentToSheet() {
   });
 }
 
-module.exports = { appendOrder, updateOrderStatus, syncStockToSheet, appendStockLog, deleteOrderFromSheet, appendDayEndGasSnapshot, syncEquipmentToSheet };
+async function appendRefillLog(refill) {
+  if (!SHEET_ID || !process.env.GOOGLE_SERVICE_ACCOUNT_JSON) return;
+  try {
+    const sheets = getClient();
+    const sheetName = "รับแก๊ส";
+    await ensureSheet(sheets, sheetName);
+    const res = await sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID, range: `'${sheetName}'!A1:A1` });
+    if (!res.data.values?.[0]) {
+      await sheets.spreadsheets.values.update({
+        spreadsheetId: SHEET_ID, range: `'${sheetName}'!A1`, valueInputOption: "RAW",
+        requestBody: { values: [["วันที่", "เวลา", "ยี่ห้อ", "น้ำหนัก (kg)", "จำนวน (ถัง)", "ราคาต้นทุน/ถัง (฿)", "VAT 7% (฿)", "รวมต้นทุน (฿)", "หมายเหตุ"]] },
+      });
+    }
+    const now = new Date();
+    const costPerUnit = Number(refill.costPerUnit || 0);
+    const qty = Number(refill.qty || 0);
+    const subtotal = costPerUnit * qty;
+    const vat = refill.includeVat ? Math.round(subtotal * 0.07) : 0;
+    const total = subtotal + vat;
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: SHEET_ID, range: `'${sheetName}'!A:I`,
+      valueInputOption: "RAW", insertDataOption: "INSERT_ROWS",
+      requestBody: { values: [[
+        now.toLocaleDateString("th-TH", { dateStyle: "short", timeZone: "Asia/Bangkok" }),
+        now.toLocaleTimeString("th-TH", { timeStyle: "short", timeZone: "Asia/Bangkok" }),
+        refill.brandName, Number(refill.weightKg),
+        qty, costPerUnit, vat, total,
+        refill.note || "",
+      ]] },
+    });
+  } catch (e) {
+    console.error("Sheets refill log error:", e.message);
+  }
+}
+
+module.exports = { appendOrder, updateOrderStatus, syncStockToSheet, appendStockLog, deleteOrderFromSheet, appendDayEndGasSnapshot, syncEquipmentToSheet, appendRefillLog };

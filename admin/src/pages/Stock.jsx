@@ -32,7 +32,7 @@ export default function Stock() {
   // modals
   const [editCell, setEditCell] = useState(null); // { brandName, weightKg, row }
   const [showRefill, setShowRefill] = useState(false);
-  const [refillForm, setRefillForm] = useState({ brandName: BRAND_GROUPS[0], weightKg: 15, qty: 1, costPerUnit: "", note: "" });
+  const [refillForm, setRefillForm] = useState({ brandName: BRAND_GROUPS[0], weightKg: 15, qty: 1, costPerUnit: "", includeVat: false, note: "" });
   const [equipCategory, setEquipCategory] = useState("equipment"); // equipment | stove
   const [equipSearch, setEquipSearch] = useState("");
   const [showEquipForm, setShowEquipForm] = useState(false);
@@ -85,7 +85,7 @@ export default function Stock() {
   async function submitRefill() {
     await api.post("/api/v1/stock/refills", refillForm);
     setShowRefill(false);
-    setRefillForm({ brandName: BRAND_GROUPS[0], weightKg: 15, qty: 1, costPerUnit: "", note: "" });
+    setRefillForm({ brandName: BRAND_GROUPS[0], weightKg: 15, qty: 1, costPerUnit: "", includeVat: false, note: "" });
     fetchStock(); fetchRefills();
   }
 
@@ -449,7 +449,7 @@ export default function Stock() {
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100 }}>
           <div style={{ background: WHITE, borderRadius: 16, padding: 24, width: 360 }}>
             <h3 style={{ color: NAVY, margin: "0 0 16px" }}>🔄 บันทึกรับแก๊ส</h3>
-            {[["brandName","ยี่ห้อ"],["weightKg","น้ำหนัก (kg)"],["qty","จำนวน (ถัง)"],["costPerUnit","ราคาต่อถัง (฿)"],["note","หมายเหตุ"]].map(([key, label]) => (
+            {[["brandName","ยี่ห้อ"],["weightKg","น้ำหนัก (kg)"],["qty","จำนวน (ถัง)"],["costPerUnit","ราคาต้นทุน/ถัง (฿)"],["note","หมายเหตุ"]].map(([key, label]) => (
               <div key={key} style={{ marginBottom: 12 }}>
                 <label style={{ fontSize: 13, color: GRAY, display: "block", marginBottom: 4 }}>{label}</label>
                 {key === "brandName" ? (
@@ -465,8 +465,28 @@ export default function Stock() {
                 )}
               </div>
             ))}
-            <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
-              <button onClick={submitRefill} style={{ ...btn(NAVY), flex: 1 }}>บันทึก</button>
+
+            {/* VAT checkbox + cost summary */}
+            <div style={{ marginBottom: 12 }}>
+              <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 13, color: NAVY }}>
+                <input type="checkbox" checked={refillForm.includeVat} onChange={e => setRefillForm(f => ({ ...f, includeVat: e.target.checked }))} />
+                มี VAT 7%
+              </label>
+            </div>
+            {refillForm.costPerUnit && refillForm.qty ? (() => {
+              const sub = Number(refillForm.costPerUnit) * Number(refillForm.qty);
+              const vat = refillForm.includeVat ? Math.round(sub * 0.07) : 0;
+              return (
+                <div style={{ background: "#F0F9FF", borderRadius: 8, padding: "10px 12px", marginBottom: 14, fontSize: 13 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", color: GRAY }}><span>ต้นทุนก่อน VAT</span><span>฿{sub.toLocaleString()}</span></div>
+                  {vat > 0 && <div style={{ display: "flex", justifyContent: "space-between", color: GRAY }}><span>VAT 7%</span><span>฿{vat.toLocaleString()}</span></div>}
+                  <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 800, color: NAVY, marginTop: 4 }}><span>รวมต้นทุน</span><span>฿{(sub + vat).toLocaleString()}</span></div>
+                </div>
+              );
+            })() : null}
+
+            <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+              <button onClick={submitRefill} style={{ ...btn(NAVY), flex: 1 }}>บันทึก + ส่ง Sheets</button>
               <button onClick={() => setShowRefill(false)} style={{ ...btn("#E5E7EB", NAVY), flex: 1 }}>ยกเลิก</button>
             </div>
           </div>
