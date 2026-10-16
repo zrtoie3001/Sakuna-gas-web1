@@ -307,7 +307,11 @@ function OrderCard({ order, showAccept, showStatus, routeIndex, sortedActiveOrde
 
   useEffect(() => {
     if (!order.customerPhone) return;
-    api.get(`/api/v1/customers/location/by-contact?phone=${encodeURIComponent(order.customerPhone)}`)
+    const params = new URLSearchParams();
+    if (order.customerPhone) params.set("phone", order.customerPhone);
+    if (order.deliveryAddress) params.set("address", order.deliveryAddress);
+    if (order.customerId) params.set("customerId", order.customerId);
+    api.get(`/api/v1/customers/location/by-contact?${params}`)
       .then(r => setSavedLoc(r.data || null)).catch(() => {});
   }, [order.customerPhone]);
 

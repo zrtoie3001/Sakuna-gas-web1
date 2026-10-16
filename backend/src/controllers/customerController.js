@@ -258,14 +258,19 @@ async function getCustomerOrders(req, res) {
 
 async function getLocationByContact(req, res) {
   const { phone, address, customerId } = req.query;
-  const where = {};
-  if (customerId) where.customerId = customerId;
-  else if (phone) where.customerPhone = phone;
-  else if (address) where.customerAddress = address;
-  else return res.json(null);
+  if (!customerId && !phone && !address) return res.json(null);
 
-  const loc = await CustomerLocation.findOne({ where, order: [["updatedAt", "DESC"]] });
-  res.json(loc || null);
+  // Try each identifier in order: customerId → phone → address
+  const attempts = [];
+  if (customerId) attempts.push({ customerId });
+  if (phone) attempts.push({ customerPhone: phone });
+  if (address) attempts.push({ customerAddress: address });
+
+  for (const where of attempts) {
+    const loc = await CustomerLocation.findOne({ where, order: [["updatedAt", "DESC"]] });
+    if (loc) return res.json(loc);
+  }
+  res.json(null);
 }
 
 async function saveLocation(req, res) {
