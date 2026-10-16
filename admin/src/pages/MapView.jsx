@@ -64,15 +64,41 @@ export default function MapView() {
   const [routeMode, setRouteMode]       = useState(false);
   const [assignModal, setAssignModal]   = useState(null); // order object
   const [assigningId, setAssigningId]   = useState(null);
+  const [geocoding, setGeocoding]       = useState(false);
+  const [geocodeExtra, setGeocodeExtra] = useState({}); // { [orderId]: {lat, lng, approximate:true} }
 
   const loadOrders = () => {
     setLoading(true);
     setRouteOrder(null); setRouteMode(false);
+    setGeocodeExtra({});
     api.get("/api/v1/customers/locations/today-map")
       .then(r => setOrders(r.data || []))
       .catch(() => {})
       .finally(() => setLoading(false));
   };
+
+  // Auto-geocode orders that have no coordinates using Longdo
+  async function geocodeMissing() {
+    const missing = orders.filter(o => !o.savedLat && !o.deliveryLat && o.deliveryAddress);
+    if (!missing.length) return;
+    setGeocoding(true);
+    const extra = { ...geocodeExtra };
+    for (const o of missing) {
+      if (extra[o.id]) continue; // already geocoded
+      try {
+        const q = encodeURIComponent(o.deliveryAddress);
+        const r = await fetch(`https://search.longdo.com/mapsearch/json/search?keyword=${q}&key=5db9dd8bb58e53564cafa949ba22c267&limit=1`);
+        const data = await r.json();
+        const hit = data.data?.[0];
+        if (hit?.lat && hit?.lon) {
+          extra[o.id] = { lat: Number(hit.lat), lng: Number(hit.lon), approximate: true };
+        }
+      } catch {}
+      await new Promise(res => setTimeout(res, 150)); // rate limit
+    }
+    setGeocodeExtra({ ...extra });
+    setGeocoding(false);
+  }
 
   useEffect(() => { loadOrders(); }, [date]);
 
@@ -140,18 +166,30 @@ export default function MapView() {
   const orderDrivers = [...new Map(orders.filter(o => o.driverId).map(o => [o.driverId, { id: o.driverId, name: o.driverName || "ไม่ระบุ" }])).values()];
   const driverColorMap = new Map(orderDrivers.map((d, i) => [d.id, DRIVER_COLORS[i % DRIVER_COLORS.length]]));
 
+  // Resolve lat/lng for an order (saved > delivery > geocoded)
+  function getLoc(o) {
+    if (o.savedLat) return { lat: Number(o.savedLat), lng: Number(o.savedLng), approximate: false };
+    if (o.deliveryLat) return { lat: Number(o.deliveryLat), lng: Number(o.deliveryLng), approximate: false };
+    const g = geocodeExtra[o.id];
+    if (g) return g;
+    return null;
+  }
+
   // Filtered orders for current tab
   const filteredOrders = orders.filter(o => {
     if (driverFilter === "all") return true;
     if (driverFilter === "unassigned") return !o.driverId;
     return o.driverId === driverFilter;
   });
-  const withLoc    = filteredOrders.filter(o => o.savedLat || o.deliveryLat);
-  const withoutLoc = filteredOrders.filter(o => !o.savedLat && !o.deliveryLat);
+  const withLoc    = filteredOrders.filter(o => getLoc(o));
+  const withoutLoc = filteredOrders.filter(o => !getLoc(o));
   const orderedList = routeOrder ? routeOrder.map(i => withLoc[i]) : withLoc;
 
+  // Count orders that could be geocoded but haven't been yet
+  const needsGeocode = orders.filter(o => !o.savedLat && !o.deliveryLat && o.deliveryAddress && !geocodeExtra[o.id]).length;
+
   function calcRoute() {
-    const pts = withLoc.map(o => ({ lat: Number(o.savedLat||o.deliveryLat), lng: Number(o.savedLng||o.deliveryLng) }));
+    const pts = withLoc.map(o => { const l=getLoc(o); return { lat: l?.lat, lng: l?.lng }; });
     if (!pts.length) return;
     const sLat = gpsLatRef.current ?? pts[0].lat;
     const sLng = gpsLngRef.current ?? pts[0].lng;
@@ -166,11 +204,12 @@ export default function MapView() {
 
   function googleMapsRouteUrl(list) {
     if (!list.length) return "#";
-    const origin = gpsLatRef.current ? `${gpsLatRef.current},${gpsLngRef.current}`
-      : `${Number(list[0].savedLat||list[0].deliveryLat)},${Number(list[0].savedLng||list[0].deliveryLng)}`;
+    const first = getLoc(list[0]);
+    const origin = gpsLatRef.current ? `${gpsLatRef.current},${gpsLngRef.current}` : `${first?.lat},${first?.lng}`;
     const dest = list[list.length-1];
-    const destStr = `${Number(dest.savedLat||dest.deliveryLat)},${Number(dest.savedLng||dest.deliveryLng)}`;
-    const waypoints = list.slice(0,-1).map(o=>`${Number(o.savedLat||o.deliveryLat)},${Number(o.savedLng||o.deliveryLng)}`).join("|");
+    const destLoc = getLoc(dest);
+    const destStr = `${destLoc?.lat},${destLoc?.lng}`;
+    const waypoints = list.slice(0,-1).map(o=>{ const l=getLoc(o); return l?`${l.lat},${l.lng}`:null; }).filter(Boolean).join("|");
     return `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destStr}${waypoints?`&waypoints=${waypoints}`:""}`;
   }
 
@@ -185,8 +224,9 @@ export default function MapView() {
   }
 
   const totalKm = routeOrder ? (() => {
-    let km=0, prevLat=gpsLatRef.current??Number(orderedList[0]?.savedLat||orderedList[0]?.deliveryLat), prevLng=gpsLngRef.current??Number(orderedList[0]?.savedLng||orderedList[0]?.deliveryLng);
-    orderedList.forEach(o=>{ const lat=Number(o.savedLat||o.deliveryLat),lng=Number(o.savedLng||o.deliveryLng); km+=haversine(prevLat,prevLng,lat,lng); prevLat=lat; prevLng=lng; });
+    const first = getLoc(orderedList[0]);
+    let km=0, prevLat=gpsLatRef.current??first?.lat, prevLng=gpsLngRef.current??first?.lng;
+    orderedList.forEach(o=>{ const l=getLoc(o); if(!l) return; km+=haversine(prevLat,prevLng,l.lat,l.lng); prevLat=l.lat; prevLng=l.lng; });
     return km.toFixed(1);
   })() : null;
 
@@ -200,12 +240,15 @@ export default function MapView() {
     const displayList = routeOrder ? routeOrder.map(i => withLoc[i]) : withLoc;
 
     displayList.forEach((o, idx) => {
-      const lat = Number(o.savedLat||o.deliveryLat), lng = Number(o.savedLng||o.deliveryLng);
+      const loc = getLoc(o);
+      if (!loc) return;
+      const { lat, lng, approximate } = loc;
       if (!lat || !lng) return;
       const color = routeMode ? (driverColorMap.get(o.driverId) || ORANGE) : (driverColorMap.get(o.driverId) || GRAY);
+      const border = approximate ? `3px dashed ${color}` : `2px solid #fff`;
       const icon = L.divIcon({
         className: "",
-        html: `<div style="background:${color};color:#fff;border-radius:50%;width:30px;height:30px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.35);cursor:pointer;">${idx+1}</div>`,
+        html: `<div style="background:${approximate?"#fff":color};color:${approximate?color:"#fff"};border-radius:50%;width:30px;height:30px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;border:${border};box-shadow:0 2px 6px rgba(0,0,0,.35);cursor:pointer;">${idx+1}</div>`,
         iconSize:[30,30], iconAnchor:[15,15],
       });
       const driverLine = o.driverName ? `<div style="font-size:11px;color:#7C3AED;margin-bottom:4px">🚴 ${o.driverName}</div>` : `<div style="font-size:11px;color:#9CA3AF;margin-bottom:4px">ยังไม่จ่ายงาน</div>`;
@@ -218,6 +261,7 @@ export default function MapView() {
           <div style="font-size:11px;color:#6B7280;margin-bottom:4px">📍 ${o.deliveryAddress||"-"}</div>
           ${o.locationName?`<div style="font-size:11px;color:#0369A1;margin-bottom:2px">🏠 ${o.locationName}</div>`:""}
           <div style="font-size:11px;margin-bottom:6px">฿${Number(o.total).toLocaleString()} · ${STATUS_LABEL[o.status]||o.status}</div>
+          ${approximate?`<div style="font-size:10px;color:#B45309;margin-bottom:4px">⚠️ พิกัดโดยประมาณ</div>`:""}
           <a href="https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}" target="_blank" style="font-size:12px;font-weight:700;color:#7C3AED">🧭 นำทาง</a>
         </div>
       `);
@@ -228,19 +272,19 @@ export default function MapView() {
     if (routeMode && displayList.length > 1) {
       const latlngs = [];
       if (gpsLatRef.current) latlngs.push([gpsLatRef.current, gpsLngRef.current]);
-      displayList.forEach(o => { const lat=Number(o.savedLat||o.deliveryLat),lng=Number(o.savedLng||o.deliveryLng); if(lat&&lng) latlngs.push([lat,lng]); });
+      displayList.forEach(o => { const l=getLoc(o); if(l) latlngs.push([l.lat,l.lng]); });
       routeLineRef.current.push(L.polyline(latlngs,{color:ORANGE,weight:3,opacity:.8,dashArray:"8 5"}).addTo(map));
     }
 
-    const pts = displayList.filter(o=>Number(o.savedLat||o.deliveryLat));
+    const pts = displayList.map(o=>getLoc(o)).filter(Boolean);
     if (pts.length>0) {
-      const bounds = L.latLngBounds(pts.map(o=>[Number(o.savedLat||o.deliveryLat),Number(o.savedLng||o.deliveryLng)]));
+      const bounds = L.latLngBounds(pts.map(l=>[l.lat,l.lng]));
       map.fitBounds(bounds,{padding:[40,40],maxZoom:15});
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orders, routeOrder, routeMode, driverFilter]);
+  }, [orders, routeOrder, routeMode, driverFilter, geocodeExtra]);
 
-  const unassignedCount = orders.filter(o => !o.driverId && (o.savedLat || o.deliveryLat)).length;
+  const unassignedCount = orders.filter(o => !o.driverId && getLoc(o)).length;
 
   return (
     <div style={{ display:"flex", height:"calc(100vh - 60px)", overflow:"hidden" }}>
@@ -260,10 +304,10 @@ export default function MapView() {
               style={{ padding:"5px 10px", borderRadius:20, border:"none", fontSize:11, fontWeight:700, cursor:"pointer",
                 background: driverFilter==="all"?NAVY:WHITE, color: driverFilter==="all"?WHITE:GRAY,
                 boxShadow: driverFilter==="all"?"none":"inset 0 0 0 1px #E5E7EB" }}>
-              ทั้งหมด ({orders.filter(o=>o.savedLat||o.deliveryLat).length})
+              ทั้งหมด ({orders.filter(o=>getLoc(o)).length})
             </button>
             {orderDrivers.map((d,i) => {
-              const cnt = orders.filter(o=>o.driverId===d.id&&(o.savedLat||o.deliveryLat)).length;
+              const cnt = orders.filter(o=>o.driverId===d.id&&getLoc(o)).length;
               const col = DRIVER_COLORS[i%DRIVER_COLORS.length];
               return (
                 <button key={d.id} onClick={()=>{setDriverFilter(d.id); clearRoute();}}
@@ -306,8 +350,15 @@ export default function MapView() {
             )
           )}
 
+          {needsGeocode > 0 && (
+            <button onClick={geocodeMissing} disabled={geocoding}
+              style={{ width:"100%", marginTop:8, padding:"8px", borderRadius:8, border:"1.5px dashed #F59E0B", background:"#FFFBEB", color:"#92400E", fontSize:12, fontWeight:700, cursor:geocoding?"not-allowed":"pointer" }}>
+              {geocoding ? "🔍 กำลังค้นหาพิกัด..." : `🔍 ค้นหาพิกัดอัตโนมัติ (${needsGeocode} ออเดอร์)`}
+            </button>
+          )}
+
           <div style={{ marginTop:8, fontSize:11, color:GRAY }}>
-            {loading ? "กำลังโหลด..." : `${withLoc.length} มีพิกัด · ${withoutLoc.length} ไม่มีพิกัด`}
+            {loading ? "กำลังโหลด..." : `${withLoc.length} มีพิกัด · ${withoutLoc.length} ไม่มีพิกัด${Object.keys(geocodeExtra).length ? ` (${Object.keys(geocodeExtra).length} โดยประมาณ)` : ""}`}
           </div>
         </div>
 

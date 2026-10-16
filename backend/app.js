@@ -184,7 +184,20 @@ const PORT = process.env.PORT || 3001;
         updated_at TIMESTAMPTZ DEFAULT NOW()
       );
     `).catch(() => {});
-    // Performance indexes — idempotent
+    // ── New fields: channel, createdById/Name, deliveredAt on orders ──────────
+    await sequelize.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS channel VARCHAR(20);`).catch(() => {});
+    await sequelize.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS created_by_id UUID;`).catch(() => {});
+    await sequelize.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS created_by_name VARCHAR(100);`).catch(() => {});
+    await sequelize.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivered_at TIMESTAMPTZ;`).catch(() => {});
+    // ── customerNumber on customers ───────────────────────────────────────────
+    await sequelize.query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS customer_number VARCHAR(10);`).catch(() => {});
+    // Backfill customerNumber for existing customers that don't have one
+    await sequelize.query(`
+      UPDATE customers SET customer_number = 'C' || LPAD(row_num::text, 3, '0')
+      FROM (SELECT id, ROW_NUMBER() OVER (ORDER BY created_at) AS row_num FROM customers WHERE customer_number IS NULL) sub
+      WHERE customers.id = sub.id;
+    `).catch(() => {});
+    // ── Performance indexes — idempotent
     await sequelize.query(`CREATE INDEX IF NOT EXISTS idx_orders_created_at ON orders(created_at DESC);`).catch(() => {});
     await sequelize.query(`CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);`).catch(() => {});
     await sequelize.query(`CREATE INDEX IF NOT EXISTS idx_orders_payment ON orders(payment_method, is_paid);`).catch(() => {});

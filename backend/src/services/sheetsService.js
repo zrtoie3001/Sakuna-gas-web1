@@ -23,7 +23,7 @@ async function ensureHeader(sheets) {
       range: "Sheet1!A1",
       valueInputOption: "RAW",
       requestBody: {
-        values: [["วันที่", "เวลา", "เลขออเดอร์", "ลูกค้า", "เบอร์โทร", "ยี่ห้อ", "สินค้า", "จำนวน", "ยอดรวม", "ชำระ", "สถานะ", "ที่อยู่"]],
+        values: [["วันที่", "เวลา", "เลขออเดอร์", "ลูกค้า", "เบอร์โทร", "ยี่ห้อ", "สินค้า", "จำนวน", "ยอดรวม", "ชำระ", "สถานะ", "ที่อยู่", "ช่องทาง", "พนักงาน"]],
       },
     });
   }
@@ -52,22 +52,23 @@ async function appendOrder(order, walkinNoteOverride) {
     }
 
     let rows = [];
+    const channelLabel = order.channel === "phone" ? "โทรสั่ง" : order.channel === "walk-in" ? "หน้าร้าน" : order.channel === "line" ? "LINE" : order.channel || "";
+    const staffName = order.createdByName || "";
     if (walkin?.type === "mixed" && Array.isArray(walkin.items)) {
-      // one row per item
       for (const it of walkin.items) {
         const label = it.type === "equipment" ? (it.name || "อุปกรณ์") : `${it.brandName || ""} ${it.weightKg || ""}กก.`;
-        rows.push([dateStr, timeStr, orderNum, custName, custPhone, label, "", Number(it.qty) || 1, Number(it.price || it.unitPrice) * (Number(it.qty) || 1), payLabel, status, addr]);
+        rows.push([dateStr, timeStr, orderNum, custName, custPhone, label, "", Number(it.qty) || 1, Number(it.price || it.unitPrice) * (Number(it.qty) || 1), payLabel, status, addr, channelLabel, staffName]);
       }
     } else if (walkin) {
       const label = walkin.type === "equipment" ? "อุปกรณ์" : `${walkin.brandName || ""} ${walkin.weightKg || ""}กก.`;
-      rows.push([dateStr, timeStr, orderNum, custName, custPhone, label, "", Number(walkin.qty) || 1, Number(order.total) || 0, payLabel, status, addr]);
+      rows.push([dateStr, timeStr, orderNum, custName, custPhone, label, "", Number(walkin.qty) || 1, Number(order.total) || 0, payLabel, status, addr, channelLabel, staffName]);
     } else {
-      rows.push([dateStr, timeStr, orderNum, custName, custPhone, order.brand?.name || "", order.product?.name || "", order.qty || 0, Number(order.total) || 0, payLabel, status, addr]);
+      rows.push([dateStr, timeStr, orderNum, custName, custPhone, order.brand?.name || "", order.product?.name || "", order.qty || 0, Number(order.total) || 0, payLabel, status, addr, channelLabel, staffName]);
     }
 
     await sheets.spreadsheets.values.append({
       spreadsheetId: SHEET_ID,
-      range: "Sheet1!A:L",
+      range: "Sheet1!A:N",
       valueInputOption: "RAW",
       insertDataOption: "INSERT_ROWS",
       requestBody: { values: rows },

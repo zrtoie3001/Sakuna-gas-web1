@@ -76,6 +76,7 @@ async function createOrder(req, res) { try {
     deliveryLat, deliveryLng, deliveryAddress,
     paymentMethod, discountCode: codeStr, note,
     unitPrice: unitPriceOverride,  // admin can override price
+    channel,
   } = req.body;
 
   // Validate product
@@ -149,14 +150,16 @@ async function createOrder(req, res) { try {
   if (lineUserId) {
     customer = await Customer.findOne({ where: { lineUserId } });
     if (!customer) {
-      customer = await Customer.create({ lineUserId, name: customerName, phone: customerPhone });
+      const count = await Customer.count();
+      customer = await Customer.create({ lineUserId, name: customerName, phone: customerPhone, customerNumber: `C${String(count + 1).padStart(3, "0")}` });
     } else {
       await customer.update({ name: customerName, phone: customerPhone, totalOrders: customer.totalOrders + 1 });
     }
   } else if (customerPhone) {
     customer = await Customer.findOne({ where: { phone: customerPhone } });
     if (!customer) {
-      customer = await Customer.create({ name: customerName || "ลูกค้าทั่วไป", phone: customerPhone });
+      const count = await Customer.count();
+      customer = await Customer.create({ name: customerName || "ลูกค้าทั่วไป", phone: customerPhone, customerNumber: `C${String(count + 1).padStart(3, "0")}` });
     }
   }
 
@@ -198,6 +201,9 @@ async function createOrder(req, res) { try {
     zone: zone.name,
     paymentMethod,
     note,
+    channel: channel || (lineUserId ? "line" : "admin"),
+    createdById: req.user?.id || null,
+    createdByName: req.user?.name || null,
   });
 
   // Increment discount usage
@@ -259,12 +265,17 @@ async function listOrders(req, res) {
     ]});
   }
   if (source === "walkin") {
-    andClauses.push({ note: { [Op.like]: "__walkin:%" , [Op.notLike]: "__phone_walkin:%" } });
+    andClauses.push({ [Op.or]: [
+      { channel: "walk-in" },
+      { [Op.and]: [{ channel: null }, { note: { [Op.like]: "__walkin:%" } }, { note: { [Op.notLike]: "__phone_walkin:%" } }] },
+    ]});
   } else if (source === "phone") {
     andClauses.push({ [Op.or]: [
-      { note: { [Op.like]: "__phone_walkin:%" } },
-      { note: null },
-      { note: { [Op.notLike]: "__walkin:%" } },
+      { channel: "phone" },
+      { channel: "line" },
+      { [Op.and]: [{ channel: null }, { note: { [Op.like]: "__phone_walkin:%" } }] },
+      { [Op.and]: [{ channel: null }, { note: null }] },
+      { [Op.and]: [{ channel: null }, { note: { [Op.notLike]: "__walkin:%" } }] },
     ]});
   }
   if (unpaid === "1") {
@@ -313,7 +324,9 @@ async function updateStatus(req, res) {
     return res.status(403).json({ error: "Driver cannot set this status" });
 
   const prevStatus = order.status;
-  await order.update({ status });
+  const updateData = { status };
+  if (status === "delivered" && !order.deliveredAt) updateData.deliveredAt = new Date();
+  await order.update(updateData);
   await OrderStatusLog.create({ orderId: order.id, status, note, changedBy: req.user.id });
 
   // คืนสต็อกเมื่อยกเลิกออเดอร์ (และยังไม่เคยยกเลิกมาก่อน)
@@ -506,8 +519,26 @@ async function createWalkinOrder(req, res) {
       walkinNote = `${PREFIX}${JSON.stringify({ type: "equipment", items })}` + (note ? `\n${note}` : "");
     }
 
+    const resolvedChannel = source === "phone" ? "phone" : "walk-in";
+    const finalStatus = orderStatus || "delivered";
+    const deliveredAt = finalStatus === "delivered" ? new Date() : null;
+
+    let customer = null;
+    if (customerPhone) {
+      customer = await Customer.findOne({ where: { phone: customerPhone } });
+      if (!customer) {
+        const count = await Customer.count();
+        customer = await Customer.create({
+          name: customerName || "ลูกค้าทั่วไป",
+          phone: customerPhone,
+          customerNumber: `C${String(count + 1).padStart(3, "0")}`,
+        });
+      }
+    }
+
     const order = await Order.create({
       orderNumber: await generateUniqueOrderNumber(),
+      customerId: customer?.id || null,
       customerName: customerName || null,
       customerPhone: customerPhone || null,
       deliveryAddress: customAddress || "หน้าร้าน",
@@ -519,8 +550,12 @@ async function createWalkinOrder(req, res) {
       discountAmount: 0,
       total,
       note: walkinNote,
-      status: orderStatus || "delivered",
+      status: finalStatus,
       scheduledDate: scheduledDate || null,
+      channel: resolvedChannel,
+      createdById: req.user?.id || null,
+      createdByName: req.user?.name || null,
+      deliveredAt,
     });
 
     appendOrder(order, walkinNote).catch(() => {});

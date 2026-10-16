@@ -15,12 +15,13 @@ const User = sequelize.define("User", {
 
 // ── Customer ─────────────────────────────────────────────────────────────────
 const Customer = sequelize.define("Customer", {
-  id:         { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
-  lineUserId: { type: DataTypes.STRING(100), unique: true },
-  name:       { type: DataTypes.STRING(100) },
-  phone:      { type: DataTypes.STRING(20) },
-  pictureUrl: { type: DataTypes.TEXT },
-  totalOrders:{ type: DataTypes.INTEGER, defaultValue: 0 },
+  id:             { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+  customerNumber: { type: DataTypes.STRING(10) },  // C001, C002, ...
+  lineUserId:     { type: DataTypes.STRING(100), unique: true },
+  name:           { type: DataTypes.STRING(100) },
+  phone:          { type: DataTypes.STRING(20) },
+  pictureUrl:     { type: DataTypes.TEXT },
+  totalOrders:    { type: DataTypes.INTEGER, defaultValue: 0 },
 }, { tableName: "customers", underscored: true });
 
 // ── DeliveryAddress ───────────────────────────────────────────────────────────
@@ -123,11 +124,15 @@ const Order = sequelize.define("Order", {
   isPaid:          { type: DataTypes.BOOLEAN, defaultValue: false },
   slipUrl:         { type: DataTypes.TEXT },
   note:            { type: DataTypes.TEXT },
+  channel:         { type: DataTypes.STRING(20) },       // phone | walk-in | line | admin
+  createdById:     { type: DataTypes.UUID },              // staff ที่สร้าง order
+  createdByName:   { type: DataTypes.STRING(100) },
+  deliveredAt:     { type: DataTypes.DATE },              // เวลาที่ส่งถึง
   status: {
     type: DataTypes.ENUM("pending", "preparing", "out_for_delivery", "near_destination", "delivered", "cancelled"),
     defaultValue: "pending",
   },
-  scheduledDate: { type: DataTypes.DATEONLY, allowNull: true }, // วันส่งล่วงหน้า
+  scheduledDate: { type: DataTypes.DATEONLY, allowNull: true },
 }, { tableName: "orders", underscored: true });
 
 // ── OrderStatusLog ────────────────────────────────────────────────────────────
