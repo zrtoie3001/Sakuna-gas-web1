@@ -3,16 +3,18 @@ const { User, Order, Brand, Product, Customer, CustomerLocation } = require("../
 const { optimizeRoute } = require("../services/mapsService");
 
 // Resolve best lat/lng for an order: saved pin > order GPS
+// Tries customerId → phone → address in order until a pin is found
 async function resolveOrderLoc(order) {
-  if (!order.customerPhone && !order.customerId && !order.deliveryAddress) {
-    return { lat: Number(order.deliveryLat) || null, lng: Number(order.deliveryLng) || null, pinned: false };
-  }
-  const where = order.customerId ? { customerId: order.customerId }
-    : order.customerPhone ? { customerPhone: order.customerPhone }
-    : { customerAddress: order.deliveryAddress };
-  const saved = await CustomerLocation.findOne({ where, order: [["createdAt", "DESC"]] }).catch(() => null);
-  if (saved?.latitude && saved?.longitude) {
-    return { lat: Number(saved.latitude), lng: Number(saved.longitude), pinned: true };
+  const attempts = [];
+  if (order.customerId) attempts.push({ customerId: order.customerId });
+  if (order.customerPhone) attempts.push({ customerPhone: order.customerPhone });
+  if (order.deliveryAddress) attempts.push({ customerAddress: order.deliveryAddress });
+
+  for (const where of attempts) {
+    const saved = await CustomerLocation.findOne({ where, order: [["updatedAt", "DESC"]] }).catch(() => null);
+    if (saved?.latitude && saved?.longitude) {
+      return { lat: Number(saved.latitude), lng: Number(saved.longitude), pinned: true };
+    }
   }
   return { lat: Number(order.deliveryLat) || null, lng: Number(order.deliveryLng) || null, pinned: false };
 }
