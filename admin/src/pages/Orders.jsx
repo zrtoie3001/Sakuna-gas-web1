@@ -1143,10 +1143,6 @@ ${noteText ? `<div style="margin-top:8px; padding:6px 8px; border:1.5px dashed #
                     }}>{o.isPaid ? "✅ จ่ายแล้ว" : "⏳ ยังไม่จ่าย"}</span>}
                     {!isCancelled && o.paymentMethod && <span style={{ fontSize: 11, padding: "2px 7px", borderRadius: 6, fontWeight: 700, background: o.paymentMethod === "qr" ? "#EDE9FE" : o.paymentMethod === "cod" ? "#FFF7ED" : "#F0FDF4", color: o.paymentMethod === "qr" ? "#5B21B6" : o.paymentMethod === "cod" ? "#92400E" : "#065F46" }}>{o.paymentMethod === "qr" ? "💳 โอน" : o.paymentMethod === "cod" ? "🚚 เก็บปลายทาง" : "💰 เงินสด"}</span>}
                     {!isCancelled && (() => { const amt = parseChangeGiven(o.note); return amt > 0 ? <span style={{ fontSize: 11, padding: "2px 7px", borderRadius: 6, fontWeight: 700, background: "#FEF3C7", color: "#92400E" }}>💵 ทอน ฿{amt.toLocaleString()}</span> : null; })()}
-                    {!isCancelled && o.channel === "walk-in" && <span style={{ fontSize: 11, padding: "2px 6px", borderRadius: 6, fontWeight: 700, background: "#F0FDF4", color: "#065F46" }}>🏪 หน้าร้าน</span>}
-                    {!isCancelled && o.channel === "phone" && <span style={{ fontSize: 11, padding: "2px 6px", borderRadius: 6, fontWeight: 700, background: "#EFF6FF", color: "#1D4ED8" }}>📞 โทรสั่ง</span>}
-                    {!isCancelled && o.channel === "line" && <span style={{ fontSize: 11, padding: "2px 6px", borderRadius: 6, fontWeight: 700, background: "#F0FDF4", color: "#065F46" }}>💬 LINE</span>}
-                    {!isCancelled && o.deliveryAddress && !o.deliveryLat && !o.note?.startsWith("__walkin:") && <span style={{ fontSize: 11, padding: "2px 6px", borderRadius: 6, fontWeight: 700, background: "#FEF3C7", color: "#B45309" }}>📍 ไม่มีพิกัด</span>}
                   </div>
                   <p style={{ fontSize: 12, color: isCancelled ? GRAY : NAVY }}>{o.customerName} · {o.customerPhone}</p>
                   <p style={{ fontSize: 12, color: GRAY, textDecoration: isCancelled ? "line-through" : "none" }}>{(() => {
