@@ -373,22 +373,56 @@ async function driverStats(req, res) {
   const start = new Date(date); start.setHours(0, 0, 0, 0);
   const end   = new Date(date); end.setHours(23, 59, 59, 999);
 
-  const rows = await Order.findAll({
-    where: { createdAt: { [Op.between]: [start, end] }, status: "delivered", driverId: { [Op.ne]: null } },
-    attributes: ["driverId", [fn("COUNT", col("Order.id")), "orders"], [fn("SUM", col("qty")), "tanks"]],
-    include: [{ model: User, as: "driver", attributes: ["name"] }],
-    group: ["driverId", "driver.id"],
-    order: [[literal('"tanks"'), "DESC"]],
-    raw: false,
+  // Filter by deliveredAt so orders created yesterday but delivered today are counted correctly
+  const orders = await Order.findAll({
+    where: { deliveredAt: { [Op.between]: [start, end] }, status: "delivered", driverId: { [Op.ne]: null } },
+    include: [
+      { model: User, as: "driver", attributes: ["id", "name"] },
+      { model: Brand, as: "brand", attributes: ["name"] },
+      { model: Product, as: "product", attributes: ["name", "kg"] },
+    ],
+    order: [["deliveredAt", "ASC"]],
   });
+
+  // Group by driver and count tanks properly (including walkin multi-item notes)
+  const driverMap = {};
+  for (const o of orders) {
+    const driverId = o.driverId;
+    const driverName = o.driver?.name || "-";
+    if (!driverMap[driverId]) driverMap[driverId] = { name: driverName, orders: 0, tanks: 0, orderList: [] };
+    driverMap[driverId].orders += 1;
+
+    // Count gas tanks from walkin note or qty
+    let tankCount = 0;
+    const n = o.note || "";
+    if (n.startsWith("__walkin:") || n.startsWith("__phone_walkin:")) {
+      try {
+        const walkin = JSON.parse(n.replace(/^__(?:phone_)?walkin:/, "").split("\n")[0]);
+        if (walkin.type === "mixed" && Array.isArray(walkin.items)) {
+          tankCount = walkin.items.filter(it => it.type === "gas" || it.type === "new_tank").reduce((s, it) => s + (Number(it.qty) || 1), 0);
+        } else if (walkin.type === "gas" || walkin.type === "new_tank") {
+          tankCount = Number(walkin.qty) || 1;
+        }
+      } catch { tankCount = Number(o.qty) || 0; }
+    } else {
+      tankCount = Number(o.qty) || 0;
+    }
+    driverMap[driverId].tanks += tankCount;
+
+    driverMap[driverId].orderList.push({
+      id: o.id,
+      orderNumber: o.orderNumber,
+      customerName: o.customerName,
+      deliveryAddress: o.deliveryAddress,
+      total: Number(o.total),
+      tanks: tankCount,
+      deliveredAt: o.deliveredAt,
+    });
+  }
 
   res.json({
     date,
-    drivers: rows.map(r => ({
-      name: r.driver?.name || "-",
-      orders: parseInt(r.dataValues.orders || 0),
-      tanks: parseInt(r.dataValues.tanks || 0),
-    })),
+    drivers: Object.values(driverMap).sort((a, b) => b.tanks - a.tanks),
   });
 }
 

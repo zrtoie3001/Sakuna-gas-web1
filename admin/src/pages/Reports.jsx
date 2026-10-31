@@ -24,6 +24,7 @@ export default function Reports() {
   const [dayPayBreakdown, setDayPayBreakdown] = useState([]);
   const [driverStats, setDriverStats] = useState([]);
   const [driverDate, setDriverDate]   = useState(now.toISOString().split("T")[0]);
+  const [expandedDriver, setExpandedDriver] = useState(null);
   const [showUnpaid, setShowUnpaid]     = useState(false);
   const [showOverdue, setShowOverdue]   = useState(false);
   const [payFilterMethod, setPayFilterMethod] = useState(null); // "cash"|"qr"|"cod"|null
@@ -139,20 +140,47 @@ export default function Reports() {
             style={{ padding: "6px 10px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 13 }} />
         </div>
         {driverStats.length > 0 ? (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 12 }}>
-            {driverStats.map((d, i) => (
-              <div key={i} style={{ background: "#F8FAFC", borderRadius: 12, padding: 16, border: "2px solid #E5E7EB" }}>
-                <p style={{ fontSize: 14, fontWeight: 800, color: NAVY, marginBottom: 8 }}>🛵 {d.name}</p>
-                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-                  <span style={{ fontSize: 12, color: GRAY }}>ออเดอร์</span>
-                  <span style={{ fontSize: 14, fontWeight: 700, color: NAVY }}>{d.orders} รายการ</span>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 12 }}>
+              {driverStats.map((d, i) => (
+                <div key={i}
+                  onClick={() => setExpandedDriver(expandedDriver === d.name ? null : d.name)}
+                  style={{ background: expandedDriver === d.name ? "#EFF6FF" : "#F8FAFC", borderRadius: 12, padding: 16, border: `2px solid ${expandedDriver === d.name ? "#3B82F6" : "#E5E7EB"}`, cursor: "pointer" }}>
+                  <p style={{ fontSize: 14, fontWeight: 800, color: NAVY, marginBottom: 8 }}>🛵 {d.name}</p>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                    <span style={{ fontSize: 12, color: GRAY }}>ออเดอร์</span>
+                    <span style={{ fontSize: 14, fontWeight: 700, color: NAVY }}>{d.orders} รายการ</span>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between" }}>
+                    <span style={{ fontSize: 12, color: GRAY }}>ถังที่ส่ง</span>
+                    <span style={{ fontSize: 18, fontWeight: 900, color: "#F47B20" }}>{d.tanks} ถัง</span>
+                  </div>
+                  <p style={{ fontSize: 11, color: "#3B82F6", marginTop: 8, textAlign: "right" }}>{expandedDriver === d.name ? "▲ ซ่อนรายการ" : "▼ ดูรายการ"}</p>
                 </div>
-                <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span style={{ fontSize: 12, color: GRAY }}>ถังที่ส่ง</span>
-                  <span style={{ fontSize: 18, fontWeight: 900, color: "#F47B20" }}>{d.tanks} ถัง</span>
+              ))}
+            </div>
+            {expandedDriver && (() => {
+              const d = driverStats.find(x => x.name === expandedDriver);
+              if (!d?.orderList?.length) return null;
+              return (
+                <div style={{ background: "#F0F9FF", borderRadius: 12, padding: 16, border: "2px solid #BAE6FD" }}>
+                  <p style={{ fontSize: 13, fontWeight: 800, color: NAVY, marginBottom: 10 }}>🛵 {d.name} — รายการส่งวันนี้ ({d.orderList.length} ออเดอร์)</p>
+                  {d.orderList.map((o, i) => (
+                    <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 0", borderBottom: "1px solid #E0F2FE", fontSize: 13 }}>
+                      <span style={{ fontWeight: 700, color: ORANGE, minWidth: 130 }}>{o.orderNumber}</span>
+                      <span style={{ flex: 1, color: NAVY }}>{o.customerName || "-"}</span>
+                      <span style={{ color: GRAY, fontSize: 12, flex: 1, display: "none" }}>{o.deliveryAddress}</span>
+                      <span style={{ color: "#0369A1", fontWeight: 700, minWidth: 50, textAlign: "right" }}>{o.tanks} ถัง</span>
+                      <span style={{ color: "#059669", fontWeight: 700, minWidth: 70, textAlign: "right" }}>฿{Number(o.total).toLocaleString()}</span>
+                    </div>
+                  ))}
+                  <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 10, gap: 20, fontSize: 13, fontWeight: 800 }}>
+                    <span style={{ color: "#0369A1" }}>รวม {d.tanks} ถัง</span>
+                    <span style={{ color: "#059669" }}>฿{d.orderList.reduce((s, o) => s + o.total, 0).toLocaleString()}</span>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })()}
           </div>
         ) : (
           <p style={{ color: GRAY, textAlign: "center", padding: 16 }}>ยังไม่มีข้อมูลการส่งวันนี้</p>
