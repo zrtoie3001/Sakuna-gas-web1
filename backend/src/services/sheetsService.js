@@ -29,6 +29,14 @@ async function ensureHeader(sheets) {
   }
 }
 
+const STATUS_LABEL = {
+  pending: "รอดำเนินการ",
+  preparing: "กำลังเตรียม",
+  out_for_delivery: "กำลังจัดส่ง",
+  delivered: "ส่งแล้ว",
+  cancelled: "ยกเลิก",
+};
+
 async function appendOrder(order, walkinNoteOverride) {
   if (!SHEET_ID || !process.env.GOOGLE_SERVICE_ACCOUNT_JSON) return;
   try {
@@ -38,7 +46,7 @@ async function appendOrder(order, walkinNoteOverride) {
     const dateStr = now.toLocaleDateString("th-TH", { dateStyle: "short", timeZone: "Asia/Bangkok" });
     const timeStr = now.toLocaleTimeString("th-TH", { timeStyle: "short", timeZone: "Asia/Bangkok" });
     const payLabel = order.paymentMethod === "cash" ? "เงินสด" : order.paymentMethod === "cod" ? "เก็บปลายทาง" : "QR โอน";
-    const status = order.status || "pending";
+    const status = STATUS_LABEL[order.status] || order.status || "รอดำเนินการ";
     const addr = order.deliveryAddress || "หน้าร้าน";
     const orderNum = order.orderNumber || "";
     const custName = order.customerName || "หน้าร้าน";
@@ -82,7 +90,6 @@ async function updateOrderStatus(order) {
   if (!SHEET_ID || !process.env.GOOGLE_SERVICE_ACCOUNT_JSON) return;
   try {
     const sheets = getClient();
-    // Find the row with matching orderNumber
     const res = await sheets.spreadsheets.values.get({
       spreadsheetId: SHEET_ID,
       range: "Sheet1!C:K",
@@ -90,12 +97,13 @@ async function updateOrderStatus(order) {
     const rows = res.data.values || [];
     const rowIndex = rows.findIndex(r => r[0] === order.orderNumber);
     if (rowIndex < 0) return;
-    const sheetRow = rowIndex + 1; // 1-indexed, +1 for header
+    const sheetRow = rowIndex + 1;
+    const label = STATUS_LABEL[order.status] || order.status;
     await sheets.spreadsheets.values.update({
       spreadsheetId: SHEET_ID,
       range: `Sheet1!K${sheetRow}`,
       valueInputOption: "RAW",
-      requestBody: { values: [[order.status]] },
+      requestBody: { values: [[label]] },
     });
   } catch (e) {
     console.error("Sheets update error:", e.message);

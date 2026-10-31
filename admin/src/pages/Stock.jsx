@@ -32,7 +32,7 @@ export default function Stock() {
   // modals
   const [editCell, setEditCell] = useState(null); // { brandName, weightKg, row }
   const [showRefill, setShowRefill] = useState(false);
-  const [refillForm, setRefillForm] = useState({ brandName: BRAND_GROUPS[0], weightKg: 15, qty: 1, costPerUnit: "", includeVat: false, note: "" });
+  const [refillForm, setRefillForm] = useState({ brandName: BRAND_GROUPS[0], weightKg: 15, qty: 1, costPerUnit: "", includeVat: localStorage.getItem("refill_includeVat") === "true", note: "" });
   const [equipCategory, setEquipCategory] = useState("equipment"); // equipment | stove
   const [equipSearch, setEquipSearch] = useState("");
   const [showEquipForm, setShowEquipForm] = useState(false);
@@ -85,7 +85,7 @@ export default function Stock() {
   async function submitRefill() {
     await api.post("/api/v1/stock/refills", refillForm);
     setShowRefill(false);
-    setRefillForm({ brandName: BRAND_GROUPS[0], weightKg: 15, qty: 1, costPerUnit: "", includeVat: false, note: "" });
+    setRefillForm(f => ({ brandName: BRAND_GROUPS[0], weightKg: 15, qty: 1, costPerUnit: "", includeVat: f.includeVat, note: "" }));
     fetchStock(); fetchRefills();
   }
 
@@ -469,7 +469,7 @@ export default function Stock() {
             {/* VAT checkbox + cost summary */}
             <div style={{ marginBottom: 12 }}>
               <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 13, color: NAVY }}>
-                <input type="checkbox" checked={refillForm.includeVat} onChange={e => setRefillForm(f => ({ ...f, includeVat: e.target.checked }))} />
+                <input type="checkbox" checked={refillForm.includeVat} onChange={e => { localStorage.setItem("refill_includeVat", e.target.checked); setRefillForm(f => ({ ...f, includeVat: e.target.checked })); }} />
                 มี VAT 7%
               </label>
             </div>

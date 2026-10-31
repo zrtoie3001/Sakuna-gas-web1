@@ -393,7 +393,7 @@ async function updateStatus(req, res) {
     sendStatusUpdate(order.customer.lineUserId, order, status).catch(() => {});
   }
   if (status === "cancelled") {
-    deleteOrderFromSheet(order.orderNumber).catch(() => {});
+    updateOrderStatus(order).catch(() => {});
     syncStockToSheet().catch(() => {});
   } else if (prevStatus === "cancelled") {
     // un-cancel: deduct stock again + ลบ emptyTank ที่คืนไป
