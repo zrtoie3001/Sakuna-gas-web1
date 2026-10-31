@@ -390,6 +390,9 @@ function OrderCard({ order, showAccept, showStatus, routeIndex, sortedActiveOrde
 
         {/* Info */}
         <div style={{ fontSize: 13, display: "flex", flexDirection: "column", gap: 4, marginBottom: 10 }}>
+          {order.deliveryAddress && order.deliveryAddress !== "หน้าร้าน" && (
+            <p style={{ fontSize: 14, fontWeight: 700, color: "#1E293B", background: "#FFF9C4", borderRadius: 8, padding: "6px 10px", lineHeight: 1.5 }}>📍 {order.deliveryAddress}</p>
+          )}
           <p><span style={{ color: GRAY }}>👤</span> <strong>{order.customerName || "ไม่ระบุ"}</strong>{order.customerPhone ? ` · ${order.customerPhone}` : ""}</p>
           {walkinItems ? (
             <div style={{ background: "#F0FDF4", borderRadius: 8, padding: "6px 10px" }}>
@@ -403,7 +406,6 @@ function OrderCard({ order, showAccept, showStatus, routeIndex, sortedActiveOrde
           ) : (
             <p><span style={{ color: GRAY }}>🛢</span> {order.product?.name || ""}{order.brand?.name ? ` (${order.brand.name})` : ""} × {order.qty}</p>
           )}
-          <p style={{ color: GRAY, lineHeight: 1.4 }}>📍 {order.deliveryAddress}</p>
           {savedLoc?.locationName && <p style={{ color: "#0369A1", fontSize: 12 }}>🏠 {savedLoc.locationName}</p>}
           {savedLoc?.locationNote && <p style={{ color: "#374151", fontSize: 12, background: "#EFF6FF", borderRadius: 6, padding: "4px 8px" }}>📝 {savedLoc.locationNote}</p>}
           {userNote && <p style={{ color: "#92400E", background: "#FFF7ED", borderRadius: 6, padding: "4px 8px", fontSize: 12 }}>💬 {userNote}</p>}
