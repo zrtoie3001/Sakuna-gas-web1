@@ -481,6 +481,7 @@ export default function Dashboard() {
   const [pendingOrders, setPending] = useState([]);
   const [myOrders, setMyOrders]   = useState([]);
   const [doneOrders, setDone]     = useState([]);
+  const [doneExpanded, setDoneExpanded] = useState(null);
   const [updating, setUpdating]   = useState(null);
   const [location, setLocation]   = useState(null);
   const [routeOrder, setRouteOrder] = useState([]);
@@ -686,16 +687,41 @@ export default function Dashboard() {
         {tab === "done" && (
           <>
             <p style={{ fontSize: 13, color: GRAY, marginBottom: 10 }}>ส่งสำเร็จวันนี้ · {doneOrders.length} รายการ</p>
-            {doneOrders.map(o => (
-              <div key={o.id} style={{ background: WHITE, borderRadius: 12, padding: 12, marginBottom: 8, display: "flex", gap: 10, alignItems: "center", boxShadow: "0 1px 6px rgba(0,0,0,.05)", opacity: 0.75 }}>
-                <span style={{ fontSize: 20 }}>✅</span>
-                <div style={{ flex: 1 }}>
-                  <p style={{ fontSize: 13, fontWeight: 700, color: NAVY }}>{o.orderNumber}</p>
-                  <p style={{ fontSize: 12, color: GRAY }}>{o.customerName} · {o.product?.name} ×{o.qty}</p>
+            {doneOrders.map(o => {
+              const [expanded, setExpanded] = [doneExpanded === o.id, () => setDoneExpanded(doneExpanded === o.id ? null : o.id)];
+              return (
+                <div key={o.id} style={{ background: WHITE, borderRadius: 12, padding: 12, marginBottom: 8, boxShadow: "0 1px 6px rgba(0,0,0,.05)" }}
+                  onClick={setExpanded}>
+                  <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                    <span style={{ fontSize: 20 }}>✅</span>
+                    <div style={{ flex: 1 }}>
+                      <p style={{ fontSize: 13, fontWeight: 700, color: NAVY }}>{o.orderNumber}</p>
+                      <p style={{ fontSize: 12, color: GRAY }}>{o.customerName}{o.product?.name ? ` · ${o.product.name} ×${o.qty}` : ""}</p>
+                    </div>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: "#059669" }}>฿{Number(o.total).toLocaleString()}</span>
+                  </div>
+                  {expanded && (
+                    <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid #F3F4F6", fontSize: 13 }}>
+                      {o.deliveryAddress && o.deliveryAddress !== "หน้าร้าน" && (
+                        <p style={{ color: "#1E293B", fontWeight: 600, marginBottom: 4 }}>📍 {o.deliveryAddress}</p>
+                      )}
+                      {o.deliveryAddress === "หน้าร้าน" && <p style={{ color: GRAY }}>🏪 หน้าร้าน</p>}
+                      {(o.savedLat || o.deliveryLat) && (
+                        <a href={`https://www.google.com/maps?q=${o.savedLat || o.deliveryLat},${o.savedLng || o.deliveryLng}`}
+                          target="_blank" rel="noreferrer"
+                          style={{ display: "inline-block", marginTop: 6, padding: "6px 12px", background: "#4285F4", color: "#fff", borderRadius: 8, fontSize: 12, fontWeight: 700, textDecoration: "none" }}
+                          onClick={e => e.stopPropagation()}>
+                          🗺 เปิด Maps
+                        </a>
+                      )}
+                      {o.deliveredAt && (
+                        <p style={{ color: GRAY, fontSize: 11, marginTop: 6 }}>⏱ ส่งเสร็จ {new Date(o.deliveredAt).toLocaleTimeString("th-TH", { timeStyle: "short" })}</p>
+                      )}
+                    </div>
+                  )}
                 </div>
-                <span style={{ fontSize: 13, fontWeight: 700, color: "#059669" }}>฿{Number(o.total).toLocaleString()}</span>
-              </div>
-            ))}
+              );
+            })}
             {!doneOrders.length && <EmptyState icon="📋" text="ยังไม่มีออเดอร์ที่ส่งสำเร็จ" />}
           </>
         )}
