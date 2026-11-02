@@ -23,7 +23,7 @@ async function ensureHeader(sheets) {
       range: "Sheet1!A1",
       valueInputOption: "RAW",
       requestBody: {
-        values: [["วันที่", "เวลา", "เลขออเดอร์", "ลูกค้า", "เบอร์โทร", "ยี่ห้อ", "สินค้า", "จำนวน", "ยอดรวม", "ชำระ", "สถานะ", "ที่อยู่", "ช่องทาง", "พนักงาน"]],
+        values: [["วันที่", "เวลา", "เลขออเดอร์", "ลูกค้า", "เบอร์โทร", "ยี่ห้อ", "สินค้า", "จำนวน", "ยอดรวม", "ชำระ", "สถานะ", "ที่อยู่", "ช่องทาง", "พนักงาน", "คนส่ง"]],
       },
     });
   }
@@ -62,21 +62,22 @@ async function appendOrder(order, walkinNoteOverride) {
     let rows = [];
     const channelLabel = order.channel === "phone" ? "โทรสั่ง" : order.channel === "walk-in" ? "หน้าร้าน" : order.channel === "line" ? "LINE" : order.channel || "";
     const staffName = order.createdByName || "";
+    const driverName = order.driver?.name || "";
     if (walkin?.type === "mixed" && Array.isArray(walkin.items)) {
       for (const it of walkin.items) {
         const label = it.type === "equipment" ? (it.name || "อุปกรณ์") : `${it.brandName || ""} ${it.weightKg || ""}กก.`;
-        rows.push([dateStr, timeStr, orderNum, custName, custPhone, label, "", Number(it.qty) || 1, Number(it.price || it.unitPrice) * (Number(it.qty) || 1), payLabel, status, addr, channelLabel, staffName]);
+        rows.push([dateStr, timeStr, orderNum, custName, custPhone, label, "", Number(it.qty) || 1, Number(it.price || it.unitPrice) * (Number(it.qty) || 1), payLabel, status, addr, channelLabel, staffName, driverName]);
       }
     } else if (walkin) {
       const label = walkin.type === "equipment" ? "อุปกรณ์" : `${walkin.brandName || ""} ${walkin.weightKg || ""}กก.`;
-      rows.push([dateStr, timeStr, orderNum, custName, custPhone, label, "", Number(walkin.qty) || 1, Number(order.total) || 0, payLabel, status, addr, channelLabel, staffName]);
+      rows.push([dateStr, timeStr, orderNum, custName, custPhone, label, "", Number(walkin.qty) || 1, Number(order.total) || 0, payLabel, status, addr, channelLabel, staffName, driverName]);
     } else {
-      rows.push([dateStr, timeStr, orderNum, custName, custPhone, order.brand?.name || "", order.product?.name || "", order.qty || 0, Number(order.total) || 0, payLabel, status, addr, channelLabel, staffName]);
+      rows.push([dateStr, timeStr, orderNum, custName, custPhone, order.brand?.name || "", order.product?.name || "", order.qty || 0, Number(order.total) || 0, payLabel, status, addr, channelLabel, staffName, driverName]);
     }
 
     await sheets.spreadsheets.values.append({
       spreadsheetId: SHEET_ID,
-      range: "Sheet1!A:N",
+      range: "Sheet1!A:O",
       valueInputOption: "RAW",
       insertDataOption: "INSERT_ROWS",
       requestBody: { values: rows },
@@ -92,18 +93,24 @@ async function updateOrderStatus(order) {
     const sheets = getClient();
     const res = await sheets.spreadsheets.values.get({
       spreadsheetId: SHEET_ID,
-      range: "Sheet1!C:K",
+      range: "Sheet1!C:C",
     });
     const rows = res.data.values || [];
     const rowIndex = rows.findIndex(r => r[0] === order.orderNumber);
     if (rowIndex < 0) return;
     const sheetRow = rowIndex + 1;
     const label = STATUS_LABEL[order.status] || order.status;
-    await sheets.spreadsheets.values.update({
+    const driverName = order.driver?.name || "";
+    // Update status (K) and driver name (O) together
+    await sheets.spreadsheets.values.batchUpdate({
       spreadsheetId: SHEET_ID,
-      range: `Sheet1!K${sheetRow}`,
-      valueInputOption: "RAW",
-      requestBody: { values: [[label]] },
+      requestBody: {
+        valueInputOption: "RAW",
+        data: [
+          { range: `Sheet1!K${sheetRow}`, values: [[label]] },
+          { range: `Sheet1!O${sheetRow}`, values: [[driverName]] },
+        ],
+      },
     });
   } catch (e) {
     console.error("Sheets update error:", e.message);

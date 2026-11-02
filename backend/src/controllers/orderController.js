@@ -316,6 +316,7 @@ async function updateStatus(req, res) {
       { model: Brand, as: "brand" },
       { model: Product, as: "product" },
       { model: Customer, as: "customer" },
+      { model: User, as: "driver", attributes: ["id", "name"], required: false },
     ],
   });
   if (!order) return res.status(404).json({ error: "Order not found" });
