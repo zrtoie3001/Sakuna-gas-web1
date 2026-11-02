@@ -695,8 +695,8 @@ export default function Dashboard() {
                   <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
                     <span style={{ fontSize: 20 }}>✅</span>
                     <div style={{ flex: 1 }}>
-                      <p style={{ fontSize: 13, fontWeight: 700, color: NAVY }}>{o.orderNumber}</p>
-                      <p style={{ fontSize: 12, color: GRAY }}>{o.customerName}{o.product?.name ? ` · ${o.product.name} ×${o.qty}` : ""}</p>
+                      <p style={{ fontSize: 13, fontWeight: 700, color: NAVY }}>{o.deliveryAddress && o.deliveryAddress !== "หน้าร้าน" ? o.deliveryAddress : (o.customerName || "หน้าร้าน")}</p>
+                      <p style={{ fontSize: 12, color: GRAY }}>{o.orderNumber}{o.product?.name ? ` · ${o.product.name} ×${o.qty}` : ""}</p>
                     </div>
                     <span style={{ fontSize: 13, fontWeight: 700, color: "#059669" }}>฿{Number(o.total).toLocaleString()}</span>
                   </div>
