@@ -379,9 +379,13 @@ async function updateContactFromOrder(req, res) {
     const { sequelize: seq } = require("../config/database");
     const { QueryTypes } = require("sequelize");
 
-    // Build WHERE: must match BOTH phone AND address to avoid overwriting unrelated orders
+    // Build WHERE: match ALL provided fields together (AND) to avoid overwriting unrelated orders
     const replacements = {};
     const whereParts = [];
+    if (origName) {
+      whereParts.push(`LOWER(TRIM(COALESCE(customer_name,''))) = LOWER(TRIM(:origName))`);
+      replacements.origName = origName.trim();
+    }
     if (origPhone) {
       whereParts.push(`COALESCE(NULLIF(TRIM(customer_phone),''),'') = :origPhone`);
       replacements.origPhone = origPhone.trim();
