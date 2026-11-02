@@ -373,18 +373,14 @@ async function driverStats(req, res) {
   const start = new Date(date); start.setHours(0, 0, 0, 0);
   const end   = new Date(date); end.setHours(23, 59, 59, 999);
 
-  // Filter by deliveredAt (or updatedAt for legacy orders without deliveredAt)
   const orders = await Order.findAll({
     where: {
       status: "delivered",
       driverId: { [Op.ne]: null },
-      [Op.or]: [
-        { deliveredAt: { [Op.between]: [start, end] } },
-        { deliveredAt: null, updatedAt: { [Op.between]: [start, end] } },
-      ],
+      deliveredAt: { [Op.between]: [start, end] },
     },
     include: [
-      { model: User, as: "driver", attributes: ["id", "name"] },
+      { model: User, as: "driver", attributes: ["id", "name", "isActive"] },
       { model: Brand, as: "brand", attributes: ["name"] },
       { model: Product, as: "product", attributes: ["name", "kg"] },
     ],
@@ -394,6 +390,8 @@ async function driverStats(req, res) {
   // Group by driver and count tanks properly (including walkin multi-item notes)
   const driverMap = {};
   for (const o of orders) {
+    // Skip orders assigned to deactivated drivers
+    if (o.driver && o.driver.isActive === false) continue;
     const driverId = o.driverId;
     const driverName = o.driver?.name || "-";
     if (!driverMap[driverId]) driverMap[driverId] = { name: driverName, orders: 0, tanks: 0, orderList: [] };
