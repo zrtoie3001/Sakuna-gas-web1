@@ -1,7 +1,7 @@
 const router = require("express").Router();
 const multer = require("multer");
 const path = require("path");
-const { createOrder, getOrderById, listOrders, updateStatus, acceptOrder, createWalkinOrder, updateOrder } = require("../controllers/orderController");
+const { createOrder, getOrderById, listOrders, updateStatus, acceptOrder, createWalkinOrder, updateOrder, splitOrder } = require("../controllers/orderController");
 const { notifyAdminPaymentConfirmed, sendPaymentReceivedToCustomer } = require("../services/lineService");
 const { Order, Brand, Product, Customer } = require("../models");
 const { requireAuth, requireRole } = require("../middleware/auth");
@@ -332,5 +332,6 @@ router.put("/:id/driver", requireAuth, requireRole("admin"), async (req, res) =>
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 router.post("/:id/accept", requireAuth, requireRole("driver", "admin"), ah(acceptOrder));
+router.post("/:id/split", requireAuth, requireRole("admin"), ah(splitOrder));
 
 module.exports = router;

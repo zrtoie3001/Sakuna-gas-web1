@@ -132,7 +132,10 @@ const Order = sequelize.define("Order", {
     type: DataTypes.ENUM("pending", "preparing", "out_for_delivery", "near_destination", "delivered", "cancelled"),
     defaultValue: "pending",
   },
-  scheduledDate: { type: DataTypes.DATEONLY, allowNull: true },
+  scheduledDate:   { type: DataTypes.DATEONLY, allowNull: true },
+  stockDeducted:   { type: DataTypes.BOOLEAN, defaultValue: false },
+  parentOrderId:   { type: DataTypes.UUID, allowNull: true },
+  isSplit:         { type: DataTypes.BOOLEAN, defaultValue: false },
 }, { tableName: "orders", underscored: true });
 
 // ── OrderStatusLog ────────────────────────────────────────────────────────────

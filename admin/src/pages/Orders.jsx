@@ -417,6 +417,9 @@ export default function Orders() {
   const [gasStocks, setGasStocks]   = useState([]);
   const [equipList, setEquipList]   = useState([]);
   const [drivers, setDrivers]       = useState([]);
+  const [splitModal, setSplitModal] = useState(null); // order being split
+  const [splitRows, setSplitRows]   = useState([{ driverId: "", qty: 1 }, { driverId: "", qty: 1 }]);
+  const [splitting, setSplitting]   = useState(false);
   const [extraItems, setExtraItems] = useState({}); // { [orderId]: [{id, name, qty, price}] }
   const [createCart, setCreateCart]   = useState([]);
   const [createCustAddrs, setCreateCustAddrs] = useState([]); // addresses of selected customer in create modal
@@ -1371,6 +1374,25 @@ ${noteText ? `<div style="margin-top:8px; padding:6px 8px; border:1.5px dashed #
                 </button>
               ))}
             </div>
+            {selected.status !== "cancelled" && !selected.isSplit && !selected.parentOrderId && (
+              <button onClick={() => {
+                setSplitRows([{ driverId: "", qty: Math.ceil(selected.qty / 2) }, { driverId: "", qty: Math.floor(selected.qty / 2) }]);
+                setSplitModal(selected);
+              }} style={{
+                marginTop: 8, width: "100%", padding: "7px", borderRadius: 8, border: "2px solid #F59E0B",
+                background: "#FFFBEB", color: "#92400E", fontSize: 12, fontWeight: 700, cursor: "pointer",
+              }}>✂️ แยกออเดอร์ให้หลายคนส่ง</button>
+            )}
+            {selected.isSplit && (
+              <div style={{ marginTop: 8, padding: "7px 12px", borderRadius: 8, background: "#EFF6FF", color: "#1D4ED8", fontSize: 12, fontWeight: 700, textAlign: "center" }}>
+                ✂️ ออเดอร์นี้ถูกแยกแล้ว — ดูออเดอร์ย่อยด้านบน
+              </div>
+            )}
+            {selected.parentOrderId && (
+              <div style={{ marginTop: 8, padding: "7px 12px", borderRadius: 8, background: "#F0FDF4", color: "#166534", fontSize: 12, fontWeight: 700, textAlign: "center" }}>
+                📦 ออเดอร์ย่อย — ราคารวมอยู่ที่ออเดอร์แม่
+              </div>
+            )}
             {selected.status !== "cancelled" && (
               <button onClick={() => {
                 if (!window.confirm(`ยืนยันยกเลิกออเดอร์ ${selected.orderNumber}?`)) return;
@@ -2191,5 +2213,68 @@ ${noteText ? `<div style="margin-top:8px; padding:6px 8px; border:1.5px dashed #
         );
       })()}
     </div>
+
+    {/* ── Split Order Modal ── */}
+    {splitModal && (
+      <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+        <div style={{ background: "#fff", borderRadius: 16, padding: 24, width: "100%", maxWidth: 420, maxHeight: "90vh", overflowY: "auto" }}>
+          <h3 style={{ margin: "0 0 4px", color: NAVY, fontSize: 16 }}>✂️ แยกออเดอร์</h3>
+          <p style={{ margin: "0 0 16px", fontSize: 12, color: GRAY }}>{splitModal.orderNumber} · รวม {splitModal.qty} ถัง</p>
+
+          {splitRows.map((row, i) => (
+            <div key={i} style={{ display: "flex", gap: 8, marginBottom: 10, alignItems: "center" }}>
+              <span style={{ fontSize: 12, color: GRAY, width: 20, flexShrink: 0 }}>#{i + 1}</span>
+              <select value={row.driverId} onChange={e => setSplitRows(r => r.map((x, j) => j === i ? { ...x, driverId: e.target.value } : x))}
+                style={{ flex: 2, padding: "6px 8px", borderRadius: 8, border: "1.5px solid #E5E7EB", fontSize: 13 }}>
+                <option value="">-- เลือกคนส่ง --</option>
+                {drivers.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+              </select>
+              <input type="number" min={1} value={row.qty} onChange={e => setSplitRows(r => r.map((x, j) => j === i ? { ...x, qty: Number(e.target.value) } : x))}
+                style={{ width: 56, padding: "6px 8px", borderRadius: 8, border: "1.5px solid #E5E7EB", fontSize: 13, textAlign: "center" }} />
+              <span style={{ fontSize: 11, color: GRAY }}>ถัง</span>
+              {splitRows.length > 2 && (
+                <button onClick={() => setSplitRows(r => r.filter((_, j) => j !== i))}
+                  style={{ background: "none", border: "none", color: "#EF4444", fontSize: 18, cursor: "pointer", lineHeight: 1 }}>✕</button>
+              )}
+            </div>
+          ))}
+
+          {(() => {
+            const total = splitRows.reduce((s, r) => s + (Number(r.qty) || 0), 0);
+            const ok = total === splitModal.qty;
+            return (
+              <p style={{ fontSize: 12, color: ok ? "#059669" : "#EF4444", fontWeight: 700, marginBottom: 10 }}>
+                รวม {total} ถัง {ok ? "✓" : `(ต้องรวมได้ ${splitModal.qty} ถัง)`}
+              </p>
+            );
+          })()}
+
+          <button onClick={() => setSplitRows(r => [...r, { driverId: "", qty: 1 }])}
+            style={{ width: "100%", padding: "7px", borderRadius: 8, border: "1.5px dashed #D1D5DB", background: "#F9FAFB", color: GRAY, fontSize: 12, cursor: "pointer", marginBottom: 14 }}>
+            + เพิ่มคนส่ง
+          </button>
+
+          <div style={{ display: "flex", gap: 8 }}>
+            <button onClick={() => setSplitModal(null)} style={{ flex: 1, padding: "9px", borderRadius: 10, border: "1.5px solid #E5E7EB", background: "#F9FAFB", color: GRAY, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>ยกเลิก</button>
+            <button disabled={splitting} onClick={async () => {
+              const total = splitRows.reduce((s, r) => s + (Number(r.qty) || 0), 0);
+              if (total !== splitModal.qty) return alert(`จำนวนรวมต้องเท่ากับ ${splitModal.qty} ถัง`);
+              if (splitRows.some(r => !r.driverId)) return alert("กรุณาเลือกคนส่งทุกแถว");
+              setSplitting(true);
+              try {
+                await api.post(`/api/v1/orders/${splitModal.id}/split`, { splits: splitRows });
+                setSplitModal(null);
+                fetch();
+                if (selected?.id === splitModal.id) setSelected(null);
+              } catch (e) {
+                alert(e.response?.data?.error || "เกิดข้อผิดพลาด");
+              } finally { setSplitting(false); }
+            }} style={{ flex: 2, padding: "9px", borderRadius: 10, border: "none", background: NAVY, color: "#fff", fontWeight: 700, fontSize: 13, cursor: splitting ? "not-allowed" : "pointer", opacity: splitting ? 0.7 : 1 }}>
+              {splitting ? "กำลังแยก..." : "✂️ ยืนยันแยกออเดอร์"}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
   );
 }

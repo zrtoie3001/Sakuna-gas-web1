@@ -204,6 +204,12 @@ const PORT = process.env.PORT || 3001;
     await sequelize.query(`CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);`).catch(() => {});
     await sequelize.query(`CREATE INDEX IF NOT EXISTS idx_orders_payment ON orders(payment_method, is_paid);`).catch(() => {});
     await sequelize.query(`CREATE INDEX IF NOT EXISTS idx_expenses_created_at ON expenses(created_at DESC);`).catch(() => {});
+    // ── Split order & stock tracking ──────────────────────────────────────────
+    await sequelize.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS stock_deducted BOOLEAN NOT NULL DEFAULT false;`).catch(() => {});
+    await sequelize.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS parent_order_id UUID;`).catch(() => {});
+    await sequelize.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS is_split BOOLEAN NOT NULL DEFAULT false;`).catch(() => {});
+    // Backfill: existing non-cancelled orders already had stock deducted at creation
+    await sequelize.query(`UPDATE orders SET stock_deducted = true WHERE status != 'cancelled' AND stock_deducted = false AND parent_order_id IS NULL;`).catch(() => {});
     logger.info("Migrations done");
 
     app.listen(PORT, () => logger.info(`API running on port ${PORT}`));

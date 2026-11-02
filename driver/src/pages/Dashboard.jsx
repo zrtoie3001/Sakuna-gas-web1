@@ -376,6 +376,7 @@ function OrderCard({ order, showAccept, showStatus, routeIndex, sortedActiveOrde
             )}
             <div>
               <span style={{ fontSize: 14, fontWeight: 900, color: ORANGE }}>{order.orderNumber}</span>
+              {order.parentOrderId && <span style={{ marginLeft: 6, fontSize: 10, background: "#EFF6FF", color: "#1D4ED8", borderRadius: 6, padding: "2px 6px", fontWeight: 800 }}>ออเดอร์ย่อย</span>}
               {isFirst && <span style={{ marginLeft: 6, fontSize: 10, background: "#FFF7ED", color: ORANGE, borderRadius: 6, padding: "2px 6px", fontWeight: 800 }}>ไปก่อนเลย!</span>}
               <div style={{ marginTop: 2 }}>
                 <span style={{ fontSize: 11, padding: "2px 6px", borderRadius: 6, fontWeight: 700,
@@ -385,7 +386,7 @@ function OrderCard({ order, showAccept, showStatus, routeIndex, sortedActiveOrde
               </div>
             </div>
           </div>
-          <span style={{ fontSize: 16, fontWeight: 900, color: NAVY }}>฿{Number(order.total).toLocaleString()}</span>
+          {!order.parentOrderId && <span style={{ fontSize: 16, fontWeight: 900, color: NAVY }}>฿{Number(order.total).toLocaleString()}</span>}
         </div>
 
         {/* Info */}

@@ -211,15 +211,6 @@ async function createOrder(req, res) { try {
     await discountCodeRecord.increment("usedCount");
   }
 
-  // Deduct gas stock
-  try {
-    const weightKg = Number(product.kg);
-    if (brand?.name && !isNaN(weightKg)) {
-      const { GasStock } = require("../models");
-      await deductStock(GasStock, brand.name, weightKg, qty, "hasGas");
-    }
-  } catch (e) { console.error("Stock deduct error:", e.message); }
-
   // Fetch full order with associations
   const fullOrder = await Order.findByPk(order.id, {
     include: [{ model: Brand, as: "brand" }, { model: Product, as: "product" }],
@@ -330,8 +321,36 @@ async function updateStatus(req, res) {
   await order.update(updateData);
   await OrderStatusLog.create({ orderId: order.id, status, note, changedBy: req.user.id });
 
-  // คืนสต็อกเมื่อยกเลิกออเดอร์ (และยังไม่เคยยกเลิกมาก่อน)
-  if (status === "cancelled" && prevStatus !== "cancelled") {
+  // ── ตัดสต็อกตอน delivered (เฉพาะออเดอร์ที่ยังไม่ได้ตัด และไม่ใช่ parent ที่ถูก split แล้ว) ──
+  if (status === "delivered" && prevStatus !== "delivered" && !order.stockDeducted && !order.isSplit) {
+    try {
+      const { GasStock } = require("../models");
+      const n = order.note || "";
+      if (n.startsWith("__walkin:") || n.startsWith("__phone_walkin:")) {
+        const walkin = JSON.parse(n.replace(/^__(?:phone_)?walkin:/, "").split("\n")[0]);
+        if (walkin.type === "mixed" && Array.isArray(walkin.items)) {
+          for (const it of walkin.items) {
+            const q = Number(it.qty) || 1;
+            if (it.type === "gas") await deductStock(GasStock, it.brandName, Number(it.weightKg), q, "hasGas").catch(() => {});
+            else if (it.type === "new_tank") await deductStock(GasStock, it.brandName, Number(it.weightKg), q, "newTank").catch(() => {});
+          }
+        } else if (walkin.type === "gas") {
+          await deductStock(GasStock, walkin.brandName, Number(walkin.weightKg), Number(walkin.qty) || 1, "hasGas").catch(() => {});
+        } else if (walkin.type === "new_tank") {
+          await deductStock(GasStock, walkin.brandName, Number(walkin.weightKg), Number(walkin.qty) || 1, "newTank").catch(() => {});
+        }
+      } else if (order.productId) {
+        const { Product: Prod, Brand: B } = require("../models");
+        const prod = await Prod.findByPk(order.productId, { include: [{ model: B, as: "brand" }] });
+        if (prod) await deductStock(GasStock, prod.brand?.name, Number(prod.kg), Number(order.qty) || 1, "hasGas").catch(() => {});
+      }
+      await order.update({ stockDeducted: true });
+    } catch (e) { console.error("Stock deduct error:", e.message); }
+    syncStockToSheet().catch(() => {});
+  }
+
+  // ── คืนสต็อกเมื่อยกเลิก (เฉพาะออเดอร์ที่ตัดสต็อกไปแล้ว) ──
+  if (status === "cancelled" && prevStatus !== "cancelled" && order.stockDeducted) {
     try {
       const { GasStock, Equipment } = require("../models");
       const n = order.note || "";
@@ -359,7 +378,6 @@ async function updateStatus(req, res) {
           if (stock) await stock.update({ newTank: stock.newTank + (Number(walkin.qty) || 1) });
         }
       } else if (order.productId) {
-        // ออเดอร์ปกติ (ลูกค้าโทรสั่ง) — คืน hasGas
         const { Product: Prod } = require("../models");
         const prod = await Prod.findByPk(order.productId, { include: [{ model: require("../models").Brand, as: "brand" }] });
         if (prod) {
@@ -367,37 +385,13 @@ async function updateStatus(req, res) {
           if (stock) await stock.update({ hasGas: stock.hasGas + (Number(order.qty) || 1) });
         }
       }
+      await order.update({ stockDeducted: false });
     } catch (e) { console.error("Stock restore error:", e.message); }
-  }
-
-  // Auto-create debt when delivered and not yet paid
-  if (status === "delivered" && prevStatus !== "delivered") {
-    try {
-      const { Debt } = require("../models");
-      const alreadyHasDebt = await Debt.findOne({ where: { orderId: order.id } });
-      if (!alreadyHasDebt && !order.isPaid) {
-        await Debt.create({
-          customerName:  order.customerName || "ลูกค้าทั่วไป",
-          customerPhone: order.customerPhone || null,
-          type:          "money",
-          amount:        Number(order.total) || 0,
-          note:          `ออเดอร์ ${order.orderNumber}`,
-          orderId:       order.id,
-          isPaid:        false,
-        });
-      }
-    } catch (e) { console.error("Auto-debt error:", e.message); }
-  }
-
-  // LINE notification
-  if (order.customer?.lineUserId) {
-    sendStatusUpdate(order.customer.lineUserId, order, status).catch(() => {});
-  }
-  if (status === "cancelled") {
-    updateOrderStatus(order).catch(() => {});
     syncStockToSheet().catch(() => {});
-  } else if (prevStatus === "cancelled") {
-    // un-cancel: deduct stock again + ลบ emptyTank ที่คืนไป
+  }
+
+  // ── un-cancel: ตัดสต็อกคืน (เฉพาะออเดอร์ที่สต็อกถูกคืนไปแล้ว) ──
+  if (prevStatus === "cancelled" && status !== "cancelled" && !order.stockDeducted && !order.isSplit) {
     try {
       const { GasStock } = require("../models");
       const n = order.note || "";
@@ -419,15 +413,111 @@ async function updateStatus(req, res) {
         const prod = await Prod.findByPk(order.productId, { include: [{ model: B, as: "brand" }] });
         if (prod) await deductStock(GasStock, prod.brand?.name, Number(prod.kg), Number(order.qty) || 1, "hasGas").catch(() => {});
       }
+      await order.update({ stockDeducted: true });
     } catch (e) { console.error("Stock re-deduct error:", e.message); }
     appendOrder(order).catch(() => {});
     syncStockToSheet().catch(() => {});
-    updateOrderStatus(order).catch(() => {});
-  } else {
-    updateOrderStatus(order).catch(() => {});
   }
 
+  // Auto-create debt when delivered and not yet paid
+  if (status === "delivered" && prevStatus !== "delivered") {
+    try {
+      const { Debt } = require("../models");
+      const alreadyHasDebt = await Debt.findOne({ where: { orderId: order.id } });
+      if (!alreadyHasDebt && !order.isPaid && !order.parentOrderId) {
+        await Debt.create({
+          customerName:  order.customerName || "ลูกค้าทั่วไป",
+          customerPhone: order.customerPhone || null,
+          type:          "money",
+          amount:        Number(order.total) || 0,
+          note:          `ออเดอร์ ${order.orderNumber}`,
+          orderId:       order.id,
+          isPaid:        false,
+        });
+      }
+    } catch (e) { console.error("Auto-debt error:", e.message); }
+  }
+
+  // LINE notification
+  if (order.customer?.lineUserId) {
+    sendStatusUpdate(order.customer.lineUserId, order, status).catch(() => {});
+  }
+  updateOrderStatus(order).catch(() => {});
+
   res.json(order);
+}
+
+// ── Admin: split order into sub-orders per driver ─────────────────────────────
+async function splitOrder(req, res) {
+  try {
+    const { splits } = req.body; // [{ driverId, qty }, ...]
+    if (!Array.isArray(splits) || splits.length < 2)
+      return res.status(400).json({ error: "ต้องแยกอย่างน้อย 2 ส่วน" });
+
+    const order = await Order.findByPk(req.params.id, {
+      include: [
+        { model: Brand, as: "brand" },
+        { model: Product, as: "product" },
+        { model: User, as: "driver", attributes: ["id", "name"], required: false },
+      ],
+    });
+    if (!order) return res.status(404).json({ error: "Order not found" });
+    if (order.isSplit) return res.status(400).json({ error: "ออเดอร์นี้ถูกแยกแล้ว" });
+    if (order.parentOrderId) return res.status(400).json({ error: "ไม่สามารถแยกออเดอร์ย่อยได้" });
+    if (order.status === "cancelled") return res.status(400).json({ error: "ออเดอร์ถูกยกเลิกแล้ว" });
+
+    const totalQty = splits.reduce((s, sp) => s + (Number(sp.qty) || 0), 0);
+    if (totalQty !== Number(order.qty))
+      return res.status(400).json({ error: `จำนวนรวม (${totalQty}) ต้องเท่ากับออเดอร์เดิม (${order.qty})` });
+
+    const drivers = await User.findAll({ where: { id: splits.map(s => s.driverId) }, attributes: ["id", "name"] });
+    const driverMap = Object.fromEntries(drivers.map(d => [d.id, d]));
+
+    // สร้าง sub-orders
+    const subOrders = [];
+    for (const sp of splits) {
+      const driver = driverMap[sp.driverId];
+      if (!driver) return res.status(400).json({ error: `ไม่พบ driver: ${sp.driverId}` });
+      const q = Number(sp.qty);
+      const sub = await Order.create({
+        orderNumber: await generateUniqueOrderNumber(),
+        parentOrderId: order.id,
+        customerId: order.customerId,
+        brandId: order.brandId,
+        productId: order.productId,
+        driverId: driver.id,
+        qty: q,
+        unitPrice: order.unitPrice,
+        subtotal: 0,
+        deliveryFee: 0,
+        discountAmount: 0,
+        total: 0, // ราคารวมอยู่ที่ออเดอร์แม่
+        customerName: order.customerName,
+        customerPhone: order.customerPhone,
+        deliveryAddress: order.deliveryAddress,
+        deliveryLat: order.deliveryLat,
+        deliveryLng: order.deliveryLng,
+        paymentMethod: order.paymentMethod,
+        note: order.note,
+        channel: order.channel,
+        status: "preparing",
+        stockDeducted: false,
+        createdById: req.user.id,
+        createdByName: req.user.name,
+      });
+      sub.driver = driver;
+      updateOrderStatus(sub).catch(() => {});
+      await OrderStatusLog.create({ orderId: sub.id, status: "preparing", changedBy: req.user.id });
+      subOrders.push({ ...sub.toJSON(), driver: driver.toJSON() });
+    }
+
+    // ทำเครื่องหมาย parent ว่าถูก split แล้ว + ลบ driverId ออก
+    await order.update({ isSplit: true, driverId: null });
+
+    res.json({ parent: order, subOrders });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
 }
 
 // ── Driver: accept order ──────────────────────────────────────────────────────
@@ -661,4 +751,4 @@ async function updateOrder(req, res) {
   }
 }
 
-module.exports = { createOrder, getOrderById, listOrders, updateStatus, acceptOrder, createWalkinOrder, updateOrder };
+module.exports = { createOrder, getOrderById, listOrders, updateStatus, acceptOrder, createWalkinOrder, updateOrder, splitOrder };
