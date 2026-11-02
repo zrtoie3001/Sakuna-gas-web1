@@ -377,7 +377,6 @@ async function driverStats(req, res) {
   const deliveredLogs = await OrderStatusLog.findAll({
     where: { status: "delivered", createdAt: { [Op.between]: [start, end] } },
     attributes: ["orderId"],
-    raw: true,
   });
   const deliveredOrderIds = [...new Set(deliveredLogs.map(l => l.orderId))];
 
