@@ -1,5 +1,5 @@
 const { Op, fn, col, literal } = require("sequelize");
-const { Order, Product, Brand, Customer, User, Expense, sequelize } = require("../models");
+const { Order, Product, Brand, Customer, User, Expense, OrderStatusLog, sequelize } = require("../models");
 
 function fmtKg(val) {
   const n = parseFloat(val || 0);
@@ -373,11 +373,21 @@ async function driverStats(req, res) {
   const start = new Date(date); start.setHours(0, 0, 0, 0);
   const end   = new Date(date); end.setHours(23, 59, 59, 999);
 
+  // Find order IDs that were actually marked as delivered on this date via status log
+  const deliveredLogs = await OrderStatusLog.findAll({
+    where: { status: "delivered", createdAt: { [Op.between]: [start, end] } },
+    attributes: ["orderId"],
+    raw: true,
+  });
+  const deliveredOrderIds = [...new Set(deliveredLogs.map(l => l.orderId))];
+
+  if (!deliveredOrderIds.length) return res.json({ date, drivers: [] });
+
   const orders = await Order.findAll({
     where: {
+      id: { [Op.in]: deliveredOrderIds },
       status: "delivered",
       driverId: { [Op.ne]: null },
-      deliveredAt: { [Op.between]: [start, end] },
     },
     include: [
       { model: User, as: "driver", attributes: ["id", "name", "isActive"] },
