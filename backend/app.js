@@ -189,6 +189,8 @@ const PORT = process.env.PORT || 3001;
     await sequelize.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS created_by_id UUID;`).catch(() => {});
     await sequelize.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS created_by_name VARCHAR(100);`).catch(() => {});
     await sequelize.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivered_at TIMESTAMPTZ;`).catch(() => {});
+    // Backfill delivered_at from updated_at for existing delivered orders
+    await sequelize.query(`UPDATE orders SET delivered_at = updated_at WHERE status = 'delivered' AND delivered_at IS NULL;`).catch(() => {});
     // ── customerNumber on customers ───────────────────────────────────────────
     await sequelize.query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS customer_number VARCHAR(10);`).catch(() => {});
     // Backfill customerNumber for existing customers that don't have one
