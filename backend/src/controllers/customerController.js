@@ -379,9 +379,9 @@ async function updateContactFromOrder(req, res) {
     const { sequelize: seq } = require("../config/database");
     const { QueryTypes } = require("sequelize");
 
-    // Build WHERE: match by phone (exact) OR address (normalized), whichever we have
-    let whereParts = [];
+    // Build WHERE: must match BOTH phone AND address to avoid overwriting unrelated orders
     const replacements = {};
+    const whereParts = [];
     if (origPhone) {
       whereParts.push(`COALESCE(NULLIF(TRIM(customer_phone),''),'') = :origPhone`);
       replacements.origPhone = origPhone.trim();
@@ -390,7 +390,8 @@ async function updateContactFromOrder(req, res) {
       whereParts.push(`LOWER(REGEXP_REPLACE(TRIM(delivery_address),'\\s+',' ','g')) = LOWER(REGEXP_REPLACE(TRIM(:origAddress),'\\s+',' ','g'))`);
       replacements.origAddress = origAddress.trim();
     }
-    const whereClause = whereParts.join(" OR ");
+    if (!whereParts.length) return res.json({ updated: 0 });
+    const whereClause = whereParts.join(" AND ");
 
     const setClauses = [];
     if (newName    !== undefined) { setClauses.push(`customer_name    = :newName`);    replacements.newName    = newName    || null; }
