@@ -318,6 +318,16 @@ router.put("/:id/driver", requireAuth, requireRole("admin"), async (req, res) =>
     const order = await Order.findByPk(req.params.id);
     if (!order) return res.status(404).json({ error: "Not found" });
     await order.update({ driverId: driverId || null });
+    // อัปเดต Sheets คอลัมน์ O (คนส่ง)
+    if (driverId) {
+      const { User } = require("../models");
+      const driver = await User.findByPk(driverId, { attributes: ["id", "name"] });
+      if (driver) {
+        order.driver = driver;
+        const { updateOrderStatus } = require("../services/sheetsService");
+        updateOrderStatus(order).catch(() => {});
+      }
+    }
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });

@@ -437,6 +437,9 @@ async function acceptOrder(req, res) {
   if (order.status !== "pending") return res.status(400).json({ error: "Order already taken" });
   await order.update({ driverId: req.user.id, status: "preparing" });
   await OrderStatusLog.create({ orderId: order.id, status: "preparing", changedBy: req.user.id });
+  // อัปเดต Sheets พร้อมชื่อ driver
+  order.driver = req.user;
+  updateOrderStatus(order).catch(() => {});
   res.json(order);
 }
 
