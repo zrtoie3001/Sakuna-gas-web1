@@ -541,7 +541,7 @@ async function createWalkinOrder(req, res) {
       customerId: customer?.id || null,
       customerName: customerName || null,
       customerPhone: customerPhone || null,
-      deliveryAddress: customAddress || null,
+      deliveryAddress: customAddress || (source === "walkin" ? "หน้าร้าน" : null),
       paymentMethod: paymentMethod || "cash",
       qty: totalQty,
       unitPrice: total,

@@ -395,7 +395,8 @@ async function updateContactFromOrder(req, res) {
       replacements.origAddress = origAddress.trim();
     }
     if (!whereParts.length) return res.json({ updated: 0 });
-    const whereClause = whereParts.join(" AND ");
+    // Never touch store-front orders (หน้าร้าน) — they're not customer records
+    const whereClause = whereParts.join(" AND ") + ` AND COALESCE(delivery_address,'') != 'หน้าร้าน'`;
 
     const setClauses = [];
     if (newName    !== undefined) { setClauses.push(`customer_name    = :newName`);    replacements.newName    = newName    || null; }
