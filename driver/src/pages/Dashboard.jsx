@@ -591,10 +591,26 @@ export default function Dashboard() {
     navigate("/login");
   }
 
+  function countTanks(orders) {
+    return orders.reduce((sum, o) => {
+      const n = o.note || "";
+      if (n.startsWith("__walkin:") || n.startsWith("__phone_walkin:")) {
+        try {
+          const w = JSON.parse(n.replace(/^__(?:phone_)?walkin:/, "").split("\n")[0]);
+          if (w.type === "mixed" && Array.isArray(w.items))
+            return sum + w.items.filter(it => it.type === "gas" || it.type === "new_tank").reduce((s, it) => s + (Number(it.qty) || 1), 0);
+          if (w.type === "gas" || w.type === "new_tank") return sum + (Number(w.qty) || 1);
+          return sum;
+        } catch { return sum + (Number(o.qty) || 0); }
+      }
+      return sum + (Number(o.qty) || 0);
+    }, 0);
+  }
+
   const tabs = [
     { key: "pending", label: "รอรับงาน",  count: pendingOrders.length },
     { key: "active",  label: "กำลังส่ง",  count: myOrders.length },
-    { key: "done",    label: "เสร็จแล้ว", count: doneOrders.length },
+    { key: "done",    label: "เสร็จแล้ว", count: countTanks(doneOrders) },
   ];
 
   return (
@@ -686,7 +702,7 @@ export default function Dashboard() {
 
         {tab === "done" && (
           <>
-            <p style={{ fontSize: 13, color: GRAY, marginBottom: 10 }}>ส่งสำเร็จวันนี้ · {doneOrders.length} รายการ</p>
+            <p style={{ fontSize: 13, color: GRAY, marginBottom: 10 }}>ส่งสำเร็จวันนี้ · {doneOrders.length} ออเดอร์ · {countTanks(doneOrders)} ถัง</p>
             {doneOrders.map(o => {
               const [expanded, setExpanded] = [doneExpanded === o.id, () => setDoneExpanded(doneExpanded === o.id ? null : o.id)];
               return (
