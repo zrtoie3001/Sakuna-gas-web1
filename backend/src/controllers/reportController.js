@@ -373,18 +373,10 @@ async function driverStats(req, res) {
   const start = new Date(date); start.setHours(0, 0, 0, 0);
   const end   = new Date(date); end.setHours(23, 59, 59, 999);
 
-  // Find order IDs that were actually marked as delivered on this date via status log
-  const deliveredLogs = await OrderStatusLog.findAll({
-    where: { status: "delivered", createdAt: { [Op.between]: [start, end] } },
-    attributes: ["orderId"],
-  });
-  const deliveredOrderIds = [...new Set(deliveredLogs.map(l => l.orderId))];
-
-  if (!deliveredOrderIds.length) return res.json({ date, drivers: [] });
-
+  // Same logic as dailyReport: filter by createdAt, only delivered, assigned to driver
   const orders = await Order.findAll({
     where: {
-      id: { [Op.in]: deliveredOrderIds },
+      createdAt: { [Op.between]: [start, end] },
       status: "delivered",
       driverId: { [Op.ne]: null },
     },
@@ -393,7 +385,7 @@ async function driverStats(req, res) {
       { model: Brand, as: "brand", attributes: ["name"] },
       { model: Product, as: "product", attributes: ["name", "kg"] },
     ],
-    order: [["deliveredAt", "ASC"]],
+    order: [["createdAt", "ASC"]],
   });
 
   // Group by driver and count tanks properly (including walkin multi-item notes)
