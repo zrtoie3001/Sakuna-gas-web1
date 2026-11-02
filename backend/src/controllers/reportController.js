@@ -373,9 +373,16 @@ async function driverStats(req, res) {
   const start = new Date(date); start.setHours(0, 0, 0, 0);
   const end   = new Date(date); end.setHours(23, 59, 59, 999);
 
-  // Filter by deliveredAt so orders created yesterday but delivered today are counted correctly
+  // Filter by deliveredAt (or updatedAt for legacy orders without deliveredAt)
   const orders = await Order.findAll({
-    where: { deliveredAt: { [Op.between]: [start, end] }, status: "delivered", driverId: { [Op.ne]: null } },
+    where: {
+      status: "delivered",
+      driverId: { [Op.ne]: null },
+      [Op.or]: [
+        { deliveredAt: { [Op.between]: [start, end] } },
+        { deliveredAt: null, updatedAt: { [Op.between]: [start, end] } },
+      ],
+    },
     include: [
       { model: User, as: "driver", attributes: ["id", "name"] },
       { model: Brand, as: "brand", attributes: ["name"] },

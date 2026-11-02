@@ -70,6 +70,7 @@ async function getMyOrders(req, res) {
       [Op.or]: [
         { status: ["preparing", "out_for_delivery"] },
         { status: "delivered", deliveredAt: { [Op.gte]: todayStart } },
+        { status: "delivered", deliveredAt: null, updatedAt: { [Op.gte]: todayStart } },
       ],
     },
     include: [
