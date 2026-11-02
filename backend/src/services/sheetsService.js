@@ -14,10 +14,10 @@ function getClient() {
 async function ensureHeader(sheets) {
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: SHEET_ID,
-    range: "Sheet1!A1:K1",
+    range: "Sheet1!A1:O1",
   });
   const row = res.data.values?.[0];
-  if (!row || row[0] !== "วันที่") {
+  if (!row || row[0] !== "วันที่" || row[14] !== "คนส่ง") {
     await sheets.spreadsheets.values.update({
       spreadsheetId: SHEET_ID,
       range: "Sheet1!A1",
