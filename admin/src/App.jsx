@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
-import { Component } from "react";
+import { Component, useEffect, useRef } from "react";
 import Login from "./pages/Login.jsx";
 import Layout from "./components/Layout.jsx";
 import Dashboard from "./pages/Dashboard.jsx";
@@ -16,6 +16,7 @@ import Expenses from "./pages/Expenses.jsx";
 import Finance from "./pages/Finance.jsx";
 import CashBalance from "./pages/CashBalance.jsx";
 import MapView from "./pages/MapView.jsx";
+import Reminders from "./pages/Reminders.jsx";
 
 class ErrorBoundary extends Component {
   state = { error: null };
@@ -49,9 +50,40 @@ function RouteErrorBoundary({ children }) {
   return <ErrorBoundary key={location.pathname}>{children}</ErrorBoundary>;
 }
 
+function ReminderChecker() {
+  const firedRef = useRef({});
+  useEffect(() => {
+    function check() {
+      if (Notification.permission !== "granted") return;
+      const now = new Date();
+      const day = now.getDay();
+      const hhmm = `${String(now.getHours()).padStart(2,"0")}:${String(now.getMinutes()).padStart(2,"0")}`;
+      const key = `${hhmm}-${now.toDateString()}`;
+      try {
+        const list = JSON.parse(localStorage.getItem("reminders") || "[]");
+        list.forEach(r => {
+          const fkey = `${r.id}-${key}`;
+          if (r.time === hhmm && r.days.includes(day) && !firedRef.current[fkey]) {
+            firedRef.current[fkey] = true;
+            new Notification("🔔 แจ้งเตือนส่งแก๊ส", {
+              body: `${r.name}${r.note ? " · " + r.note : ""}`,
+              icon: "/favicon.ico",
+            });
+          }
+        });
+      } catch {}
+    }
+    check();
+    const id = setInterval(check, 30000);
+    return () => clearInterval(id);
+  }, []);
+  return null;
+}
+
 export default function App() {
   return (
     <BrowserRouter>
+      <ReminderChecker />
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/" element={<PrivateRoute><Layout /></PrivateRoute>}>
@@ -69,6 +101,7 @@ export default function App() {
           <Route path="finance"   element={<RouteErrorBoundary><Finance /></RouteErrorBoundary>} />
           <Route path="settings"  element={<RouteErrorBoundary><Settings /></RouteErrorBoundary>} />
           <Route path="map"       element={<RouteErrorBoundary><MapView /></RouteErrorBoundary>} />
+          <Route path="reminders" element={<RouteErrorBoundary><Reminders /></RouteErrorBoundary>} />
         </Route>
       </Routes>
     </BrowserRouter>

@@ -75,6 +75,7 @@ const NAV = [
   { to: "/expenses",  icon: "🧾", label: "เบิกเงิน" },
   { to: "/cash",      icon: "💵", label: "เงินสด" },
   { to: "/finance",   icon: "💼", label: "การเงิน",      roles: ["finance"] },
+  { to: "/reminders", icon: "🔔", label: "แจ้งเตือน" },
   { to: "/settings",  icon: "⚙️", label: "ตั้งค่า" },
 ];
 
