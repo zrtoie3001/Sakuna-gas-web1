@@ -69,7 +69,7 @@ export default function Dashboard() {
 
   function payRevenue(breakdown, method) {
     const match = (breakdown || []).filter(p =>
-      method === "cash" ? p.method === "cash" : ["qr", "transfer", "cod"].includes(p.method)
+      method === "cash" ? p.method === "cash" : ["qr", "transfer"].includes(p.method)
     );
     return match.reduce((s, p) => s + p.revenue, 0);
   }
@@ -225,8 +225,8 @@ export default function Dashboard() {
         </div>
         <div style={{ background: WHITE, borderRadius: 14, padding: "16px 20px", boxShadow: "0 2px 12px rgba(0,0,0,.06)", borderLeft: "4px solid #F59E0B" }}>
           <div style={{ fontSize: 12, color: GRAY, marginBottom: 4, fontWeight: 700 }}>💰 รวมทั้งหมด — วันนี้</div>
-          <div style={{ fontSize: 26, fontWeight: 900, color: NAVY }}>฿{(stats?.today?.revenue ?? 0).toLocaleString()}</div>
-          <div style={{ fontSize: 12, color: GRAY, marginTop: 4 }}>เดือนนี้ ฿{(stats?.month?.revenue ?? 0).toLocaleString()}</div>
+          <div style={{ fontSize: 26, fontWeight: 900, color: NAVY }}>฿{(payRevenue(stats?.todayPayBreakdown, "cash") + payRevenue(stats?.todayPayBreakdown, "qr")).toLocaleString()}</div>
+          <div style={{ fontSize: 12, color: GRAY, marginTop: 4 }}>เดือนนี้ ฿{(payRevenue(stats?.monthPayBreakdown, "cash") + payRevenue(stats?.monthPayBreakdown, "qr")).toLocaleString()}</div>
         </div>
       </div>
 
