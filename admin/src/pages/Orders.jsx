@@ -1147,7 +1147,19 @@ ${noteText ? `<div style="margin-top:8px; padding:6px 8px; border:1.5px dashed #
                       background: o.isPaid ? "#D1FAE5" : "#FEE2E2",
                       color: o.isPaid ? "#065F46" : "#991B1B",
                     }}>{o.isPaid ? "✅ จ่ายแล้ว" : "⏳ ยังไม่จ่าย"}</span>}
-                    {!isCancelled && o.paymentMethod && <span style={{ fontSize: 11, padding: "2px 7px", borderRadius: 6, fontWeight: 700, background: o.paymentMethod === "qr" ? "#EDE9FE" : o.paymentMethod === "cod" ? "#FFF7ED" : "#F0FDF4", color: o.paymentMethod === "qr" ? "#5B21B6" : o.paymentMethod === "cod" ? "#92400E" : "#065F46" }}>{o.paymentMethod === "qr" ? "💳 โอน" : o.paymentMethod === "cod" ? "🚚 เก็บปลายทาง" : "💰 เงินสด"}</span>}
+                    {!isCancelled && o.paymentMethod && o.paymentMethod !== "cod" && (
+                      <span onClick={async e => {
+                        e.stopPropagation();
+                        const next = o.paymentMethod === "cash" ? "qr" : "cash";
+                        await api.put(`/api/v1/orders/${o.id}/payment`, { paymentMethod: next });
+                        fetch();
+                      }} title="กดเพื่อสลับ" style={{ fontSize: 11, padding: "2px 7px", borderRadius: 6, fontWeight: 700, cursor: "pointer",
+                        background: o.paymentMethod === "qr" ? "#EDE9FE" : "#F0FDF4",
+                        color: o.paymentMethod === "qr" ? "#5B21B6" : "#065F46" }}>
+                        {o.paymentMethod === "qr" ? "💳 โอน" : "💰 เงินสด"}
+                      </span>
+                    )}
+                    {!isCancelled && o.paymentMethod === "cod" && <span style={{ fontSize: 11, padding: "2px 7px", borderRadius: 6, fontWeight: 700, background: "#FFF7ED", color: "#92400E" }}>🚚 เก็บปลายทาง</span>}
                     {!isCancelled && (() => { const amt = parseChangeGiven(o.note); return amt > 0 ? <span style={{ fontSize: 11, padding: "2px 7px", borderRadius: 6, fontWeight: 700, background: "#FEF3C7", color: "#92400E" }}>💵 ทอน ฿{amt.toLocaleString()}</span> : null; })()}
                   </div>
                   <p style={{ fontSize: 12, color: isCancelled ? GRAY : NAVY }}>{o.customerName} · {o.customerPhone}</p>
