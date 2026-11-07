@@ -82,8 +82,8 @@ export default function Dashboard() {
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 14 }}>
         <StatCard icon="📦" label="ออเดอร์วันนี้"   value={stats?.today?.orders ?? "—"} color={ORANGE} />
         <StatCard icon="🛢" label="จำนวนถังวันนี้"  value={stats ? `${stats.today.tanks ?? 0} ถัง` : "—"} color="#0EA5E9" />
-        <StatCard icon="💰" label="ยอดขายวันนี้"    value={stats ? `฿${stats.today.revenue.toLocaleString()}` : "—"} color="#10B981" />
-        <StatCard icon="📅" label="ยอดขายเดือนนี้"  value={stats ? `฿${stats.month.revenue.toLocaleString()}` : "—"} color="#6366F1" />
+        <StatCard icon="💰" label="ยอดขายวันนี้"    value={stats ? `฿${(payRevenue(stats?.todayPayBreakdown, "cash") + payRevenue(stats?.todayPayBreakdown, "transfer")).toLocaleString()}` : "—"} color="#10B981" />
+        <StatCard icon="📅" label="ยอดขายเดือนนี้"  value={stats ? `฿${(payRevenue(stats?.monthPayBreakdown, "cash") + payRevenue(stats?.monthPayBreakdown, "transfer")).toLocaleString()}` : "—"} color="#6366F1" />
 <StatCard icon="⏳" label="รอดำเนินการ"     value={stats?.pendingOrders ?? "—"} color="#EF4444"
           sub={stats?.pendingOrders > 0 ? "⚠️ มีออเดอร์รอ" : undefined} />
         <div
@@ -222,11 +222,6 @@ export default function Dashboard() {
           <div style={{ fontSize: 12, color: GRAY, marginBottom: 4, fontWeight: 700 }}>📲 เงินโอน — วันนี้</div>
           <div style={{ fontSize: 26, fontWeight: 900, color: "#3730A3" }}>฿{payRevenue(stats?.todayPayBreakdown, "transfer").toLocaleString()}</div>
           <div style={{ fontSize: 12, color: GRAY, marginTop: 4 }}>เดือนนี้ ฿{payRevenue(stats?.monthPayBreakdown, "transfer").toLocaleString()}</div>
-        </div>
-        <div style={{ background: WHITE, borderRadius: 14, padding: "16px 20px", boxShadow: "0 2px 12px rgba(0,0,0,.06)", borderLeft: "4px solid #F59E0B" }}>
-          <div style={{ fontSize: 12, color: GRAY, marginBottom: 4, fontWeight: 700 }}>💰 รวมทั้งหมด — วันนี้</div>
-          <div style={{ fontSize: 26, fontWeight: 900, color: NAVY }}>฿{(payRevenue(stats?.todayPayBreakdown, "cash") + payRevenue(stats?.todayPayBreakdown, "qr")).toLocaleString()}</div>
-          <div style={{ fontSize: 12, color: GRAY, marginTop: 4 }}>เดือนนี้ ฿{(payRevenue(stats?.monthPayBreakdown, "cash") + payRevenue(stats?.monthPayBreakdown, "qr")).toLocaleString()}</div>
         </div>
       </div>
 
