@@ -50,6 +50,26 @@ function RouteErrorBoundary({ children }) {
   return <ErrorBoundary key={location.pathname}>{children}</ErrorBoundary>;
 }
 
+function playDing() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const times = [0, 0.25, 0.5];
+    times.forEach(t => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(880, ctx.currentTime + t);
+      osc.frequency.exponentialRampToValueAtTime(660, ctx.currentTime + t + 0.15);
+      gain.gain.setValueAtTime(0.6, ctx.currentTime + t);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + t + 0.4);
+      osc.start(ctx.currentTime + t);
+      osc.stop(ctx.currentTime + t + 0.4);
+    });
+  } catch {}
+}
+
 function ReminderChecker() {
   const firedRef = useRef({});
   useEffect(() => {
@@ -65,6 +85,7 @@ function ReminderChecker() {
           const fkey = `${r.id}-${key}`;
           if (r.time === hhmm && r.days.includes(day) && !firedRef.current[fkey]) {
             firedRef.current[fkey] = true;
+            playDing();
             new Notification("🔔 แจ้งเตือนส่งแก๊ส", {
               body: `${r.name}${r.note ? " · " + r.note : ""}`,
               icon: "/favicon.ico",
