@@ -616,6 +616,8 @@ async function createWalkinOrder(req, res) {
     const resolvedChannel = source === "phone" ? "phone" : "walk-in";
     const finalStatus = orderStatus || "delivered";
     const deliveredAt = finalStatus === "delivered" ? new Date() : null;
+    // walkin orders deduct stock at creation — mark as already deducted to prevent double-deduction on status change
+    const walkinStockDeducted = type !== "equipment";
 
     let customer = null;
     if (customerPhone) {
@@ -650,6 +652,7 @@ async function createWalkinOrder(req, res) {
       createdById: req.user?.id || null,
       createdByName: req.user?.name || null,
       deliveredAt,
+      stockDeducted: walkinStockDeducted,
     });
 
     appendOrder(order, walkinNote).catch(() => {});
