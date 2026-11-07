@@ -552,6 +552,7 @@ export default function Dashboard() {
   async function acceptOrder(orderId) {
     setUpdating(orderId);
     await api.post(`/api/v1/orders/${orderId}/accept`).catch(() => {});
+    await api.put(`/api/v1/orders/${orderId}/status`, { status: "out_for_delivery" }).catch(() => {});
     setUpdating(null); loadOrders();
   }
 
