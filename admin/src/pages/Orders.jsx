@@ -2212,9 +2212,8 @@ ${noteText ? `<div style="margin-top:8px; padding:6px 8px; border:1.5px dashed #
           </div>
         );
       })()}
-    </div>
 
-    {/* ── Split Order Modal ── */}
+      {/* ── Split Order Modal ── */}
     {splitModal && (
       <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
         <div style={{ background: "#fff", borderRadius: 16, padding: 24, width: "100%", maxWidth: 420, maxHeight: "90vh", overflowY: "auto" }}>
@@ -2276,5 +2275,6 @@ ${noteText ? `<div style="margin-top:8px; padding:6px 8px; border:1.5px dashed #
         </div>
       </div>
     )}
+    </div>
   );
 }
