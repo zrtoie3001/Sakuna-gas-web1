@@ -176,8 +176,28 @@ async function syncStockToSheet() {
     await ensureSheet(sheets, "Stock");
     const rows = await GasStock.findAll({ order: [["brandName", "ASC"], ["weightKg", "ASC"]] });
 
+    const SHARED_B = ["สยาม", "ยูนิค"];
+    const wMap = {};
+    const others = [];
+    for (const r of rows) {
+      if (SHARED_B.includes(r.brandName)) {
+        const key = Number(r.weightKg);
+        if (!wMap[key]) wMap[key] = { hasGas: 0, newTank: 0, emptyTank: 0, damagedTank: 0, heldTank: 0, weightKg: key };
+        wMap[key].hasGas      += Number(r.hasGas || 0);
+        wMap[key].newTank     += Number(r.newTank || 0);
+        wMap[key].emptyTank   += Number(r.emptyTank || 0);
+        wMap[key].damagedTank += Number(r.damagedTank || 0);
+        wMap[key].heldTank    += Number(r.heldTank || 0);
+      } else { others.push(r); }
+    }
+    const merged = Object.values(wMap).sort((a, b) => a.weightKg - b.weightKg)
+      .map(m => ({ brandName: "ยูนิค/สยาม", ...m }));
+    const allRows = [...others, ...merged].sort((a, b) =>
+      a.brandName.localeCompare(b.brandName, "th") || a.weightKg - b.weightKg
+    );
+
     const header = ["ยี่ห้อ", "น้ำหนัก (kg)", "ถังมีแก๊ส", "ถังใหม่", "ถังเปล่า", "ถังเสีย", "ค้างถัง", "รวม"];
-    const data = rows.map(r => {
+    const data = allRows.map(r => {
       const total = Number(r.hasGas) + Number(r.newTank) + Number(r.emptyTank) + Number(r.damagedTank) + Number(r.heldTank);
       return [r.brandName, Number(r.weightKg), Number(r.hasGas), Number(r.newTank), Number(r.emptyTank), Number(r.damagedTank), Number(r.heldTank), total];
     });
@@ -239,7 +259,31 @@ async function appendDayEndGasSnapshot() {
   const dateStr = now.toLocaleDateString("th-TH", { dateStyle: "short", timeZone: "Asia/Bangkok" });
   const timeStr = now.toLocaleTimeString("th-TH", { timeStyle: "short", timeZone: "Asia/Bangkok" });
 
-  const data = rows.map(r => {
+  // รวมสยาม+ยูนิคเป็นแถวเดียว "ยูนิค/สยาม"
+  const SHARED = ["สยาม", "ยูนิค"];
+  const weightMap = {};
+  const otherRows = [];
+  for (const r of rows) {
+    if (SHARED.includes(r.brandName)) {
+      const key = Number(r.weightKg);
+      if (!weightMap[key]) weightMap[key] = { hasGas: 0, newTank: 0, emptyTank: 0, damagedTank: 0, heldTank: 0, weightKg: key };
+      weightMap[key].hasGas      += Number(r.hasGas || 0);
+      weightMap[key].newTank     += Number(r.newTank || 0);
+      weightMap[key].emptyTank   += Number(r.emptyTank || 0);
+      weightMap[key].damagedTank += Number(r.damagedTank || 0);
+      weightMap[key].heldTank    += Number(r.heldTank || 0);
+    } else {
+      otherRows.push(r);
+    }
+  }
+  const sharedRows = Object.values(weightMap).sort((a, b) => a.weightKg - b.weightKg)
+    .map(m => ({ brandName: "ยูนิค/สยาม", ...m }));
+
+  const allRows = [...otherRows, ...sharedRows].sort((a, b) =>
+    a.brandName.localeCompare(b.brandName, "th") || a.weightKg - b.weightKg
+  );
+
+  const data = allRows.map(r => {
     const total = Number(r.hasGas) + Number(r.newTank) + Number(r.emptyTank) + Number(r.damagedTank) + Number(r.heldTank);
     return [dateStr, timeStr, r.brandName, Number(r.weightKg), Number(r.hasGas), Number(r.newTank), Number(r.emptyTank), Number(r.damagedTank), Number(r.heldTank), total];
   });
