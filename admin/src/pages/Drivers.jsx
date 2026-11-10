@@ -44,7 +44,8 @@ export default function Drivers() {
     } catch (e) { alert(e.response?.data?.error || "เกิดข้อผิดพลาด"); }
   }
 
-  async function toggle(id, isActive) {
+  async function toggle(id, isActive, name) {
+    if (!isActive && !confirm(`ยืนยันพักงาน "${name}" ?`)) return;
     await api.put(`/api/v1/drivers/${id}`, { isActive }); load();
   }
 
@@ -97,7 +98,7 @@ export default function Drivers() {
                 style={{ padding: "4px 10px", borderRadius: 6, border: `1.5px solid ${ORANGE}`, background: WHITE, color: ORANGE, fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
                 🔑 รหัสผ่าน
               </button>
-              <button onClick={() => toggle(d.id, !d.isActive)}
+              <button onClick={() => toggle(d.id, !d.isActive, d.name)}
                 style={{ padding: "4px 10px", borderRadius: 6, border: `1.5px solid ${NAVY}`, background: WHITE, color: NAVY, fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
                 {d.isActive ? "พักงาน" : "กลับทำงาน"}
               </button>
