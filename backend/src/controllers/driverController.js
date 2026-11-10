@@ -25,7 +25,7 @@ async function listDrivers(req, res) {
   const driversOnly = req.query.role === "driver";
   const where = driversOnly
     ? { isActive: true, role: { [Op.in]: ["driver", "both"] } }
-    : { isActive: true };
+    : {};
   const drivers = await User.findAll({
     where,
     attributes: { exclude: ["passwordHash"] },
