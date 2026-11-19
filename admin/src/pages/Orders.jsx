@@ -626,19 +626,21 @@ export default function Orders() {
   }
 
   function addToWalkinCart() {
-    if (walkinType === "gas" || walkinType === "new_tank") {
+    if (["gas", "new_tank", "refill_service", "tank_exchange"].includes(walkinType)) {
       const stock = findStockByBrand(gasStocks, walkinForm.gasBrand, walkinForm.gasWeight);
-      if (!stock) return alert("กรุณาเลือกยี่ห้อและน้ำหนัก");
+      if (!walkinForm.gasBrand || !walkinForm.gasWeight) return alert("กรุณาเลือกยี่ห้อและน้ำหนัก");
       if (!walkinForm.price) return alert("กรุณาใส่ราคา");
-      const prefix = walkinType === "new_tank" ? "🆕 ถังใหม่ " : "⛽ ";
+      const PREFIX_MAP = { gas: "⛽ ", new_tank: "🆕 ถังใหม่ ", refill_service: "🔄 ฝากเติม ", tank_exchange: "🔃 เทิร์นถัง " };
+      const prefix = PREFIX_MAP[walkinType] || "";
+      const wkg = stock?.weightKg || walkinForm.gasWeight;
       setWalkinCart(c => [...c, {
         type: walkinType,
         brandName: walkinForm.gasBrand,
-        weightKg: stock.weightKg,
-        stockId: stock.id,
+        weightKg: wkg,
+        stockId: stock?.id || null,
         qty: Number(walkinForm.qty || 1),
         price: Number(walkinForm.price),
-        label: `${prefix}${walkinForm.gasBrand} ${stock.weightKg} กก.`,
+        label: `${prefix}${walkinForm.gasBrand} ${wkg} กก.`,
       }]);
     } else {
       const item = equipList.find(e => e.id === walkinForm.equipId);
@@ -1665,16 +1667,16 @@ ${noteText ? `<div style="margin-top:8px; padding:6px 8px; border:1.5px dashed #
             })()}
 
             {/* Type toggle */}
-            <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-              {[["gas","⛽ ถังแก๊ส"],["new_tank","🆕 ขายถังใหม่"],["equipment","🔧 อุปกรณ์/เตา"]].map(([k, label]) => (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 16 }}>
+              {[["gas","⛽ ถังแก๊ส"],["new_tank","🆕 ถังใหม่"],["equipment","🔧 อุปกรณ์"],["refill_service","🔄 ฝากเติม"],["tank_exchange","🔃 เทิร์นถัง"]].map(([k, label]) => (
                 <button key={k} onClick={() => setWalkinType(k)} style={{
-                  flex: 1, padding: "8px", borderRadius: 8, border: "none", fontSize: 12, fontWeight: 700, cursor: "pointer",
+                  padding: "7px 10px", borderRadius: 8, border: "none", fontSize: 11, fontWeight: 700, cursor: "pointer",
                   background: walkinType === k ? NAVY : "#F3F4F6", color: walkinType === k ? WHITE : GRAY,
                 }}>{label}</button>
               ))}
             </div>
 
-            {(walkinType === "gas" || walkinType === "new_tank") ? (() => {
+            {(["gas", "new_tank", "refill_service", "tank_exchange"].includes(walkinType)) ? (() => {
               // Use brands from API; add any gasStock brands not already covered
               const stockBrandNames = [...new Set(gasStocks.map(s => s.brandName))];
               const apiBrandNames = brands.map(b => b.name);
@@ -1682,9 +1684,9 @@ ${noteText ? `<div style="margin-top:8px; padding:6px 8px; border:1.5px dashed #
               const stockWeights = gasStocks.filter(s => !walkinForm.gasBrand || s.brandName === walkinForm.gasBrand || (SHARED_BRANDS.includes(walkinForm.gasBrand) && SHARED_BRANDS.includes(s.brandName))).map(s => Number(s.weightKg));
               const weights = [...new Set([...ALL_WEIGHTS, ...stockWeights])].sort((a,b)=>a-b);
               const selectedStock = findStockByBrand(gasStocks, walkinForm.gasBrand, walkinForm.gasWeight);
-              const stockField = walkinType === "new_tank" ? "newTank" : "hasGas";
+              const stockField = (walkinType === "new_tank" || walkinType === "tank_exchange") ? "newTank" : "hasGas";
               const stockQty = walkinForm.gasBrand && walkinForm.gasWeight ? sharedStockQty(gasStocks, walkinForm.gasBrand, walkinForm.gasWeight, stockField) : null;
-              const stockLabel = walkinType === "new_tank" ? "ถังใหม่" : "ถังมีแก๊ส";
+              const stockLabel = (walkinType === "new_tank" || walkinType === "tank_exchange") ? "ถังใหม่" : "ถังมีแก๊ส";
               return (
                 <>
                   <div style={{ display: "flex", gap: 12, marginBottom: 12 }}>

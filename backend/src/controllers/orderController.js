@@ -573,12 +573,21 @@ async function createWalkinOrder(req, res) {
           if (eq.qty < q) return res.status(400).json({ error: `สต็อก ${it.name} ไม่พอ` });
           await eq.update({ qty: eq.qty - q });
           await EquipmentSale.create({ equipmentId: eq.id, qty: q, salePrice: p, note: note || null });
+        } else if (it.type === "tank_exchange") {
+          const wkg = Number(it.weightKg);
+          if (!isNaN(wkg)) {
+            try { await deductStock(GasStock, it.brandName, wkg, q, "newTank"); }
+            catch (err) { return res.status(400).json({ error: err.message }); }
+          }
         }
+        // refill_service: no stock deduction
         total += p * q;
         noteItems.push({ ...it, qty: q, price: p });
       }
       walkinNote = `${PREFIX}${JSON.stringify({ type: "mixed", items: noteItems })}` + (note ? `\n${note}` : "");
-      totalQty = cartItems.reduce((s, it) => s + (Number(it.qty) || 1), 0);
+      // refill_service และ tank_exchange ไม่นับจำนวนถัง
+      const countableTypes = ["gas", "new_tank"];
+      totalQty = cartItems.filter(it => countableTypes.includes(it.type)).reduce((s, it) => s + (Number(it.qty) || 1), 0);
 
     // ── Single gas ────────────────────────────────────────────────────────────
     } else if (type === "gas") {
@@ -597,6 +606,22 @@ async function createWalkinOrder(req, res) {
       catch (err) { return res.status(400).json({ error: err.message }); }
       total = Number(price) * q; totalQty = q;
       walkinNote = `${PREFIX}${JSON.stringify({ type: "new_tank", brandName, weightKg, qty: q, unitPrice: Number(price) })}` + (note ? `\n${note}` : "");
+
+    // ── Refill service (ฝากเติมแก๊ส) — no stock deduction ───────────────────
+    } else if (type === "refill_service") {
+      if (!brandName || !weightKg) return res.status(400).json({ error: "กรุณาเลือกยี่ห้อและน้ำหนัก" });
+      const q = Number(qty) || 1;
+      total = Number(price) * q; totalQty = 0; // ไม่นับจำนวนถัง
+      walkinNote = `${PREFIX}${JSON.stringify({ type: "refill_service", brandName, weightKg, qty: q, unitPrice: Number(price) })}` + (note ? `\n${note}` : "");
+
+    // ── Tank exchange (เทิร์นถัง) — deduct newTank ────────────────────────────
+    } else if (type === "tank_exchange") {
+      if (!brandName || !weightKg) return res.status(400).json({ error: "กรุณาเลือกยี่ห้อและน้ำหนัก" });
+      const q = Number(qty) || 1;
+      try { await deductStock(GasStock, brandName, Number(weightKg), q, "newTank"); }
+      catch (err) { return res.status(400).json({ error: err.message }); }
+      total = Number(price) * q; totalQty = 0; // ไม่นับจำนวนถัง
+      walkinNote = `${PREFIX}${JSON.stringify({ type: "tank_exchange", brandName, weightKg, qty: q, unitPrice: Number(price) })}` + (note ? `\n${note}` : "");
 
     // ── Equipment only ────────────────────────────────────────────────────────
     } else {
@@ -617,7 +642,7 @@ async function createWalkinOrder(req, res) {
     const finalStatus = orderStatus || "delivered";
     const deliveredAt = finalStatus === "delivered" ? new Date() : null;
     // walkin orders deduct stock at creation — mark as already deducted to prevent double-deduction on status change
-    const walkinStockDeducted = type !== "equipment";
+    const walkinStockDeducted = !["equipment"].includes(type);
 
     let customer = null;
     if (customerPhone) {
