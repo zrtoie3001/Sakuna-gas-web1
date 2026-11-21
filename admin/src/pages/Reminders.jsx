@@ -22,6 +22,7 @@ export default function Reminders() {
   const [permDenied, setPermDenied] = useState(false);
 
   useEffect(() => {
+    if (typeof Notification === "undefined") { setPermDenied(true); return; }
     if (Notification.permission === "denied") setPermDenied(true);
     else if (Notification.permission === "default") {
       Notification.requestPermission().then(p => { if (p === "denied") setPermDenied(true); });
@@ -90,6 +91,7 @@ export default function Reminders() {
 
   function testNotify(r) {
     playDing();
+    if (typeof Notification === "undefined") return;
     if (Notification.permission !== "granted") {
       Notification.requestPermission().then(p => { if (p === "granted") fireTest(r); });
     } else fireTest(r);

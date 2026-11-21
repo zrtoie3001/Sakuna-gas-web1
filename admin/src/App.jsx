@@ -74,7 +74,7 @@ function ReminderChecker() {
   const firedRef = useRef({});
   useEffect(() => {
     function check() {
-      if (Notification.permission !== "granted") return;
+      if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
       const now = new Date();
       const day = now.getDay();
       const hhmm = `${String(now.getHours()).padStart(2,"0")}:${String(now.getMinutes()).padStart(2,"0")}`;
