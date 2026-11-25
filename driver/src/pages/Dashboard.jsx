@@ -478,7 +478,7 @@ function OrderCard({ order, showAccept, showStatus, routeIndex, sortedActiveOrde
 
 // ─── Main Dashboard ────────────────────────────────────────────────────────────
 export default function Dashboard() {
-  const [tab, setTab]             = useState("pending");
+  const [tab, setTab]             = useState("active");
   const [pendingOrders, setPending] = useState([]);
   const [myOrders, setMyOrders]   = useState([]);
   const [doneOrders, setDone]     = useState([]);
@@ -610,7 +610,6 @@ export default function Dashboard() {
   }
 
   const tabs = [
-    { key: "pending", label: "รอรับงาน",  count: pendingOrders.length },
     { key: "active",  label: "กำลังส่ง",  count: myOrders.length },
     { key: "done",    label: "เสร็จแล้ว", count: countTanks(doneOrders) },
   ];
