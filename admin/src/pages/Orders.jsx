@@ -605,10 +605,9 @@ export default function Orders() {
         paymentMethod: createForm.paymentMethod,
         note: createForm.note,
         deliveryAddress: createForm.deliveryAddress,
-        orderStatus: createForm.scheduledDate ? "pending" : "pending",
         source: "phone",
         scheduledDate: createForm.scheduledDate || null,
-        orderDate: createForm.orderDate || null,
+        orderDate: (createForm.orderDate && createForm.orderDate <= todayStr()) ? createForm.orderDate : null,
       });
       if (origContact) {
         const { name: oName, phone: oPhone, address: oAddr } = origContact;
@@ -1989,26 +1988,27 @@ ${noteText ? `<div style="margin-top:8px; padding:6px 8px; border:1.5px dashed #
                 style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 14, boxSizing: "border-box" }} />
             </div>
 
-            <div style={{ marginBottom: 12 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>📅 วันที่ออเดอร์ (ย้อนหลังได้)</div>
-              <input type="date" value={createForm.orderDate || todayStr()} max={todayStr()}
-                onChange={e => setCreateForm(f => ({ ...f, orderDate: e.target.value }))}
-                style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: `2px solid ${createForm.orderDate && createForm.orderDate !== todayStr() ? "#F47B20" : "#E5E7EB"}`, fontSize: 14, boxSizing: "border-box" }} />
-              {createForm.orderDate && createForm.orderDate !== todayStr() && (
-                <p style={{ fontSize: 11, color: "#F47B20", marginTop: 4 }}>📌 ออเดอร์จะถูกบันทึกเป็นวันที่ {new Date(createForm.orderDate + "T00:00:00").toLocaleDateString("th-TH", { day: "numeric", month: "long", year: "numeric" })}</p>
-              )}
-            </div>
-
-            <div style={{ marginBottom: 14 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>📅 วันส่ง (กรณีสั่งล่วงหน้า)</div>
-              <input type="date" value={createForm.scheduledDate} onChange={e => setCreateForm(f => ({ ...f, scheduledDate: e.target.value }))}
-                min={new Date().toISOString().split("T")[0]}
-                style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: `2px solid ${createForm.scheduledDate ? "#3B82F6" : "#E5E7EB"}`, fontSize: 14, boxSizing: "border-box",
-                  background: createForm.scheduledDate ? "#EFF6FF" : "white" }} />
-              {createForm.scheduledDate && (
-                <p style={{ fontSize: 11, color: "#3B82F6", marginTop: 4 }}>📌 ออเดอร์นี้จะแสดงในวัน {new Date(createForm.scheduledDate + "T00:00:00").toLocaleDateString("th-TH", { day: "numeric", month: "long", year: "numeric" })}</p>
-              )}
-            </div>
+            {(() => {
+              const selDate = createForm.orderDate || todayStr();
+              const isFuture = selDate > todayStr();
+              const isPast = selDate < todayStr();
+              const label = isFuture ? "📅 วันส่ง (สั่งล่วงหน้า)" : "📅 วันที่ออเดอร์";
+              const borderColor = isFuture ? "#3B82F6" : isPast ? "#F47B20" : "#E5E7EB";
+              const hint = isFuture
+                ? `📌 จะแสดงในวัน ${new Date(selDate + "T00:00:00").toLocaleDateString("th-TH", { day: "numeric", month: "long", year: "numeric" })}`
+                : isPast
+                ? `📌 บันทึกย้อนหลัง ${new Date(selDate + "T00:00:00").toLocaleDateString("th-TH", { day: "numeric", month: "long", year: "numeric" })}`
+                : null;
+              return (
+                <div style={{ marginBottom: 14 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>{label}</div>
+                  <input type="date" value={selDate}
+                    onChange={e => setCreateForm(f => ({ ...f, orderDate: e.target.value, scheduledDate: e.target.value > todayStr() ? e.target.value : "" }))}
+                    style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: `2px solid ${borderColor}`, fontSize: 14, boxSizing: "border-box", background: isFuture ? "#EFF6FF" : "white" }} />
+                  {hint && <p style={{ fontSize: 11, color: isFuture ? "#3B82F6" : "#F47B20", marginTop: 4 }}>{hint}</p>}
+                </div>
+              );
+            })()}
 
             {createForm.orderType === "gas" ? (
               <>
