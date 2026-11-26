@@ -76,7 +76,7 @@ async function createOrder(req, res) { try {
     deliveryLat, deliveryLng, deliveryAddress,
     paymentMethod, discountCode: codeStr, note,
     unitPrice: unitPriceOverride,  // admin can override price
-    channel,
+    channel, orderDate,
   } = req.body;
 
   // Validate product
@@ -204,6 +204,7 @@ async function createOrder(req, res) { try {
     channel: channel || (lineUserId ? "line" : "admin"),
     createdById: req.user?.id || null,
     createdByName: req.user?.name || null,
+    ...(orderDate && { createdAt: new Date(orderDate), updatedAt: new Date(orderDate) }),
   });
 
   // Increment discount usage
@@ -540,7 +541,7 @@ async function createWalkinOrder(req, res) {
             brandName, weightKg, qty, price, items,
             cartItems,  // new: mixed cart
             deliveryAddress: customAddress, orderStatus,
-            source, scheduledDate } = req.body;
+            source, scheduledDate, orderDate } = req.body;
     // prefix แยก หน้าร้าน vs โทรสั่ง/LINE
     const PREFIX = source === "phone" ? "__phone_walkin:" : "__walkin:";
 
@@ -640,7 +641,8 @@ async function createWalkinOrder(req, res) {
 
     const resolvedChannel = source === "phone" ? "phone" : "walk-in";
     const finalStatus = orderStatus || "delivered";
-    const deliveredAt = finalStatus === "delivered" ? new Date() : null;
+    const tsOverride = orderDate ? new Date(orderDate) : null;
+    const deliveredAt = finalStatus === "delivered" ? (tsOverride || new Date()) : null;
     // walkin orders deduct stock at creation — mark as already deducted to prevent double-deduction on status change
     const walkinStockDeducted = !["equipment"].includes(type);
 
@@ -678,6 +680,7 @@ async function createWalkinOrder(req, res) {
       createdByName: req.user?.name || null,
       deliveredAt,
       stockDeducted: walkinStockDeducted,
+      ...(tsOverride && { createdAt: tsOverride, updatedAt: tsOverride }),
     });
 
     appendOrder(order, walkinNote).catch(() => {});

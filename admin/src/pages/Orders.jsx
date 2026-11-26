@@ -44,7 +44,8 @@ const STATUSES = [
   { key: "cancelled",         label: "ยกเลิก",         bg: "#FEE2E2", color: "#991B1B" },
 ];
 
-const EMPTY_ORDER = { customerName: "", customerPhone: "", brandId: "", productId: "", qty: 1, unitPrice: "", paymentMethod: "cash", deliveryAddress: "", note: "", orderType: "gas", liftingFloors: "", scheduledDate: "" };
+const todayStr = () => new Date().toISOString().slice(0, 10);
+const EMPTY_ORDER = { customerName: "", customerPhone: "", brandId: "", productId: "", qty: 1, unitPrice: "", paymentMethod: "cash", deliveryAddress: "", note: "", orderType: "gas", liftingFloors: "", scheduledDate: "", orderDate: todayStr() };
 const LIFTING_RATE = (weightKg) => { const w = Number(weightKg); return w <= 4 ? 5 : w >= 15 ? 10 : 0; };
 
 // ── Leaflet singleton loader ────────────────────────────────────────────────
@@ -410,7 +411,7 @@ export default function Orders() {
   const [source, setSource]         = useState(""); // "" | "walkin" | "phone"
   const [showWalkin, setShowWalkin] = useState(false);
   const [walkinType, setWalkinType] = useState("gas"); // gas | new_tank | equipment
-  const [walkinForm, setWalkinForm] = useState({ customerName: "", customerPhone: "", brandName: "", productId: "", qty: 1, price: "", paymentMethod: "cash", note: "", gasBrand: "", gasWeight: "", stockId: "", equipId: "" });
+  const [walkinForm, setWalkinForm] = useState({ customerName: "", customerPhone: "", brandName: "", productId: "", qty: 1, price: "", paymentMethod: "cash", note: "", gasBrand: "", gasWeight: "", stockId: "", equipId: "", orderDate: todayStr() });
   const [walkinSaving, setWalkinSaving] = useState(false);
   const [walkinResult, setWalkinResult] = useState(null); // { order, cart }
   const [walkinCart, setWalkinCart]     = useState([]); // cart items before save
@@ -607,6 +608,7 @@ export default function Orders() {
         orderStatus: createForm.scheduledDate ? "pending" : "pending",
         source: "phone",
         scheduledDate: createForm.scheduledDate || null,
+        orderDate: createForm.orderDate || null,
       });
       if (origContact) {
         const { name: oName, phone: oPhone, address: oAddr } = origContact;
@@ -672,6 +674,7 @@ export default function Orders() {
         paymentMethod: walkinForm.paymentMethod,
         note: walkinForm.note,
         source: "walkin",
+        orderDate: walkinForm.orderDate || null,
       };
       const { data: order } = await api.post("/api/v1/orders/walkin", payload);
       if (origContact) {
@@ -685,7 +688,7 @@ export default function Orders() {
       setWalkinResult({ order, cart: walkinCart });
       setShowWalkin(false);
       setWalkinCart([]);
-      setWalkinForm({ customerName: "", customerPhone: "", brandName: "", productId: "", qty: 1, price: "", paymentMethod: "cash", note: "", gasBrand: "", gasWeight: "", stockId: "", equipId: "" });
+      setWalkinForm({ customerName: "", customerPhone: "", brandName: "", productId: "", qty: 1, price: "", paymentMethod: "cash", note: "", gasBrand: "", gasWeight: "", stockId: "", equipId: "", orderDate: todayStr() });
       fetch();
     } catch (e) { alert(e.response?.data?.error || "เกิดข้อผิดพลาด"); }
     finally { setWalkinSaving(false); }
@@ -1617,7 +1620,15 @@ ${noteText ? `<div style="margin-top:8px; padding:6px 8px; border:1.5px dashed #
           <div style={{ background: WHITE, borderRadius: 20, padding: 24, width: "100%", maxWidth: 420, margin: "auto", maxHeight: "90vh", overflowY: "auto" }}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
               <h2 style={{ fontSize: 16, fontWeight: 800, color: NAVY }}>🏪 ขายหน้าร้าน</h2>
-              <button onClick={() => { setShowWalkin(false); setWalkinCart([]); setWalkinForm({ customerName: "", customerPhone: "", brandName: "", productId: "", qty: 1, price: "", paymentMethod: "cash", note: "", gasBrand: "", gasWeight: "", stockId: "", equipId: "" }); setWalkinType("gas"); setOrigContact(null); }} style={{ background: "none", border: "none", fontSize: 20, color: GRAY, cursor: "pointer" }}>✕</button>
+              <button onClick={() => { setShowWalkin(false); setWalkinCart([]); setWalkinForm({ customerName: "", customerPhone: "", brandName: "", productId: "", qty: 1, price: "", paymentMethod: "cash", note: "", gasBrand: "", gasWeight: "", stockId: "", equipId: "", orderDate: todayStr() }); setWalkinType("gas"); setOrigContact(null); }} style={{ background: "none", border: "none", fontSize: 20, color: GRAY, cursor: "pointer" }}>✕</button>
+            </div>
+
+            {/* Date picker — ย้อนหลังได้ */}
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>วันที่ขาย</div>
+              <input type="date" value={walkinForm.orderDate || todayStr()} max={todayStr()}
+                onChange={e => setWalkinForm(f => ({ ...f, orderDate: e.target.value }))}
+                style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: "1.5px solid #E5E7EB", fontSize: 14, boxSizing: "border-box" }} />
             </div>
 
             {/* Customer info */}
@@ -1976,6 +1987,16 @@ ${noteText ? `<div style="margin-top:8px; padding:6px 8px; border:1.5px dashed #
               <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>หมายเหตุ</div>
               <input type="text" value={createForm.note} onChange={e => setCreateForm(f => ({ ...f, note: e.target.value }))}
                 style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "2px solid #E5E7EB", fontSize: 14, boxSizing: "border-box" }} />
+            </div>
+
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>📅 วันที่ออเดอร์ (ย้อนหลังได้)</div>
+              <input type="date" value={createForm.orderDate || todayStr()} max={todayStr()}
+                onChange={e => setCreateForm(f => ({ ...f, orderDate: e.target.value }))}
+                style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: `2px solid ${createForm.orderDate && createForm.orderDate !== todayStr() ? "#F47B20" : "#E5E7EB"}`, fontSize: 14, boxSizing: "border-box" }} />
+              {createForm.orderDate && createForm.orderDate !== todayStr() && (
+                <p style={{ fontSize: 11, color: "#F47B20", marginTop: 4 }}>📌 ออเดอร์จะถูกบันทึกเป็นวันที่ {new Date(createForm.orderDate + "T00:00:00").toLocaleDateString("th-TH", { day: "numeric", month: "long", year: "numeric" })}</p>
+              )}
             </div>
 
             <div style={{ marginBottom: 14 }}>
