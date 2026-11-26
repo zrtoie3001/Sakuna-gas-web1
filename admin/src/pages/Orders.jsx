@@ -45,7 +45,7 @@ const STATUSES = [
 ];
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
-const EMPTY_ORDER = { customerName: "", customerPhone: "", brandId: "", productId: "", qty: 1, unitPrice: "", paymentMethod: "cash", deliveryAddress: "", note: "", orderType: "gas", liftingFloors: "", scheduledDate: "", orderDate: todayStr() };
+const EMPTY_ORDER = () => ({ customerName: "", customerPhone: "", brandId: "", productId: "", qty: 1, unitPrice: "", paymentMethod: "cash", deliveryAddress: "", note: "", orderType: "gas", liftingFloors: "", scheduledDate: "", orderDate: todayStr() });
 const LIFTING_RATE = (weightKg) => { const w = Number(weightKg); return w <= 4 ? 5 : w >= 15 ? 10 : 0; };
 
 // ── Leaflet singleton loader ────────────────────────────────────────────────
@@ -618,7 +618,7 @@ export default function Orders() {
       }
       setOrigContact(null);
       setShowCreate(false);
-      setCreateForm(EMPTY_ORDER);
+      setCreateForm(EMPTY_ORDER());
       setCreateCart([]);
       await fetch();
       setSelected(res.data);
@@ -1840,7 +1840,7 @@ ${noteText ? `<div style="margin-top:8px; padding:6px 8px; border:1.5px dashed #
           <div style={{ background: WHITE, borderRadius: 20, padding: 24, width: "100%", maxWidth: 420, margin: "auto", maxHeight: "90vh", overflowY: "auto" }}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
               <h2 style={{ fontSize: 16, fontWeight: 800, color: NAVY }}>📞 เพิ่มออเดอร์ (ลูกค้าโทรสั่ง)</h2>
-              <button onClick={() => { setShowCreate(false); setCreateCart([]); setCreateForm(EMPTY_ORDER); setCreateCustKnown(false); setCreateCustAddrs([]); setCustHistory([]); setHistoryKey(""); setOrigContact(null); }} style={{ background: "none", border: "none", fontSize: 20, color: GRAY, cursor: "pointer" }}>✕</button>
+              <button onClick={() => { setShowCreate(false); setCreateCart([]); setCreateForm(EMPTY_ORDER()); setCreateCustKnown(false); setCreateCustAddrs([]); setCustHistory([]); setHistoryKey(""); setOrigContact(null); }} style={{ background: "none", border: "none", fontSize: 20, color: GRAY, cursor: "pointer" }}>✕</button>
             </div>
 
             {/* Type toggle */}
