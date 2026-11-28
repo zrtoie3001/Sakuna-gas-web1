@@ -640,8 +640,7 @@ async function createWalkinOrder(req, res) {
     }
 
     const resolvedChannel = source === "phone" ? "phone" : "walk-in";
-    // phone orders go to pending so admin can assign driver; walkin is delivered immediately
-    const finalStatus = orderStatus || (source === "phone" ? "pending" : "delivered");
+    const finalStatus = orderStatus || "delivered";
     // orderDate is a date-only string (YYYY-MM-DD) — attach current time so it's not midnight UTC
     let tsOverride = null;
     if (orderDate) {
