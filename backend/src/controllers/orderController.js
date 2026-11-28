@@ -640,8 +640,14 @@ async function createWalkinOrder(req, res) {
     }
 
     const resolvedChannel = source === "phone" ? "phone" : "walk-in";
-    const finalStatus = orderStatus || "delivered";
-    const tsOverride = orderDate ? new Date(orderDate) : null;
+    // phone orders go to pending so admin can assign driver; walkin is delivered immediately
+    const finalStatus = orderStatus || (source === "phone" ? "pending" : "delivered");
+    // orderDate is a date-only string (YYYY-MM-DD) — attach current time so it's not midnight UTC
+    let tsOverride = null;
+    if (orderDate) {
+      const now = new Date();
+      tsOverride = new Date(`${orderDate}T${String(now.getHours()).padStart(2,"0")}:${String(now.getMinutes()).padStart(2,"0")}:${String(now.getSeconds()).padStart(2,"0")}`);
+    }
     const deliveredAt = finalStatus === "delivered" ? (tsOverride || new Date()) : null;
     // walkin orders deduct stock at creation — mark as already deducted to prevent double-deduction on status change
     const walkinStockDeducted = !["equipment"].includes(type);
